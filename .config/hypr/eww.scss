@@ -1,0 +1,128 @@
+// Hyprland Dock Styles for eww
+
+* {
+  all: unset;
+}
+
+// Color scheme - adjust to your preference
+$bg-color: rgba(30, 30, 46, 0.8);
+$border-color: rgba(88, 91, 112, 0.4);
+$hover-color: rgba(137, 180, 250, 0.3);
+$active-color: rgba(137, 180, 250, 0.5);
+$text-color: rgba(205, 214, 244, 1);
+$indicator-color: rgba(137, 180, 250, 1);
+
+// Main dock container
+.dock {
+  background-color: $bg-color;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  padding: 8px;
+  margin: 8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  
+  &.dock-vertical {
+    .dock-center {
+      margin: 8px 0;
+    }
+  }
+  
+  .dock-center {
+    margin: 0 8px;
+  }
+}
+
+// App icon container
+.app-icon-container {
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+  
+  &:hover {
+    background-color: $hover-color;
+    transform: scale(1.1);
+  }
+  
+  &:active {
+    background-color: $active-color;
+    transform: scale(0.95);
+  }
+}
+
+// App icon box
+.app-icon-box {
+  align-items: center;
+  justify-content: center;
+}
+
+// App icon image
+.app-icon {
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+}
+
+// Window indicator
+.window-indicator {
+  font-size: 8px;
+  color: $indicator-color;
+  margin-top: 2px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+// Animations
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dock {
+  animation: fade-in 0.3s ease-out;
+}
+
+// Responsive sizing
+@media (max-width: 1200px) {
+  .app-icon {
+    image-width: 28px;
+    image-height: 28px;
+  }
+  
+  .dock {
+    padding: 6px;
+    margin: 6px;
+  }
+  
+  .app-icon-container {
+    padding: 4px;
+  }
+}
+
+// Focus states for accessibility
+.app-icon-container:focus {
+  outline: 2px solid $indicator-color;
+  outline-offset: 2px;
+}
+
+// Custom scrollbar for overflow (if needed)
+scrolledwindow scrollbar {
+  all: unset;
+  width: 4px;
+  border-radius: 2px;
+  background-color: transparent;
+  
+  slider {
+    background-color: $border-color;
+    border-radius: 2px;
+    
+    &:hover {
+      background-color: $hover-color;
+    }
+  }
+}

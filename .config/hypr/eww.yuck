@@ -1,0 +1,97 @@
+;; Hyprland Dock Configuration for eww
+
+;; Variables
+(defvar apps-data '{"apps": [], "count": 0}')
+
+;; Polls
+(defpoll apps 
+  :interval "2s" 
+  :initial '{"apps": [], "count": 0}'
+  :run-while true
+  `python3 ~/.config/eww/scripts/hypr_apps.py list`)
+
+;; Widgets
+(defwidget app-icon [app]
+  (eventbox 
+    :onclick "python3 ~/.config/eww/scripts/hypr_apps.py focus '${app.class}'"
+    :onrightclick "hyprctl dispatch killactive"
+    :tooltip "${app.name} (${app.window_count} windows)"
+    :class "app-icon-container"
+    (box 
+      :class "app-icon-box"
+      :orientation "v"
+      :spacing 2
+      (image 
+        :path "${app.icon}"
+        :image-width 32
+        :image-height 32
+        :class "app-icon")
+      (label 
+        :text "${app.window_count > 1 ? '●●' : '●'}"
+        :class "window-indicator"
+        :visible {app.window_count > 0}))))
+
+(defwidget dock []
+  (centerbox
+    :class "dock"
+    :orientation "h"
+    (box
+      :class "dock-left"
+      :halign "start")
+    (box 
+      :class "dock-center"
+      :halign "center"
+      :spacing 8
+      :orientation "h"
+      (for app in {apps.apps ?: []}
+        (app-icon :app app)))
+    (box
+      :class "dock-right"
+      :halign "end")))
+
+(defwidget dock-vertical []
+  (centerbox
+    :class "dock dock-vertical"
+    :orientation "v"
+    (box
+      :class "dock-top"
+      :valign "start")
+    (box 
+      :class "dock-center"
+      :valign "center"
+      :spacing 8
+      :orientation "v"
+      (for app in {apps.apps ?: []}
+        (app-icon :app app)))
+    (box
+      :class "dock-bottom"
+      :valign "end")))
+
+;; Windows
+(defwindow dock-bottom
+  :monitor 0
+  :geometry (geometry 
+    :x "0%"
+    :y "0%"
+    :width "100%"
+    :height "60px"
+    :anchor "bottom center")
+  :stacking "fg"
+  :exclusive true
+  :focusable false
+  :namespace "dock"
+  (dock))
+
+(defwindow dock-left
+  :monitor 0
+  :geometry (geometry 
+    :x "0%"
+    :y "0%"
+    :width "60px"
+    :height "100%"    
+    :anchor "left center")
+  :stacking "fg"
+  :exclusive true
+  :focusable false
+  :namespace "dock"
+  (dock-vertical))

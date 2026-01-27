@@ -1,0 +1,60 @@
+add_newline = false
+format = """
+$cmd_duration$os$status$container$git_branch$git_commit$git_state$git_status$directory
+$character"""
+
+[character]
+success_symbol = "[  ](bold fg:blue)"
+error_symbol = "[  ](bold fg:red)"
+
+[directory]
+style = "bold bg:blue"
+format = "[](bold fg:blue)[ $path ](fg:black bg:blue)[](bold fg:blue)"
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = " "
+read_only = " "
+
+[directory.substitutions]
+"Desktop" = "  "
+"Documents" = "  "
+"Downloads" = " 󰉍 "
+"Music" = " 󰎈 "
+"Pictures" = "  "
+"Videos" = "   "
+"GitHub" = " 󰊤 "
+
+[git_branch]
+style = "bg:cyan"
+symbol = "󰘬"
+format = "[](bold fg:cyan)[ $symbol $branch ](fg:black bg:cyan)[](bold fg:cyan)"
+
+[git_status]
+style = "bg:cyan"
+format = "[](bold fg:cyan)[ ($conflicted$untracked$modified$staged$renamed$deleted) ](fg:black bg:cyan)[](bold fg:cyan)"
+
+[git_state]
+style = "bg:cyan"
+format = "[](bold fg:cyan)[ $state ](fg:black bg:cyan)[](bold fg:cyan)"
+
+[git_commit]
+style = "bg:cyan"
+format = "[](bold fg:cyan)[  $hash ](fg:black bg:cyan)[](bold fg:cyan)"
+
+[cmd_duration]
+style = "bg:yellow"
+format = "[](bold fg:yellow)[   $duration ](fg:black bg:yellow)[](bold fg:yellow)"
+min_time = 1
+
+[status]
+style = "bg:red"
+format = "[](bold fg:red)[ $common_meaning$signal_name$maybe_int ](fg:white bg:red)[](bold fg:red)"
+
+[container]
+symbol = "󰏗"
+style = "bg:green"
+format = "[](bold fg:green)[ $symbol ](fg:black bg:green)[](bold fg:green)"
+
+[os]
+style = "bg:white"
+format = "[](bold fg:white)[ $symbol ](fg:black bg:white)[](bold fg:white)"

@@ -1,0 +1,18 @@
+# FONT
+font-family="Jetbrains Mono"
+font-family-bold="Jetbrains Mono"
+font-family-italic="Jetbrains Mono"
+font-thicken = true
+freetype-load-flags = no-force-autohint,no-hinting
+
+# THEMING
+background-opacity= 1
+background-blur = true
+theme = Matugen.conf                                    
+
+# WINDOW PADDING
+window-padding-x = 5,5
+window-padding-y = 5,5
+
+# DECOR
+gtk-titlebar=false

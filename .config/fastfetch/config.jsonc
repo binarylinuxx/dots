@@ -1,0 +1,36 @@
+{
+	"logo": {
+		"source": "void_small"
+	},
+
+	"display": {
+		"separator": " => "
+	},
+
+	"modules": [
+		{
+			"type": "os",
+			"key": "DIS  "
+		},
+		{
+			"type": "kernel",
+			"key": "KERN  "
+		},
+		{
+			"type": "uptime",
+			"key": "UPT  "
+		},
+		{
+			"type": "packages",
+			"key": "PKGS  "
+		},
+		{
+			"type": "wm",
+			"key": "WM  "
+		},
+		{
+			"type": "terminal",
+			"key": "TM  "
+		}
+	]
+}

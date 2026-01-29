@@ -1,0 +1,25 @@
+# Maintainer: Nir Rudov <nrw58886@gmail.com>
+
+pkgname=blxshell-font-googlesans
+_fontname=ttf-google-sans-flex
+pkgver=1.0
+pkgrel=1
+pkgdesc="Blxshell Utils/Scripts"
+arch=('any')
+url="https://fonts.google.com/specimen/Google+Sans+Flex"
+license=('OFL')
+depends=('fontconfig')
+provides=("$_fontname")
+conflicts=("$_fontname")
+
+source=("https://codeberg.org/blx/blx-shell/raw/branch/main/scripts/randwall"
+		"https://raw.githubusercontent.com/binarylinuxx/wlshot/refs/heads/main/wlshot")
+
+sha256sums=('SKIP')
+
+package() {
+	chmod +x randwall
+	chmod +x wlshot
+    install -Dm644 randwall -t "$pkgdir/usr/local/bin"
+    install -Dm644 wlshot -t "$pkgdir/usr/local/bin"
+}

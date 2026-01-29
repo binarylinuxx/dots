@@ -1,0 +1,21 @@
+# Maintainer: Nir Rudov <nrw58886@gmail.com>
+
+pkgname=blxshell-shell
+pkgver=1.0
+pkgrel=1
+pkgdesc='Blxshell Shell Dependencies (terminal, shell, fonts, theming)'
+arch=(any)
+url='https://github.com/binarylinuxx/dots'
+license=(custom)
+depends=(
+	matugen
+	fish
+	ghostty
+	ttf-jetbrains-mono-nerd
+	ttf-material-symbols-variable-git
+	ttf-readex-pro
+	ttf-rubik-vf
+	ttf-twemoji
+	starship
+	otf-space-grotesk
+)

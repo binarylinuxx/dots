@@ -165,8 +165,8 @@ Item {
 					onExited: terminalHover.opacity = 0
 					onClicked: {
 						terminalProcess.command = ["sh", "-c",
-							"if command -v kitty >/dev/null 2>&1; then " +
-							"kitty & " +
+							"if command -v ghostty >/dev/null 2>&1; then " +
+							"ghostty & " +
 							"elif command -v alacritty >/dev/null 2>&1; then " +
 							"alacritty & " +
 							"elif command -v foot >/dev/null 2>&1; then " +

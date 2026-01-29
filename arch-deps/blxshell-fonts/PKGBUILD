@@ -1,0 +1,13 @@
+# Maintainer: Nir Rudov <nrw58886@gmail.com>
+
+pkgname=blxshell-fonts
+pkgver=1.0
+pkgrel=1
+pkgdesc='Blxshell Custom Fonts Bundle (Bitcount, Google Sans)'
+arch=(any)
+url='https://github.com/binarylinuxx/dots'
+license=(custom)
+depends=(
+  blxshell-font-bitcount
+  blxshell-font-googlesans
+)

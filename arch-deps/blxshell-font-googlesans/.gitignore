@@ -1,0 +1,15 @@
+# Build artifacts
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.pkg.tar.gz
+pkg/
+src/
+
+# Makepkg files
+.SRCINFO
+
+# Downloaded fonts (will be re-downloaded during build)
+*.ttf
+
+# Logs
+*.log

@@ -1,0 +1,19 @@
+# Maintainer: Nir Rudov <nrw58886@gmail.com>
+
+pkgname=blxshell-hyprland
+pkgver=1.0
+pkgrel=4
+pkgdesc='Blxshell Hyprland Dependencies (WM, compositor, portals)'
+arch=(any)
+url='https://github.com/binarylinuxx/dots'
+license=(custom)
+depends=(
+  quickshell-git
+  hyprland
+  hyprsunset
+  wl-clipboard
+  xdg-desktop-portal
+  xdg-desktop-portal-kde
+  xdg-desktop-portal-gtk
+  xdg-desktop-portal-hyprland
+)

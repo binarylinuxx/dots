@@ -1,0 +1,24 @@
+# Maintainer: Nir Rudov <nrw58886@gmail.com>
+
+pkgname=blxshell-font-bitcount
+_fontname=ttf-bitcount-single-variable
+pkgver=1.0
+pkgrel=1
+pkgdesc="Blxshell Font: Bitcount Single variable pixel fonts (Prop + Grid variants)"
+arch=('any')
+url="https://github.com/petrvanblokland/TYPETR-Bitcount"
+license=('OFL')
+depends=('fontconfig')
+provides=("$_fontname")
+conflicts=("$_fontname")
+
+source=(
+  "BitcountSingle[CRSV,ELSH,ELXP,slnt,wght].ttf::https://github.com/petrvanblokland/TYPETR-Bitcount/raw/main/fonts/ttf/variable/BitcountSingle%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf"
+  "BitcountGridSingle[CRSV,ELSH,ELXP,slnt,wght].ttf::https://github.com/petrvanblokland/TYPETR-Bitcount/raw/main/fonts/ttf/variable/BitcountGridSingle%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf"
+)
+
+sha256sums=('SKIP' 'SKIP') 
+
+package() {
+  install -Dm644 *.ttf -t "$pkgdir/usr/share/fonts/ttf/"
+}

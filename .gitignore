@@ -1,0 +1,71 @@
+# Build artifacts
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.pkg.tar.gz
+*/pkg/
+*/src/
+
+# Makepkg files
+*/.SRCINFO
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*~
+
+# Temporary files
+*.tmp
+*.tmp.*
+.config/fish/fishd.tmp.*
+.config/fish/fish_variables.t*
+
+# Local overrides
+*.local
+**/local.conf
+.config/**/local/*
+
+# IDE / Editor files
+.obsidian/
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# Generated files (matugen)
+.config/matugen/colors.*
+.config/matugen/*_colors.*
+.config/matugen/hypr-colrs.conf
+.config/matugen/qs_json.js
+.config/matugen/qs.json
+.config/matugen/gtk.css
+.config/matugen/discord.css
+.config/matugen/ghostty
+.config/matugen/fuzzel
+.config/matugen/kitty_colors*.conf
+.config/matugen/colors-*.ini
+.config/matugen/colors-*.scss
+.config/matugen/pywalfox-colors.json
+.config/matugen/rofi*.rasi
+.config/matugen/*.micro
+
+# Hyprland generated
+.config/hypr/colors.conf
+.config/hypr/current_wall.conf
+
+# Quickshell generated
+.config/quickshell/Colors.json
+
+# GTK generated
+.config/gtk-3.0/colors.css
+.config/gtk-4.0/colors.css
+
+# Fish shell
+.config/fish/fish_variables
+
+# Logs
+*.log
+/tmp/

@@ -1,0 +1,5 @@
+NAME="Fedora Linux"
+PRETTY_NAME="Fedora Linux 41 (Workstation Edition)"
+ID=fedora
+VERSION_ID=41
+HOME_URL="https://fedoraproject.org/"

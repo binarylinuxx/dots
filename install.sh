@@ -126,10 +126,9 @@ preflight_checks() {
     # Don't run as root
     [[ $EUID -eq 0 ]] && die "Do not run this script as root!"
 
-    # Check if Arch-based
-    if [[ ! -f /etc/arch-release ]] && ! command_exists pacman; then
-        die "This script is designed for Arch Linux!"
-    fi
+    # Validate OS
+    source "$SCRIPT_DIR/os_release_validator.sh"
+    validate_os
 
     # Check internet
     if ! ping -c 1 -W 3 archlinux.org &>/dev/null; then
@@ -372,7 +371,12 @@ main() {
 
     echo -e "\n${BOLD}${YELLOW}══════ Starting Installation ══════${NC}"
 
-    install_metapackages || exit 1
+    if [[ "$SKIP_PACKAGES" == true ]]; then
+        warning "Skipping package installation (non-Arch system)"
+        INSTALL_DOTFILES=true
+    else
+        install_metapackages || exit 1
+    fi
 
     if [[ "$INSTALL_DOTFILES" == true ]]; then
         echo -e "\n${BOLD}${BLUE}══════ Installing Dotfiles ══════${NC}\n"

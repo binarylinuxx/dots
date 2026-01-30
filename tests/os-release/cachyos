@@ -1,0 +1,6 @@
+NAME="CachyOS"
+PRETTY_NAME="CachyOS"
+ID=cachyos
+ID_LIKE=arch
+BUILD_ID=rolling
+HOME_URL="https://cachyos.org"

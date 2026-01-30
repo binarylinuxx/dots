@@ -4,6 +4,7 @@
 *.pkg.tar.gz
 */pkg/
 */src/
+autocommit
 
 # Makepkg files
 */.SRCINFO

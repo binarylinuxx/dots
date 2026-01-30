@@ -1,5 +1,6 @@
 <div align="center">
 <br>
+<img src="logo.svg" width="128" alt="blxshell logo">
 <h1>blxshell</h1>
 <h3>Material You Desktop Environment for Hyprland</h3>
 <p>

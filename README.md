@@ -3,6 +3,11 @@
 <h1>blxshell</h1>
 <h3>Material You Desktop Environment for Hyprland</h3>
 <p>
+
+
+https://github.com/user-attachments/assets/a82b691f-ba58-4d4f-b756-543f4b52b5cb
+
+
 A fully custom Wayland desktop shell built with
 <a href="https://quickshell.outfoxxed.me">Quickshell</a>,
 <a href="https://github.com/InioX/matugen">Matugen</a> and
@@ -157,8 +162,3 @@ Place wallpapers in `~/.local/wallpapers/`. Change wallpaper from the Settings p
 
 If no wallpaper is set, a gradient fallback background is shown using your current theme colors with a hint to get started.
 
----
-
-<div align="center">
-<sub>Built on Arch Linux with Quickshell + Hyprland</sub>
-</div>

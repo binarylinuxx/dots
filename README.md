@@ -4,7 +4,10 @@
 </div>
 <div align="center">
 
-![last commit](https://img.shields.io/github/last-commit/binarylinuxx/dots?style=for-thebadge&labelColor=101418&color=b8cf84)
+![last commit](https://img.shields.io/github/last-commit/binarylinuxx/dots?style=for-thebadge&labelColor=263500&color=b8cf84)
+![last commit](https://img.shields.io/github/repo-size/binarylinuxx/dots?style=for-thebadge&labelColor=263500&color=b8cf84)
+![last commit](https://img.shields.io/github/stars/binarylinuxx/dots?style=for-thebadge&labelColor=263500&color=b8cf84)
+
 </div>
 
 # Features

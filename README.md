@@ -1,0 +1,11 @@
+<div align="center">
+	<h1> [Blx Shell Config] </h1>
+	<h3><h3>
+</div>
+<div align="center">
+![last commit](https://img.shields.io/github/last-commit/binarylinuxx/dots?style=for-the-badge&labelColor=101418&color=9ccbfb)
+</div>
+
+# Features
+- Material Design
+- Keeping ui minimal and useful

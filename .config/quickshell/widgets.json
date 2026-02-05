@@ -1,0 +1,1 @@
+[{"id":"w1","type":"clock","gridX":0,"gridY":0,"gridWidth":5,"gridHeight":5,"title":"Clock"},{"id":"w2","type":"weather","gridX":0,"gridY":5,"gridWidth":5,"gridHeight":4,"title":"Weather"}]

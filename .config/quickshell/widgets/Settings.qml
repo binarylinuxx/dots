@@ -18,16 +18,17 @@ FloatingWindow {
 	visible: Gstate.settingsOpen
 
 	property int selectedIndex: 0
-	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "About"]
+	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "Advanced", "About"]
 	property int darkModeIndex: 0
 	property int colorSchemeIndex: 7
 	property int workspaceCount: 10
 
 	property var colorSchemes: ["Content", "Expressive", "Fidelity", "Fruit Salad", 
 								"Monochrome", "Neutral", "Rainbow", "Tonal Spot"]
-	property var schemeMapping: ["scheme-content", "scheme-expressive", "scheme-fidelity",
-								"scheme-fruit-salad", "scheme-monochrome", "scheme-neutral",
-								"scheme-rainbow", "scheme-tonal-spot"]
+	// col_gen scheme names (no "scheme-" prefix)
+	property var schemeMapping: ["content", "expressive", "fidelity",
+								"fruit-salad", "monochrome", "neutral",
+								"rainbow", "tonal-spot", "vibrant"]
 
 	property var clockPresets: [
 		{ name: "12h Time", format: "hh:mm AP", id: "time12" },
@@ -70,7 +71,8 @@ FloatingWindow {
 			property bool screenCorners: true
 			property int screenCornerSize: 25
 			property string matugenMode: "dark"
-			property string matugenScheme: "scheme-tonal-spot"
+			property string matugenScheme: "tonal-spot"
+			property real matugenContrast: 0.0
 			property int workspaceCount: 10
 			property bool dynamicWorkspaces: false
 			property string workspaceStyle: "dots"
@@ -83,9 +85,6 @@ FloatingWindow {
 			// Wallpaper effects
 			property bool wallpaperParallax: true
 			property real wallpaperParallaxStrength: 0.1
-			property bool wallpaperStartupZoom: true
-			property real wallpaperStartupZoomScale: 1.4
-			property int wallpaperStartupZoomDuration: 1200
 			property int wallpaperTransitionDuration: 600
 			// Launcher settings
 			property string launcherPreset: "default"
@@ -100,6 +99,15 @@ FloatingWindow {
 			property bool launcherClipboardMode: true
 			property bool launcherWallpaperMode: true
 			property int launcherHeight: launcherMaxItems * launcherItemHeight + 70
+			// Advanced / Desktop Widgets
+			property bool desktopWidgets: true
+			property int gridColumns: 16
+			property int gridRows: 9
+			property int widgetRadius: 12
+			property int widgetBorderWidth: 1
+			property string widgetBorderColor: ""
+			property string widgetBackgroundColor: ""
+			property real widgetOpacity: 0.85
 
 			onLauncherMaxItemsChanged: launcherHeight = launcherMaxItems * launcherItemHeight + 70
 			onLauncherItemHeightChanged: launcherHeight = launcherMaxItems * launcherItemHeight + 70
@@ -131,7 +139,13 @@ FloatingWindow {
 				configFile.writeAdapter()
 			}
 			
-			matugenProcess.command = ["matugen", "image", "-m", mode, "-t", scheme, col.wallpaper]
+			// Use col_gen instead of matugen
+			var contrast = configAdapter ? configAdapter.matugenContrast : 0.0
+			var genScript = Qt.resolvedUrl("../col_gen/generate").toString().replace("file://", "")
+			matugenProcess.command = [
+				genScript, "image", col.wallpaper,
+				"-m", mode, "-s", scheme, "-c", contrast.toString()
+			]
 			matugenProcess.running = true
 		}
 	}
@@ -242,7 +256,7 @@ FloatingWindow {
 								spacing: 12
 
 								MaterialSymbol {
-									icon: index === 0 ? "palette" : index === 1 ? "wallpaper" : index === 2 ? "view_sidebar" : index === 3 ? "rocket_launch" : index === 4 ? "schedule" : "info"
+									icon: index === 0 ? "palette" : index === 1 ? "wallpaper" : index === 2 ? "view_sidebar" : index === 3 ? "rocket_launch" : index === 4 ? "schedule" : index === 5 ? "science" : "info"
 									iconSize: 22
 									color: index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
 								}
@@ -562,8 +576,56 @@ FloatingWindow {
 										}
 									}
 
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Contrast slider
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Contrast"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { 
+												text: {
+													var c = configAdapter ? configAdapter.matugenContrast : 0.0
+													if (c < -0.3) return "Low contrast"
+													if (c > 0.3) return "High contrast"
+													return "Standard"
+												}
+												font.pixelSize: 11
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												color: col.onSurfaceVariant
+												opacity: 0.8
+											}
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: -1.0
+											to: 1.0
+											stepSize: 0.1
+											value: configAdapter ? configAdapter.matugenContrast : 0.0
+											onValueChanged: {
+												if (configAdapter && Math.abs(configAdapter.matugenContrast - value) > 0.01) {
+													configAdapter.matugenContrast = value
+													saveConfig()
+												}
+											}
+										}
+
+										Text {
+											text: (configAdapter ? configAdapter.matugenContrast.toFixed(1) : "0.0")
+											font.pixelSize: 12
+											font.family: "JetBrains Mono"
+											color: col.onSurfaceVariant
+											Layout.preferredWidth: 35
+										}
+									}
+
 									Text {
-										text: "Powered by matugen - Material You color generation"
+										text: "Powered by col_gen - Material You color generation"
 										color: col.onSurfaceVariant
 										font.pixelSize: 11
 										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
@@ -895,112 +957,7 @@ FloatingWindow {
 								}
 							}
 
-							// Startup Zoom section
-							Rectangle {
-								Layout.fillWidth: true
-								Layout.preferredHeight: zoomContent.height + 30
-								radius: 16
-								color: col.surfaceContainer
-
-								ColumnLayout {
-									id: zoomContent
-									anchors.left: parent.left
-									anchors.right: parent.right
-									anchors.top: parent.top
-									anchors.margins: 15
-									spacing: 15
-
-									RowLayout {
-										spacing: 10
-										MaterialSymbol { icon: "zoom_in"; iconSize: 22; color: col.primary }
-										Text { text: "Startup Zoom"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-									}
-
-									RowLayout {
-										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Enable Startup Zoom"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: "Zoom-in animation when shell starts"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										ToggleSwitch {
-											checked: configAdapter ? configAdapter.wallpaperStartupZoom : true
-											onToggled: (state) => {
-												if (configAdapter) {
-													configAdapter.wallpaperStartupZoom = state
-													saveConfig()
-												}
-											}
-										}
-									}
-
-									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5; visible: configAdapter ? configAdapter.wallpaperStartupZoom : true }
-
-									// Zoom Scale
-									RowLayout {
-										Layout.fillWidth: true
-										spacing: 15
-										visible: configAdapter ? configAdapter.wallpaperStartupZoom : true
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Zoom Scale"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: Math.round((configAdapter ? configAdapter.wallpaperStartupZoomScale : 1.4) * 100) + "%"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 1.1
-											to: 2.0
-											stepSize: 0.05
-											value: configAdapter ? configAdapter.wallpaperStartupZoomScale : 1.4
-											onValueChanged: {
-												if (configAdapter && Math.abs(configAdapter.wallpaperStartupZoomScale - value) > 0.001) {
-													configAdapter.wallpaperStartupZoomScale = value
-													saveConfig()
-												}
-											}
-										}
-									}
-
-									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5; visible: configAdapter ? configAdapter.wallpaperStartupZoom : true }
-
-									// Zoom Duration
-									RowLayout {
-										Layout.fillWidth: true
-										spacing: 15
-										visible: configAdapter ? configAdapter.wallpaperStartupZoom : true
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Zoom Duration"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.wallpaperStartupZoomDuration : 1200) + "ms"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 400
-											to: 3000
-											stepSize: 100
-											value: configAdapter ? configAdapter.wallpaperStartupZoomDuration : 1200
-											onValueChanged: {
-												if (configAdapter && configAdapter.wallpaperStartupZoomDuration !== value) {
-													configAdapter.wallpaperStartupZoomDuration = value
-													saveConfig()
-												}
-											}
-										}
-									}
-								}
-							}
-
-							// Transition section
+								// Transition section
 							Rectangle {
 								Layout.fillWidth: true
 								Layout.preferredHeight: transitionContent.height + 30
@@ -2194,7 +2151,471 @@ FloatingWindow {
 						}
 					}
 
-					// === About Page ===
+					// === Advanced Page ===
+					ScrollView {
+						clip: true
+
+						ColumnLayout {
+							width: stackLayout.width - 50
+							spacing: 25
+
+							Text {
+								text: "Advanced"
+								font.pixelSize: 26
+								font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+								font.weight: 700
+								color: col.onSurface
+							}
+
+							// Beta badge
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: betaBannerContent.height + 24
+								radius: 16
+								color: col.tertiaryContainer
+
+								RowLayout {
+									id: betaBannerContent
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.verticalCenter: parent.verticalCenter
+									anchors.margins: 15
+									spacing: 12
+
+									Rectangle {
+										width: 36; height: 36; radius: 10
+										color: col.tertiary
+
+										MaterialSymbol {
+											icon: "science"
+											iconSize: 22
+											anchors.centerIn: parent
+											color: col.onTertiary
+										}
+									}
+
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Experimental Features"; font.pixelSize: 15; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onTertiaryContainer }
+										Text { text: "These features are in beta and may change or break"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onTertiaryContainer; opacity: 0.8 }
+									}
+								}
+							}
+
+							// Desktop Widgets toggle
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: widgetToggleContent.height + 30
+								radius: 16
+								color: col.surfaceContainer
+
+								ColumnLayout {
+									id: widgetToggleContent
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.top: parent.top
+									anchors.margins: 15
+									spacing: 15
+
+									RowLayout {
+										spacing: 10
+										MaterialSymbol { icon: "widgets"; iconSize: 22; color: col.primary }
+										Text { text: "Desktop Widgets"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+
+										Item { Layout.fillWidth: true }
+
+										Rectangle {
+											width: betaTag.width + 12; height: 20; radius: 10
+											color: col.tertiaryContainer
+
+											Text {
+												id: betaTag
+												text: "BETA"
+												anchors.centerIn: parent
+												font.pixelSize: 10
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												font.weight: 700
+												color: col.onTertiaryContainer
+											}
+										}
+									}
+
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Enable Desktop Widgets"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: "Show clock, weather and custom widgets on desktop"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										ToggleSwitch {
+											checked: configAdapter ? configAdapter.desktopWidgets : true
+											onToggled: (state) => {
+												if (configAdapter) {
+													configAdapter.desktopWidgets = state
+													saveConfig()
+												}
+											}
+										}
+									}
+								}
+							}
+
+							// Grid Layout section
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: gridLayoutContent.height + 30
+								radius: 16
+								color: col.surfaceContainer
+								opacity: configAdapter && configAdapter.desktopWidgets ? 1.0 : 0.5
+
+								ColumnLayout {
+									id: gridLayoutContent
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.top: parent.top
+									anchors.margins: 15
+									spacing: 15
+
+									RowLayout {
+										spacing: 10
+										MaterialSymbol { icon: "grid_on"; iconSize: 22; color: col.primary }
+										Text { text: "Grid Layout"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+									}
+
+									// Columns
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Columns"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: (configAdapter ? configAdapter.gridColumns : 16) + " columns"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: 8
+											to: 24
+											stepSize: 1
+											value: configAdapter ? configAdapter.gridColumns : 16
+											onValueChanged: {
+												if (configAdapter && configAdapter.gridColumns !== value) {
+													configAdapter.gridColumns = value
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Rows
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Rows"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: (configAdapter ? configAdapter.gridRows : 9) + " rows"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: 4
+											to: 16
+											stepSize: 1
+											value: configAdapter ? configAdapter.gridRows : 9
+											onValueChanged: {
+												if (configAdapter && configAdapter.gridRows !== value) {
+													configAdapter.gridRows = value
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									// Info text
+									Text {
+										text: "Grid defines snap positions for desktop widgets. Bar space is excluded automatically."
+										color: col.onSurfaceVariant
+										font.pixelSize: 11
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										opacity: 0.7
+										wrapMode: Text.Wrap
+										Layout.fillWidth: true
+									}
+								}
+							}
+
+							// Widget Style section
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: widgetStyleContent.height + 30
+								radius: 16
+								color: col.surfaceContainer
+								opacity: configAdapter && configAdapter.desktopWidgets ? 1.0 : 0.5
+
+								ColumnLayout {
+									id: widgetStyleContent
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.top: parent.top
+									anchors.margins: 15
+									spacing: 15
+
+									RowLayout {
+										spacing: 10
+										MaterialSymbol { icon: "style"; iconSize: 22; color: col.primary }
+										Text { text: "Widget Style"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+									}
+
+									// Widget Preview
+									Rectangle {
+										Layout.fillWidth: true
+										Layout.preferredHeight: 80
+										radius: configAdapter ? configAdapter.widgetRadius : 12
+										color: configAdapter && configAdapter.widgetBackgroundColor !== "" ? configAdapter.widgetBackgroundColor : (col ? col.background : "#111318")
+										opacity: configAdapter ? configAdapter.widgetOpacity : 0.85
+										border.width: configAdapter ? configAdapter.widgetBorderWidth : 1
+										border.color: configAdapter && configAdapter.widgetBorderColor !== "" ? configAdapter.widgetBorderColor : (col ? col.outline : "#8e9099")
+
+										Row {
+											anchors.centerIn: parent
+											spacing: 12
+											MaterialSymbol { icon: "widgets"; iconSize: 24; color: col ? col.primary : "#adc6ff"; anchors.verticalCenter: parent.verticalCenter }
+											Text { text: "Widget Preview"; color: col ? col.onSurface : "#e2e2e9"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; anchors.verticalCenter: parent.verticalCenter }
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Corner Radius
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Corner Radius"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: (configAdapter ? configAdapter.widgetRadius : 12) + "px"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: 0
+											to: 30
+											stepSize: 1
+											value: configAdapter ? configAdapter.widgetRadius : 12
+											onValueChanged: {
+												if (configAdapter && configAdapter.widgetRadius !== value) {
+													configAdapter.widgetRadius = value
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Border Width
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Border Width"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: (configAdapter ? configAdapter.widgetBorderWidth : 1) + "px"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: 0
+											to: 4
+											stepSize: 1
+											value: configAdapter ? configAdapter.widgetBorderWidth : 1
+											onValueChanged: {
+												if (configAdapter && configAdapter.widgetBorderWidth !== value) {
+													configAdapter.widgetBorderWidth = value
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Widget Opacity
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Background Opacity"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: Math.round((configAdapter ? configAdapter.widgetOpacity : 0.85) * 100) + "%"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: 0.1
+											to: 1.0
+											stepSize: 0.05
+											value: configAdapter ? configAdapter.widgetOpacity : 0.85
+											onValueChanged: {
+												if (configAdapter && Math.abs(configAdapter.widgetOpacity - value) > 0.01) {
+													configAdapter.widgetOpacity = value
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Border Color
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Border Color"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: configAdapter && configAdapter.widgetBorderColor !== "" ? configAdapter.widgetBorderColor : "Theme default"; font.pixelSize: 11; font.family: "JetBrains Mono"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										Row {
+											spacing: 6
+
+											Repeater {
+												model: [
+													{ color: "", label: "Auto" },
+													{ color: "#adc6ff", label: "Blue" },
+													{ color: "#8e9099", label: "Gray" },
+													{ color: "#ffb4ab", label: "Red" },
+													{ color: "#c5c6d0", label: "Light" },
+													{ color: "transparent", label: "None" }
+												]
+
+												Rectangle {
+													width: 28; height: 28; radius: 14
+													color: modelData.color === "" ? col.outline : (modelData.color === "transparent" ? col.surfaceContainerHigh : modelData.color)
+													border.width: configAdapter && configAdapter.widgetBorderColor === modelData.color ? 3 : 1
+													border.color: configAdapter && configAdapter.widgetBorderColor === modelData.color ? col.primary : col.outlineVariant
+
+													Rectangle {
+														anchors.centerIn: parent
+														width: 8; height: 8; radius: 4
+														color: col.primary
+														visible: configAdapter && configAdapter.widgetBorderColor === modelData.color
+													}
+
+													MouseArea {
+														anchors.fill: parent
+														cursorShape: Qt.PointingHandCursor
+														onClicked: {
+															if (configAdapter) {
+																configAdapter.widgetBorderColor = modelData.color
+																saveConfig()
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Background Color
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Background Color"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: configAdapter && configAdapter.widgetBackgroundColor !== "" ? configAdapter.widgetBackgroundColor : "Theme default"; font.pixelSize: 11; font.family: "JetBrains Mono"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										Row {
+											spacing: 6
+
+											Repeater {
+												model: [
+													{ color: "", label: "Auto" },
+													{ color: "#1e1f25", label: "Dark" },
+													{ color: "#2b2d35", label: "Mid" },
+													{ color: "#111318", label: "Darker" },
+													{ color: "#000000", label: "Black" },
+													{ color: "transparent", label: "Clear" }
+												]
+
+												Rectangle {
+													width: 28; height: 28; radius: 14
+													color: modelData.color === "" ? col.surfaceContainer : (modelData.color === "transparent" ? "transparent" : modelData.color)
+													border.width: configAdapter && configAdapter.widgetBackgroundColor === modelData.color ? 3 : 1
+													border.color: configAdapter && configAdapter.widgetBackgroundColor === modelData.color ? col.primary : col.outlineVariant
+
+													Rectangle {
+														anchors.centerIn: parent
+														width: 8; height: 8; radius: 4
+														color: col.primary
+														visible: configAdapter && configAdapter.widgetBackgroundColor === modelData.color
+													}
+
+													// Checkerboard for transparent
+													Canvas {
+														anchors.fill: parent
+														visible: modelData.color === "transparent"
+														onPaint: {
+															var ctx = getContext("2d")
+															ctx.clearRect(0, 0, width, height)
+															var s = 4
+															for (var y = 0; y < height; y += s) {
+																for (var x = 0; x < width; x += s) {
+																	ctx.fillStyle = ((x / s + y / s) % 2 === 0) ? "#333" : "#555"
+																	ctx.fillRect(x, y, s, s)
+																}
+															}
+														}
+														Component.onCompleted: requestPaint()
+													}
+
+													MouseArea {
+														anchors.fill: parent
+														cursorShape: Qt.PointingHandCursor
+														onClicked: {
+															if (configAdapter) {
+																configAdapter.widgetBackgroundColor = modelData.color
+																saveConfig()
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+
+				// === About Page ===
 					ScrollView {
 						clip: true
 
@@ -2510,9 +2931,14 @@ FloatingWindow {
 
 		onAccepted: {
 			var path = selectedFile.toString().replace("file://", "")
-			matugenProcess.command = ["matugen", "image", "-m", 
-				darkModeIndex === 0 ? "dark" : "light", "-t", 
-				schemeMapping[colorSchemeIndex], path]
+			var mode = darkModeIndex === 0 ? "dark" : "light"
+			var scheme = schemeMapping[colorSchemeIndex]
+			var contrast = configAdapter ? configAdapter.matugenContrast : 0.0
+			var genScript = Qt.resolvedUrl("../col_gen/generate").toString().replace("file://", "")
+			matugenProcess.command = [
+				genScript, "image", path,
+				"-m", mode, "-s", scheme, "-c", contrast.toString()
+			]
 			matugenProcess.running = true
 		}
 	}

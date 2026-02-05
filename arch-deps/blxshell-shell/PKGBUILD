@@ -8,14 +8,19 @@ arch=(any)
 url='https://github.com/binarylinuxx/dots'
 license=(custom)
 depends=(
-	matugen
+	# shell & terminal
 	fish
 	ghostty
+	starship
+	# fonts
 	ttf-jetbrains-mono-nerd
 	ttf-material-symbols-variable-git
 	ttf-readex-pro
 	ttf-rubik-vf
 	ttf-twemoji
-	starship
 	otf-space-grotesk
+	# col_gen dependencies (Material You color generation)
+	uv
+	python
+	python-pillow
 )

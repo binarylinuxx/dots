@@ -1,0 +1,10 @@
+[project]
+name = "col-gen"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.14"
+dependencies = [
+    "jinja2>=3.1.6",
+    "materialyoucolor>=2.0.10",
+    "pillow>=12.1.0",
+]

@@ -10,10 +10,9 @@ https://github.com/user-attachments/assets/a82b691f-ba58-4d4f-b756-543f4b52b5cb
 
 
 A fully custom Wayland desktop shell built with
-<a href="https://quickshell.outfoxxed.me">Quickshell</a>,
-<a href="https://github.com/InioX/matugen">Matugen</a> and
+<a href="https://quickshell.outfoxxed.me">Quickshell</a> and
 <a href="https://hyprland.org">Hyprland</a>.<br>
-Dynamic Material You color theming generated from your wallpaper.
+Dynamic Material You color theming generated from your wallpaper using <a href="https://github.com/T-Dynamos/materialyoucolor-python">materialyoucolor</a>.
 </p>
 
 <a href="https://github.com/binarylinuxx/dots/commits/main"><img src="https://img.shields.io/github/last-commit/binarylinuxx/dots?style=for-the-badge&labelColor=1e1b1e&color=e1b8f2" alt="last commit"></a>
@@ -39,7 +38,7 @@ Dynamic Material You color theming generated from your wallpaper.
 
 ## Design
 
-- **Material You** color scheme generated from wallpaper via Matugen
+- **Material You** color scheme generated from wallpaper via col_gen (Python)
 - **Material Symbols Rounded** icons throughout the entire shell
 - All colors are reactive -- change wallpaper, the entire shell updates
 - Smooth animations and transitions on every interaction
@@ -51,7 +50,7 @@ Dynamic Material You color theming generated from your wallpaper.
 |-----------|------|
 | Compositor | [Hyprland](https://hyprland.org) |
 | Shell / Bar / Widgets | [Quickshell](https://quickshell.outfoxxed.me) (QML) |
-| Color generation | [Matugen](https://github.com/InioX/matugen) |
+| Color generation | col_gen ([materialyoucolor](https://github.com/T-Dynamos/materialyoucolor-python)) |
 | Terminal | [Ghostty](https://ghostty.org) |
 | Shell | [Fish](https://fishshell.com) |
 | Prompt | [Starship](https://starship.rs) |
@@ -97,7 +96,8 @@ bind = SUPER, Escape, exec, qs ipc call -- powermenu toggle
 .config/quickshell/
   shell.qml                 # Main entry -- all components, IPC, colors
   config.json               # User settings (editable via Settings panel)
-  Colors.json               # Matugen generated Material You colors
+  Colors.json               # col_gen generated Material You colors
+  col_gen/                   # Python color generator (uv project)
 
   bar/
     Bar.qml                 # Top bar layout

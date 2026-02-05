@@ -1,5 +1,6 @@
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import QtQuick.Controls
 import QtQuick
 import qs.bar
@@ -12,9 +13,97 @@ ShellRoot {
 	Bar {}
 	AudioOsd {}
 	Background {}
+	BackgroundClock {
+		id: backgroundGrid
+	}
+	HotCornerTrigger {
+		onTriggered: backgroundGrid.toggleEditMode()
+	}
 	Launcher {}
 	Notifications {}
 	Settings {}
+
+	// ── Lockscreen ──
+	LockContext {
+		id: lockContext
+
+		onUnlocked: {
+			lock.locked = false;
+			lockContext.currentText = "";
+		}
+	}
+
+	WlSessionLock {
+		id: lock
+		locked: false
+
+		WlSessionLockSurface {
+			LockSurface {
+				anchors.fill: parent
+				context: lockContext
+			}
+		}
+	}
+
+	// IPC handler: `qs ipc call lockscreen lock`
+	IpcHandler {
+		target: "lockscreen"
+
+		function lock(): void {
+			lock.locked = true;
+		}
+
+		function unlock(): void {
+			lock.locked = false;
+		}
+
+		function isLocked(): bool {
+			return lock.locked;
+		}
+	}
+
+	// ── Power Menu ──
+	PowerMenu {
+		id: powerMenu
+	}
+
+	// IPC handler: `qs ipc call powermenu toggle`
+	IpcHandler {
+		target: "powermenu"
+
+		function toggle(): void {
+			powerMenu.showing = !powerMenu.showing;
+		}
+
+		function show(): void {
+			powerMenu.showing = true;
+		}
+
+		function hide(): void {
+			powerMenu.showing = false;
+		}
+	}
+
+	// IPC handler: `qs ipc call grid toggle`
+	IpcHandler {
+		target: "grid"
+
+		function toggle(): void {
+			backgroundGrid.toggleEditMode();
+		}
+
+		function enable(): void {
+			backgroundGrid.setEditMode(true);
+		}
+
+		function disable(): void {
+			backgroundGrid.setEditMode(false);
+		}
+
+		function isEditMode(): bool {
+			return backgroundGrid.editMode;
+		}
+	}
 
 	// Config file for settings
 	FileView {
@@ -33,7 +122,8 @@ ShellRoot {
 			property bool screenCorners: true
 			property int screenCornerSize: 25
 			property string matugenMode: "dark"
-			property string matugenScheme: "scheme-tonal-spot"
+			property string matugenScheme: "tonal-spot"
+			property real matugenContrast: 0.0
 			property int workspaceCount: 10
 			property bool dynamicWorkspaces: false
 			property string workspaceStyle: "dots"
@@ -46,9 +136,6 @@ ShellRoot {
 			// Wallpaper effects
 			property bool wallpaperParallax: true
 			property real wallpaperParallaxStrength: 0.1
-			property bool wallpaperStartupZoom: true
-			property real wallpaperStartupZoomScale: 1.4
-			property int wallpaperStartupZoomDuration: 1200
 			property int wallpaperTransitionDuration: 600
 			// Launcher settings
 			property string launcherPreset: "default"
@@ -63,6 +150,15 @@ ShellRoot {
 			property bool launcherClipboardMode: true
 			property bool launcherWallpaperMode: true
 			property int launcherHeight: 510
+			// Advanced / Desktop Widgets
+			property bool desktopWidgets: true
+			property int gridColumns: 16
+			property int gridRows: 9
+			property int widgetRadius: 12
+			property int widgetBorderWidth: 1
+			property string widgetBorderColor: ""
+			property string widgetBackgroundColor: ""
+			property real widgetOpacity: 0.85
 		}
 	}
 

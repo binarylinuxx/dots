@@ -181,7 +181,14 @@ PanelWindow {
 
 	function applyWallpaper(filename) {
 		var fullPath = wallpaperDir + "/" + filename
-		matugenProcess.command = ["matugen", "image", "-t", "scheme-tonal-spot", fullPath]
+		var mode = cfg ? cfg.matugenMode : "dark"
+		var scheme = cfg ? cfg.matugenScheme : "tonal-spot"
+		var contrast = cfg ? cfg.matugenContrast : 0.0
+		var genScript = Qt.resolvedUrl("../col_gen/generate").toString().replace("file://", "")
+		matugenProcess.command = [
+			genScript, "image", fullPath,
+			"-m", mode, "-s", scheme, "-c", contrast.toString()
+		]
 		matugenProcess.running = true
 	}
 

@@ -1,0 +1,25 @@
+{
+  "image": "/home/blx/.local/wallpapers/wallhaven-e8y118.png",
+  "grid": {
+    "cols": 24,
+    "rows": 16
+  },
+  "widgets": [
+    {
+      "type": "clock",
+      "gridX": 0,
+      "gridY": 0,
+      "gridWidth": 9,
+      "gridHeight": 4,
+      "reason": "score: 0.0"
+    },
+    {
+      "type": "weather",
+      "gridX": 0,
+      "gridY": 7,
+      "gridWidth": 11,
+      "gridHeight": 9,
+      "reason": "score: 85.9"
+    }
+  ]
+}

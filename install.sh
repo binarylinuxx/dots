@@ -291,6 +291,32 @@ install_dotfiles() {
 }
 
 # ============================================================================
+# Color Generator Setup
+# ============================================================================
+
+setup_col_gen() {
+    local col_gen_dir="$HOME/.config/quickshell/col_gen"
+
+    [[ -d "$col_gen_dir" ]] || { warning "col_gen directory not found, skipping"; return 0; }
+
+    info "Setting up color generator (col_gen)..."
+
+    # Install uv if not present
+    if ! command_exists uv; then
+        info "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh || die "Failed to install uv"
+        export PATH="$HOME/.local/bin:$PATH"
+        command_exists uv || die "uv not found after installation"
+    fi
+
+    # Create venv and install dependencies
+    info "Creating Python virtual environment..."
+    (cd "$col_gen_dir" && uv sync) 2>&1 | tee -a "$LOG_FILE" || die "Failed to setup col_gen venv"
+
+    success "Color generator ready"
+}
+
+# ============================================================================
 # Main
 # ============================================================================
 
@@ -382,6 +408,9 @@ main() {
         echo -e "\n${BOLD}${BLUE}══════ Installing Dotfiles ══════${NC}\n"
         install_dotfiles || exit 1
     fi
+
+    echo -e "\n${BOLD}${BLUE}══════ Setting Up Color Generator ══════${NC}\n"
+    setup_col_gen || exit 1
 
     echo -e "\n${BOLD}${GREEN}══════ Installation Complete! ══════${NC}\n"
 

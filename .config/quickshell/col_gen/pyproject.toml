@@ -6,5 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "jinja2>=3.1.6",
     "materialyoucolor>=2.0.10",
+    "numpy>=2.4.2",
+    "opencv-python>=4.13.0.92",
     "pillow>=12.1.0",
 ]

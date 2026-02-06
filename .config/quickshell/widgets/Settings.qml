@@ -2612,6 +2612,145 @@ FloatingWindow {
 									}
 								}
 							}
+
+							// Smart Widget Placement section
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: smartPlacementContent.height + 30
+								radius: 16
+								color: col.surfaceContainer
+								opacity: configAdapter && configAdapter.desktopWidgets ? 1.0 : 0.5
+
+								ColumnLayout {
+									id: smartPlacementContent
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.top: parent.top
+									anchors.margins: 15
+									spacing: 15
+
+									RowLayout {
+										spacing: 10
+										MaterialSymbol { icon: "auto_fix_high"; iconSize: 22; color: col.primary }
+										Text { text: "Smart Widget Placement"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+									}
+
+									Text {
+										text: "Analyzes your wallpaper to find calm areas and positions widgets where they won't obscure important content."
+										color: col.onSurfaceVariant
+										font.pixelSize: 12
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										wrapMode: Text.Wrap
+										Layout.fillWidth: true
+									}
+
+									// Status text
+									Text {
+										id: smartStatusText
+										text: ""
+										color: col.tertiary
+										font.pixelSize: 11
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										visible: text !== ""
+									}
+
+									Rectangle {
+										Layout.fillWidth: true
+										Layout.preferredHeight: 44
+										radius: 22
+										color: smartPlacementMouse.containsMouse ? col.primary : col.primaryContainer
+										opacity: smartAnalyzeProcess.running ? 0.6 : 1.0
+
+										Behavior on color { ColorAnimation { duration: 150 } }
+
+										RowLayout {
+											anchors.centerIn: parent
+											spacing: 10
+
+											MaterialSymbol {
+												icon: smartAnalyzeProcess.running ? "hourglass_empty" : "auto_fix_high"
+												iconSize: 20
+												color: smartPlacementMouse.containsMouse ? col.onPrimary : col.onPrimaryContainer
+
+												RotationAnimation on rotation {
+													from: 0
+													to: 360
+													duration: 1500
+													loops: Animation.Infinite
+													running: smartAnalyzeProcess.running
+												}
+											}
+
+											Text {
+												text: smartAnalyzeProcess.running ? "Analyzing..." : "Auto-position widgets"
+												font.pixelSize: 14
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												font.weight: 700
+												color: smartPlacementMouse.containsMouse ? col.onPrimary : col.onPrimaryContainer
+											}
+										}
+
+										MouseArea {
+											id: smartPlacementMouse
+											anchors.fill: parent
+											cursorShape: Qt.PointingHandCursor
+											hoverEnabled: true
+											enabled: !smartAnalyzeProcess.running && configAdapter && configAdapter.desktopWidgets
+
+											onClicked: {
+												if (col && col.wallpaper) {
+													smartStatusText.text = "Analyzing wallpaper..."
+													var analyzeScript = Qt.resolvedUrl("../col_gen/analyze").toString().replace("file://", "")
+													var cols = configAdapter ? configAdapter.gridColumns : 16
+													var rows = configAdapter ? configAdapter.gridRows : 9
+													smartAnalyzeProcess.command = [
+														analyzeScript, col.wallpaper,
+														"--cols", cols.toString(),
+														"--rows", rows.toString(),
+														"--apply"
+													]
+													smartAnalyzeProcess.running = true
+												} else {
+													smartStatusText.text = "No wallpaper set"
+												}
+											}
+										}
+									}
+								}
+							}
+
+							// Process for smart analysis
+							Process {
+								id: smartAnalyzeProcess
+								stdout: StdioCollector {
+									onStreamFinished: {
+										if (text.indexOf("Applied to:") !== -1) {
+											smartReloadWidgetsProcess.running = true
+											smartStatusText.text = "Widgets repositioned!"
+											smartStatusClearTimer.start()
+										}
+									}
+								}
+								stderr: StdioCollector {
+									onStreamFinished: {
+										if (text.trim() !== "") {
+											smartStatusText.text = "Error: " + text.trim().substring(0, 50)
+										}
+									}
+								}
+							}
+
+							// Process to reload widgets via IPC
+							Process {
+								id: smartReloadWidgetsProcess
+								command: ["qs", "ipc", "call", "widgets", "reload"]
+							}
+
+							Timer {
+								id: smartStatusClearTimer
+								interval: 5000
+								onTriggered: smartStatusText.text = ""
+							}
 						}
 					}
 

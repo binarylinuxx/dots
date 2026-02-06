@@ -23,6 +23,7 @@ PanelWindow {
     property int gridColumns: cfg ? cfg.gridColumns : 16
     property int gridRows: cfg ? cfg.gridRows : 9
     property color dotColor: col?.primary || "#adc6ff"
+    property string fontFamily: cfg ? cfg.fontFamily : "Rubik"
 
     // Bar exclusive zone — offset the usable grid area
     property bool barOnTop: cfg ? cfg.barOnTop : true
@@ -165,8 +166,28 @@ PanelWindow {
         id: writeProcess
     }
 
+    // Watch widgets.json for external changes
+    FileView {
+        id: widgetsFileWatcher
+        path: Qt.resolvedUrl("../widgets.json")
+        watchChanges: true
+        onFileChanged: {
+            if (!editMode) {
+                loadWidgets()
+            }
+        }
+    }
+
     Component.onCompleted: {
         readProcess.running = true
+    }
+
+    // IPC handler for reloading widgets from external sources
+    IpcHandler {
+        target: "widgets"
+        function reload() {
+            loadWidgets()
+        }
     }
 
     function toggleEditMode() {
@@ -389,7 +410,7 @@ PanelWindow {
                         color: col?.onSurface || "#e2e2e9"
                         font.pixelSize: Math.min(hU * 6, wU * 3.5)
                         font.weight: Font.Light
-                        font.family: "Rubik"
+                        font.family: fontFamily
                     }
 
                     // Wide: horizontal — time | am/pm+sec | divider | date
@@ -403,7 +424,7 @@ PanelWindow {
                             color: col?.onSurface || "#e2e2e9"
                             font.pixelSize: primarySize
                             font.weight: Font.Light
-                            font.family: "Rubik"
+                            font.family: fontFamily
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Column {
@@ -414,7 +435,7 @@ PanelWindow {
                                 color: col?.primary || "#adc6ff"
                                 font.pixelSize: secondarySize
                                 font.weight: Font.Medium
-                                font.family: "Rubik"
+                                font.family: fontFamily
                             }
                             Text {
                                 text: clockSeconds
@@ -434,7 +455,7 @@ PanelWindow {
                             text: clockDate
                             color: col?.onSurfaceVariant || "#c5c6d0"
                             font.pixelSize: secondarySize
-                            font.family: "Rubik"
+                            font.family: fontFamily
                             anchors.verticalCenter: parent.verticalCenter
                             opacity: 0.8
                         }
@@ -455,7 +476,7 @@ PanelWindow {
                                 color: col?.onSurface || "#e2e2e9"
                                 font.pixelSize: primarySize
                                 font.weight: Font.Light
-                                font.family: "Rubik"
+                                font.family: fontFamily
                             }
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -465,7 +486,7 @@ PanelWindow {
                                     color: col?.primary || "#adc6ff"
                                     font.pixelSize: secondarySize
                                     font.weight: Font.Medium
-                                    font.family: "Rubik"
+                                    font.family: fontFamily
                                 }
                                 Text {
                                     text: clockSeconds
@@ -481,7 +502,7 @@ PanelWindow {
                             text: clockDate
                             color: col?.onSurfaceVariant || "#c5c6d0"
                             font.pixelSize: secondarySize
-                            font.family: "Rubik"
+                            font.family: fontFamily
                             anchors.horizontalCenter: parent.horizontalCenter
                             opacity: 0.8
                             visible: cellsH >= 2
@@ -504,7 +525,7 @@ PanelWindow {
                         color: col?.onSurface || "#e2e2e9"
                         font.pixelSize: Math.min(hU * 5, wU * 3)
                         font.weight: Font.Light
-                        font.family: "Rubik"
+                        font.family: fontFamily
                     }
 
                     // Wide: icon + temp on left, details right
@@ -527,7 +548,7 @@ PanelWindow {
                                 color: col?.onSurface || "#e2e2e9"
                                 font.pixelSize: primarySize
                                 font.weight: Font.Light
-                                font.family: "Rubik"
+                                font.family: fontFamily
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }
@@ -539,26 +560,26 @@ PanelWindow {
                                 text: weatherCondition
                                 color: col?.onSurfaceVariant || "#c5c6d0"
                                 font.pixelSize: secondarySize
-                                font.family: "Rubik"
+                                font.family: fontFamily
                             }
                             Row {
                                 spacing: wU * 0.5
                                 Row {
                                     spacing: 3
                                     MaterialSymbol { icon: "water_drop"; iconSize: tertiarySize; color: col?.onSurfaceVariant || "#c5c6d0"; anchors.verticalCenter: parent.verticalCenter }
-                                    Text { text: weatherHumidity; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: "Rubik"; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: weatherHumidity; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: fontFamily; anchors.verticalCenter: parent.verticalCenter }
                                 }
                                 Row {
                                     spacing: 3
                                     MaterialSymbol { icon: "air"; iconSize: tertiarySize; color: col?.onSurfaceVariant || "#c5c6d0"; anchors.verticalCenter: parent.verticalCenter }
-                                    Text { text: weatherWind; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: "Rubik"; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: weatherWind; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: fontFamily; anchors.verticalCenter: parent.verticalCenter }
                                 }
                             }
                             Text {
                                 text: weatherCity
                                 color: col?.outline || "#8e9099"
                                 font.pixelSize: tertiarySize
-                                font.family: "Rubik"
+                                font.family: fontFamily
                                 opacity: 0.7
                                 visible: cellsW >= 6
                             }
@@ -586,7 +607,7 @@ PanelWindow {
                                 color: col?.onSurface || "#e2e2e9"
                                 font.pixelSize: primarySize
                                 font.weight: Font.Light
-                                font.family: "Rubik"
+                                font.family: fontFamily
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }
@@ -595,7 +616,7 @@ PanelWindow {
                             text: weatherCondition
                             color: col?.onSurfaceVariant || "#c5c6d0"
                             font.pixelSize: secondarySize
-                            font.family: "Rubik"
+                            font.family: fontFamily
                             anchors.horizontalCenter: parent.horizontalCenter
                             visible: cellsH >= 2
                         }
@@ -607,12 +628,12 @@ PanelWindow {
                             Row {
                                 spacing: 3
                                 MaterialSymbol { icon: "water_drop"; iconSize: tertiarySize; color: col?.onSurfaceVariant || "#c5c6d0"; anchors.verticalCenter: parent.verticalCenter }
-                                Text { text: weatherHumidity; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: "Rubik"; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: weatherHumidity; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: fontFamily; anchors.verticalCenter: parent.verticalCenter }
                             }
                             Row {
                                 spacing: 3
                                 MaterialSymbol { icon: "air"; iconSize: tertiarySize; color: col?.onSurfaceVariant || "#c5c6d0"; anchors.verticalCenter: parent.verticalCenter }
-                                Text { text: weatherWind; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: "Rubik"; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: weatherWind; color: col?.onSurfaceVariant || "#c5c6d0"; font.pixelSize: tertiarySize; font.family: fontFamily; anchors.verticalCenter: parent.verticalCenter }
                             }
                         }
 
@@ -620,7 +641,7 @@ PanelWindow {
                             text: weatherCity
                             color: col?.outline || "#8e9099"
                             font.pixelSize: tertiarySize
-                            font.family: "Rubik"
+                            font.family: fontFamily
                             anchors.horizontalCenter: parent.horizontalCenter
                             opacity: 0.7
                             visible: cellsH >= 4
@@ -644,7 +665,7 @@ PanelWindow {
                             text: isTiny ? "..." : "Loading weather..."
                             color: col?.onSurfaceVariant || "#c5c6d0"
                             font.pixelSize: secondarySize
-                            font.family: "Rubik"
+                            font.family: fontFamily
                             anchors.horizontalCenter: parent.horizontalCenter
                             opacity: 0.5
                         }

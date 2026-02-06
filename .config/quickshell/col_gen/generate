@@ -1,4 +1,5 @@
 #!/bin/bash
 # col_gen wrapper script
 cd "$(dirname "$0")"
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 exec uv run python main.py "$@"

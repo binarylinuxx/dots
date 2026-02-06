@@ -35,7 +35,7 @@ def expand_path(path: str) -> Path:
 def convert_matugen_syntax(template_content: str) -> str:
     """
     Convert matugen template syntax to Jinja2.
-    
+
     Matugen uses:
       {{colors.<name>.default.hex}} -> {{ colors.<name>.hex }}
       {{colors.<name>.default.hex_stripped}} -> {{ colors.<name>.hex_stripped }}
@@ -46,34 +46,35 @@ def convert_matugen_syntax(template_content: str) -> str:
       {{value.default.hex}} -> {{ value.hex }} (inside loops)
     """
     content = template_content
-    
+
     # Convert for loops FIRST (matugen uses <* *> syntax)
-    content = re.sub(r'<\*\s*for\s+(\w+),\s*(\w+)\s+in\s+colors\s*\*>', 
-                     r'{% for \1, \2 in colors.items() %}', content)
-    content = re.sub(r'<\*\s*endfor\s*\*>', r'{% endfor %}', content)
-    
+    content = re.sub(
+        r"<\*\s*for\s+(\w+),\s*(\w+)\s+in\s+colors\s*\*>",
+        r"{% for \1, \2 in colors.items() %}",
+        content,
+    )
+    content = re.sub(r"<\*\s*endfor\s*\*>", r"{% endfor %}", content)
+
     # Convert color references with .default.: colors.name.default.hex -> colors.name.hex
     # This handles both {{ colors.name.default.hex }} and {{colors.name.default.hex}}
     content = re.sub(
-        r'\{\{\s*colors\.([a-z_]+)\.default\.(hex(?:_stripped)?)\s*\}\}',
-        r'{{ colors.\1.\2 }}',
-        content
+        r"\{\{\s*colors\.([a-z_]+)\.default\.(hex(?:_stripped)?)\s*\}\}",
+        r"{{ colors.\1.\2 }}",
+        content,
     )
-    
+
     # Convert loop variable refs: value.default.hex -> value.hex
     content = re.sub(
-        r'\{\{\s*(\w+)\.default\.(hex(?:_stripped)?)\s*\}\}',
-        r'{{ \1.\2 }}',
-        content
+        r"\{\{\s*(\w+)\.default\.(hex(?:_stripped)?)\s*\}\}", r"{{ \1.\2 }}", content
     )
-    
+
     # Convert simple vars (without adding extra spaces if already spaced)
-    content = re.sub(r'\{\{image\}\}', r'{{ image }}', content)
-    content = re.sub(r'\{\{mode\}\}', r'{{ mode }}', content)
-    
+    content = re.sub(r"\{\{image\}\}", r"{{ image }}", content)
+    content = re.sub(r"\{\{mode\}\}", r"{{ mode }}", content)
+
     # Convert any remaining {{var}} to {{ var }}
-    content = re.sub(r'\{\{(\w+)\}\}', r'{{ \1 }}', content)
-    
+    content = re.sub(r"\{\{(\w+)\}\}", r"{{ \1 }}", content)
+
     return content
 
 
@@ -85,28 +86,28 @@ def render_template(
 ) -> str:
     """
     Render a single template with color data.
-    
+
     Args:
         template_name: Name of template file in templates/
         colors: Dict of color names -> {hex, hex_stripped}
         image_path: Absolute path to source image
         mode: "dark" or "light"
-    
+
     Returns:
         Rendered template string
     """
     template_path = TEMPLATES_DIR / template_name
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
-    
+
     # Read and convert template syntax
     raw_content = template_path.read_text()
     jinja_content = convert_matugen_syntax(raw_content)
-    
+
     # Create Jinja env from string
     env = Environment(loader=BaseLoader())
     template = env.from_string(jinja_content)
-    
+
     return template.render(
         colors=colors,
         image=image_path,
@@ -121,36 +122,36 @@ def render_all(
 ) -> dict[str, str]:
     """
     Render all templates.
-    
+
     Returns:
         Dict of output_path -> rendered_content
     """
     results = {}
-    
+
     for template_name, output_paths in TEMPLATE_OUTPUTS.items():
         template_path = TEMPLATES_DIR / template_name
         if not template_path.exists():
             continue
-        
+
         try:
             rendered = render_template(template_name, colors, image_path, mode)
             for output_path in output_paths:
                 results[output_path] = rendered
         except Exception as e:
             print(f"Error rendering {template_name}: {e}")
-    
+
     return results
 
 
 def write_outputs(rendered: dict[str, str]) -> list[str]:
     """
     Write rendered templates to their output paths.
-    
+
     Returns:
         List of successfully written paths
     """
     written = []
-    
+
     for output_path, content in rendered.items():
         path = expand_path(output_path)
         try:
@@ -159,5 +160,5 @@ def write_outputs(rendered: dict[str, str]) -> list[str]:
             written.append(str(path))
         except Exception as e:
             print(f"Error writing {path}: {e}")
-    
+
     return written

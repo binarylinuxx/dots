@@ -190,6 +190,9 @@ PanelWindow {
 			"-m", mode, "-s", scheme, "-c", contrast.toString()
 		]
 		matugenProcess.running = true
+		// Close launcher immediately, don't wait for process
+		searchField.text = ""
+		Gstate.appsOpen = false
 	}
 
 	// Emoji functions
@@ -240,11 +243,14 @@ PanelWindow {
 
 	Process {
 		id: matugenProcess
+		stderr: SplitParser {
+			onRead: data => console.log("[matugen stderr]", data)
+		}
 		onExited: (exitCode, exitStatus) => {
 			if (exitCode === 0) {
 				console.log("Wallpaper applied successfully")
-				searchField.text = ""
-				Gstate.appsOpen = false
+			} else {
+				console.log("[matugen] exited with code:", exitCode)
 			}
 		}
 	}

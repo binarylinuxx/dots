@@ -2494,7 +2494,7 @@ FloatingWindow {
 											Layout.fillWidth: true
 											spacing: 2
 											Text { text: "Border Color"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: configAdapter && configAdapter.widgetBorderColor !== "" ? configAdapter.widgetBorderColor : "Theme default"; font.pixelSize: 11; font.family: "JetBrains Mono"; color: col.onSurfaceVariant; opacity: 0.8 }
+											Text { text: configAdapter && configAdapter.widgetBorderColor !== "" ? configAdapter.widgetBorderColor : "Theme default"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
 										}
 
 										Row {
@@ -2549,7 +2549,7 @@ FloatingWindow {
 											Layout.fillWidth: true
 											spacing: 2
 											Text { text: "Background Color"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: configAdapter && configAdapter.widgetBackgroundColor !== "" ? configAdapter.widgetBackgroundColor : "Theme default"; font.pixelSize: 11; font.family: "JetBrains Mono"; color: col.onSurfaceVariant; opacity: 0.8 }
+											Text { text: configAdapter && configAdapter.widgetBackgroundColor !== "" ? configAdapter.widgetBackgroundColor : "Theme default"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
 										}
 
 										Row {
@@ -2751,6 +2751,7 @@ FloatingWindow {
 								interval: 5000
 								onTriggered: smartStatusText.text = ""
 							}
+
 						}
 					}
 

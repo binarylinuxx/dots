@@ -46,6 +46,7 @@ PanelWindow {
 		} else if (currentWallpaper !== persist.lastWallpaper) {
 			// Wallpaper changed (either live or after config reload)
 			startWallpaperTransition()
+
 		}
 	}
 
@@ -171,4 +172,5 @@ PanelWindow {
 			isTransitioning = false
 		}
 	}
+
 }

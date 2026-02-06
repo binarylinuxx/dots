@@ -441,7 +441,7 @@ PanelWindow {
                                 text: clockSeconds
                                 color: col?.onSurfaceVariant || "#c5c6d0"
                                 font.pixelSize: secondarySize
-                                font.family: "JetBrains Mono"
+                                font.family: fontFamily
                                 opacity: 0.6
                             }
                         }
@@ -492,7 +492,7 @@ PanelWindow {
                                     text: clockSeconds
                                     color: col?.onSurfaceVariant || "#c5c6d0"
                                     font.pixelSize: secondarySize
-                                    font.family: "JetBrains Mono"
+                                    font.family: fontFamily
                                     opacity: 0.6
                                 }
                             }
@@ -881,7 +881,7 @@ PanelWindow {
             text: ""
             color: col?.onSurface || "#e2e2e9"
             font.pixelSize: 11
-            font.family: "JetBrains Mono"
+            font.family: fontFamily
         }
     }
 

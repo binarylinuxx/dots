@@ -1,5 +1,5 @@
 {
-  "image": "/home/blx/.local/wallpapers/wallhaven-e8y118.png",
+  "image": "/home/blx/.local/wallpapers/apex_octane.jpg",
   "grid": {
     "cols": 24,
     "rows": 16
@@ -7,11 +7,11 @@
   "widgets": [
     {
       "type": "clock",
-      "gridX": 0,
-      "gridY": 0,
+      "gridX": 11,
+      "gridY": 12,
       "gridWidth": 9,
       "gridHeight": 4,
-      "reason": "score: 0.0"
+      "reason": "score: 5.3"
     },
     {
       "type": "weather",
@@ -19,7 +19,7 @@
       "gridY": 7,
       "gridWidth": 11,
       "gridHeight": 9,
-      "reason": "score: 85.9"
+      "reason": "score: 226.9"
     }
   ]
 }

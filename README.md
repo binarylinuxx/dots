@@ -23,6 +23,18 @@ Dynamic Material You color theming generated from your wallpaper using <a href="
 
 ---
 
+## Install
+*local install:*
+```
+git clone https://github.com/binarylinuxx/dots
+cd dots/
+./install.sh
+```
+*remote install:*
+```
+curl -fsSL https://bshell.zapzig.org/get_remote | bash
+```
+
 ## Shell Components
 
 | Component | Description |

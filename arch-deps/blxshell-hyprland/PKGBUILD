@@ -8,7 +8,6 @@ arch=(any)
 url='https://github.com/binarylinuxx/dots'
 license=(custom)
 depends=(
-  quickshell-git
   hyprland
   hyprsunset
   wl-clipboard

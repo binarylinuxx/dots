@@ -25,7 +25,7 @@ readonly REPO_URL="https://github.com/binarylinuxx/dots.git"
 readonly REPO_BRANCH="main"
 readonly BACKUP_DIR="$HOME/.cache/.config_backup"
 readonly LOG_FILE="/tmp/blxshell_install_$(date +%Y%m%d_%H%M%S).log"
-readonly PACKAGES=("blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-font-googlesans" "blxshell-font-bitcount")
+readonly PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-font-googlesans" "blxshell-font-bitcount")
 
 # State (will be set by detect_install_mode)
 SCRIPT_DIR=""

@@ -35,6 +35,9 @@ cd dots/
 curl -fsSL https://bshell.zapzig.org/get_remote | bash
 ```
 
+# Note
+currently bad support for portable devices and wifi stuff because I'm as main maintainer using A PC and work still in progress 
+
 ## Shell Components
 
 | Component | Description |

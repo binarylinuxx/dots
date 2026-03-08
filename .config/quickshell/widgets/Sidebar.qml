@@ -22,12 +22,15 @@ Scope {
         anchors.top: true
         anchors.bottom: true
         exclusiveZone: 0
-        margins.top: (cfg ? cfg.barHeight : 35) + (cfg && cfg.barFloating ? cfg.barGap : 0) - 30
-        margins.bottom: 6
         margins.right: 5
 
         implicitWidth: Gstate.sidebarOpen ? 360 : 1
         color: "transparent"
+
+        // The compositor already subtracts the bar's exclusive zone from our height.
+        // We only need a small margin from the remaining edges.
+        readonly property string barPos: cfg ? cfg.barPosition : "bottom"
+        readonly property int edgeMargin: 5
 
         property real panelX: Gstate.sidebarOpen ? 0 : 360
         Behavior on panelX {
@@ -43,17 +46,36 @@ Scope {
         Rectangle {
             id: panel
             width: 360
-            height: parent.height - 125
             x: sidebarWindow.panelX
+            // The PanelWindow already excludes the bar's reserved zone.
+            // Just add a small margin from the free edges.
+            y: sidebarWindow.edgeMargin
+            height: sidebarWindow.height - sidebarWindow.edgeMargin * 2
             color: col.surface
             radius: 20
             clip: true
 
             property int activeTab: 0
+            // 0 = main, 1 = wifi page
+            property int currentPage: 0
 
-            // ── Scrollable content ──
+            // ── Page slide container ──
+            Item {
+                id: pageContainer
+                width: panel.width * 2
+                height: panel.height
+                x: panel.currentPage === 0 ? 0 : -panel.width
+
+                Behavior on x {
+                    NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+                }
+
+            // ── PAGE 0: Main content ──
             Flickable {
-                anchors.fill: parent
+                id: mainFlickable
+                x: 0
+                width: panel.width
+                height: panel.height
                 contentHeight: mainCol.implicitHeight
                 clip: true
                 flickableDirection: Flickable.VerticalFlick
@@ -130,6 +152,7 @@ Scope {
 
                             // ── Network tile ──
                             Rectangle {
+                                id: networkTile
                                 property bool connected: NetworkManager.primaryConnectionType !== "none"
                                     && NetworkManager.primaryConnectionType !== "unknown"
 
@@ -151,23 +174,23 @@ Scope {
                                         width: 40
                                         height: 40
                                         radius: 20
-                                        color: parent.parent.connected ? col.primary : col.surfaceContainerHighest
+                                        color: networkTile.connected ? col.primary : col.surfaceContainerHighest
                                         Behavior on color { ColorAnimation { duration: 250 } }
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
                                             iconSize: 20
                                             fill: 1
-                                            color: parent.parent.connected ? col.onPrimary : col.onSurfaceVariant
+                                            color: networkTile.connected ? col.onPrimary : col.onSurfaceVariant
                                             Behavior on color { ColorAnimation { duration: 250 } }
                                             icon: {
                                                 if (NetworkManager.primaryConnectionType === "ethernet") return "lan"
                                                 if (NetworkManager.primaryConnectionType === "wifi") {
                                                     const s = NetworkManager.wifiSignalStrength
-                                                    if (s > 75) return "signal_wifi_4_bar"
-                                                    if (s > 50) return "signal_wifi_3_bar"
-                                                    if (s > 25) return "signal_wifi_2_bar"
-                                                    return "signal_wifi_1_bar"
+                                                    if (s > 75) return "network_wifi"
+                                                    if (s > 50) return "network_wifi_3_bar"
+                                                    if (s > 25) return "network_wifi_2_bar"
+                                                    return "network_wifi_1_bar"
                                                 }
                                                 return "signal_wifi_off"
                                             }
@@ -184,12 +207,12 @@ Scope {
                                                 if (NetworkManager.primaryConnectionType === "ethernet") return "Internet"
                                                 if (NetworkManager.primaryConnectionType === "wifi")
                                                     return NetworkManager.wifiSsid || "Wi-Fi"
-                                                return "Internet"
+                                                return "Wi-Fi"
                                             }
                                             font.family: cfg ? cfg.fontFamily : "Rubik"
                                             font.pixelSize: 14
                                             font.weight: 600
-                                            color: parent.parent.parent.connected
+                                            color: networkTile.connected
                                                 ? col.onPrimaryContainer : col.onSurface
                                             elide: Text.ElideRight
                                             Behavior on color { ColorAnimation { duration: 250 } }
@@ -206,12 +229,30 @@ Scope {
                                             }
                                             font.family: cfg ? cfg.fontFamily : "Rubik"
                                             font.pixelSize: 12
-                                            color: parent.parent.parent.connected
+                                            color: networkTile.connected
                                                 ? col.onPrimaryContainer : col.onSurfaceVariant
                                             opacity: 0.8
                                             elide: Text.ElideRight
                                             Behavior on color { ColorAnimation { duration: 250 } }
                                         }
+                                    }
+
+                                    // Chevron indicator
+                                    MaterialSymbol {
+                                        iconSize: 16
+                                        icon: "chevron_right"
+                                        color: networkTile.connected ? col.onPrimaryContainer : col.onSurfaceVariant
+                                        opacity: 0.7
+                                        Behavior on color { ColorAnimation { duration: 250 } }
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        panel.currentPage = 1
+                                        NetworkManager.scanWifi()
                                     }
                                 }
                             }
@@ -543,13 +584,12 @@ Scope {
 
                     Item {
                         width: parent.width
-                        height: Math.max(160, Math.min(320,
-                            panel.height
+                        height: Math.max(200, panel.height
                             - headerItem.height
                             - tilesItem.height
                             - tabBarItem.height
-                            - 364  // fixed calendar card (352) + spacer
-                        ))
+                            - 364  // calendar card (352) + bottom spacer (12)
+                        )
 
                         ClippingRectangle {
                             anchors.fill: parent
@@ -1267,6 +1307,429 @@ Scope {
                     }
                 }
             }
+            // end mainFlickable (page 0)
+
+            // ── PAGE 1: WiFi networks ──────────────────────────────────
+            Item {
+                id: wifiPage
+                x: panel.width
+                width: panel.width
+                height: panel.height
+
+                // password state
+                property string pendingSsid: ""
+                property bool showPasswordField: false
+                property string passwordInput: ""
+
+                // ── Header ────────────────────────────────────────────
+                Rectangle {
+                    id: wifiPageHeader
+                    width: parent.width
+                    height: 56
+                    color: "transparent"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 16
+                        spacing: 4
+
+                        // Back button
+                        Rectangle {
+                            width: 36; height: 36; radius: 18
+                            color: backBtnMa.containsMouse ? col.surfaceContainerHigh : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                icon: "arrow_back"
+                                iconSize: 20
+                                color: col.onSurface
+                            }
+
+                            MouseArea {
+                                id: backBtnMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    panel.currentPage = 0
+                                    wifiPage.showPasswordField = false
+                                    wifiPage.passwordInput = ""
+                                    wifiPasswordField.text = ""
+                                    NetworkManager.connectError = ""
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: "Wi-Fi Networks"
+                            font.family: cfg ? cfg.fontFamily : "Rubik"
+                            font.pixelSize: 16
+                            font.weight: 600
+                            color: col.onSurface
+                            Layout.fillWidth: true
+                        }
+
+                        // Refresh button
+                        Rectangle {
+                            width: 36; height: 36; radius: 18
+                            color: wifiRefreshMa.containsMouse ? col.surfaceContainerHigh : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                icon: "refresh"
+                                iconSize: 20
+                                color: col.onSurfaceVariant
+
+                                RotationAnimator on rotation {
+                                    from: 0; to: 360
+                                    duration: 900
+                                    loops: Animation.Infinite
+                                    running: NetworkManager.scanning
+                                }
+                            }
+
+                            MouseArea {
+                                id: wifiRefreshMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: NetworkManager.rescanWifi()
+                            }
+                        }
+                    }
+                }
+
+                // ── Scrollable network list ────────────────────────────
+                Flickable {
+                    anchors.top: wifiPageHeader.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 12
+                    anchors.topMargin: 0
+                    contentHeight: wifiPageCol.implicitHeight
+                    clip: true
+                    flickableDirection: Flickable.VerticalFlick
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    Column {
+                        id: wifiPageCol
+                        width: parent.width
+                        spacing: 6
+
+                        // ── Error banner ─────────────────────────────
+                        Rectangle {
+                            width: parent.width
+                            height: NetworkManager.connectError !== "" ? wifiErrRow.implicitHeight + 16 : 0
+                            clip: true
+                            radius: 12
+                            color: col.errorContainer
+                            visible: height > 0
+                            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+                            RowLayout {
+                                id: wifiErrRow
+                                anchors.left: parent.left; anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: 12; anchors.rightMargin: 8
+                                spacing: 8
+
+                                MaterialSymbol { icon: "error"; iconSize: 15; color: col.onErrorContainer }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: NetworkManager.connectError
+                                    font.family: cfg ? cfg.fontFamily : "Rubik"
+                                    font.pixelSize: 11
+                                    color: col.onErrorContainer
+                                    wrapMode: Text.WordWrap
+                                    maximumLineCount: 2
+                                    elide: Text.ElideRight
+                                }
+
+                                MaterialSymbol {
+                                    icon: "close"; iconSize: 14; color: col.onErrorContainer
+                                    MouseArea {
+                                        anchors.fill: parent; anchors.margins: -4
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: NetworkManager.connectError = ""
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Password field ────────────────────────────
+                        Rectangle {
+                            width: parent.width
+                            height: wifiPage.showPasswordField ? 48 : 0
+                            clip: true
+                            radius: 14
+                            color: col.surfaceContainerHigh
+                            visible: height > 0
+                            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 14; anchors.rightMargin: 8
+                                spacing: 8
+
+                                MaterialSymbol { icon: "lock"; iconSize: 16; color: col.onSurfaceVariant }
+
+                                Item {
+                                    Layout.fillWidth: true
+                                    height: 24
+
+                                    Text {
+                                        anchors.fill: parent
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: "Password for " + wifiPage.pendingSsid
+                                        font.family: cfg ? cfg.fontFamily : "Rubik"
+                                        font.pixelSize: 13
+                                        color: col.onSurfaceVariant
+                                        opacity: 0.5
+                                        visible: wifiPasswordField.text.length === 0
+                                    }
+
+                                    TextInput {
+                                        id: wifiPasswordField
+                                        anchors.fill: parent
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        echoMode: TextInput.Password
+                                        font.family: cfg ? cfg.fontFamily : "Rubik"
+                                        font.pixelSize: 13
+                                        color: col.onSurface
+                                        onTextChanged: wifiPage.passwordInput = text
+                                        onAccepted: {
+                                            if (wifiPage.passwordInput.length >= 8) {
+                                                NetworkManager.connectWithPassword(wifiPage.pendingSsid, wifiPage.passwordInput)
+                                                wifiPage.showPasswordField = false
+                                                wifiPage.passwordInput = ""
+                                                wifiPasswordField.text = ""
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Confirm
+                                Rectangle {
+                                    width: 30; height: 30; radius: 15
+                                    color: col.primary
+                                    opacity: wifiPage.passwordInput.length >= 8 ? 1.0 : 0.35
+                                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                    MaterialSymbol { anchors.centerIn: parent; icon: "arrow_forward"; iconSize: 16; color: col.onPrimary }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        enabled: wifiPage.passwordInput.length >= 8
+                                        onClicked: {
+                                            NetworkManager.connectWithPassword(wifiPage.pendingSsid, wifiPage.passwordInput)
+                                            wifiPage.showPasswordField = false
+                                            wifiPage.passwordInput = ""
+                                            wifiPasswordField.text = ""
+                                        }
+                                    }
+                                }
+
+                                // Cancel
+                                Rectangle {
+                                    width: 30; height: 30; radius: 15
+                                    color: cancelPwMa.containsMouse ? col.surfaceContainerHighest : "transparent"
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    MaterialSymbol { anchors.centerIn: parent; icon: "close"; iconSize: 15; color: col.onSurfaceVariant }
+
+                                    MouseArea {
+                                        id: cancelPwMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            wifiPage.showPasswordField = false
+                                            wifiPage.passwordInput = ""
+                                            wifiPasswordField.text = ""
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Empty / scanning ──────────────────────────
+                        Item {
+                            width: parent.width
+                            height: 80
+                            visible: NetworkManager.wifiNetworks.length === 0
+
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 8
+
+                                MaterialSymbol {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    icon: NetworkManager.scanning ? "wifi_find" : "wifi_off"
+                                    iconSize: 28
+                                    color: col.onSurfaceVariant
+                                    opacity: 0.5
+                                }
+
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: NetworkManager.scanning ? "Scanning…" : "No networks found"
+                                    font.family: cfg ? cfg.fontFamily : "Rubik"
+                                    font.pixelSize: 13
+                                    color: col.onSurfaceVariant
+                                    opacity: 0.5
+                                }
+                            }
+                        }
+
+                        // ── Network rows ──────────────────────────────
+                        Repeater {
+                            model: NetworkManager.wifiNetworks
+
+                            Rectangle {
+                                id: wifiNetRow
+                                required property var modelData
+
+                                readonly property string net_ssid:      modelData ? (modelData.ssid     || "") : ""
+                                readonly property int    net_signal:    modelData ? (modelData.signal   || 0)  : 0
+                                readonly property string net_security:  modelData ? (modelData.security || "") : ""
+                                readonly property bool   net_connected: modelData ? !!modelData.connected      : false
+                                readonly property bool   net_secured:   net_security !== "" && net_security !== "--"
+
+                                width: parent.width
+                                height: 52
+                                radius: 16
+                                color: {
+                                    if (net_connected) return col.primaryContainer
+                                    if (wifiRowHover.containsMouse) return col.surfaceContainerHigh
+                                    return col.surfaceContainer
+                                }
+                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 14
+                                    anchors.rightMargin: net_connected ? 50 : 12
+                                    spacing: 12
+
+                                    MaterialSymbol {
+                                        iconSize: 22
+                                        fill: 1
+                                        color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurface
+                                        icon: {
+                                            const s = wifiNetRow.net_signal
+                                            if (s > 75) return "network_wifi"
+                                            if (s > 50) return "network_wifi_3_bar"
+                                            if (s > 25) return "network_wifi_2_bar"
+                                            return "network_wifi_1_bar"
+                                        }
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                    }
+
+                                    Column {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+
+                                        Text {
+                                            width: parent.width
+                                            text: wifiNetRow.net_ssid
+                                            font.family: cfg ? cfg.fontFamily : "Rubik"
+                                            font.pixelSize: 13
+                                            font.weight: wifiNetRow.net_connected ? 600 : 400
+                                            color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurface
+                                            elide: Text.ElideRight
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                        }
+
+                                        Text {
+                                            visible: NetworkManager.connectingTo === wifiNetRow.net_ssid || wifiNetRow.net_connected
+                                            text: NetworkManager.connectingTo === wifiNetRow.net_ssid ? "Connecting…" : "Connected"
+                                            font.family: cfg ? cfg.fontFamily : "Rubik"
+                                            font.pixelSize: 11
+                                            color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
+                                            opacity: 0.8
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                        }
+                                    }
+
+                                    MaterialSymbol {
+                                        iconSize: 14; icon: "lock"
+                                        color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
+                                        opacity: wifiNetRow.net_secured ? 0.7 : 0
+                                    }
+
+                                    Text {
+                                        text: wifiNetRow.net_signal + "%"
+                                        font.family: cfg ? cfg.fontFamily : "Rubik"
+                                        font.pixelSize: 11
+                                        color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
+                                        opacity: 0.6
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                    }
+                                }
+
+                                // Disconnect button
+                                Rectangle {
+                                    visible: wifiNetRow.net_connected
+                                    width: 34; height: 34; radius: 17
+                                    z: 2
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 9
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: wifiDisconnectMa.containsMouse ? col.error : "transparent"
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        icon: "logout"; iconSize: 17
+                                        color: wifiDisconnectMa.containsMouse ? col.onError : col.onPrimaryContainer
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                    }
+
+                                    MouseArea {
+                                        id: wifiDisconnectMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: NetworkManager.disconnectWifi()
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: wifiRowHover
+                                    anchors.fill: parent
+                                    anchors.rightMargin: wifiNetRow.net_connected ? 50 : 0
+                                    hoverEnabled: true
+                                    cursorShape: wifiNetRow.net_connected ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (wifiNetRow.net_connected || NetworkManager.connectingTo !== "") return
+                                        const hasSaved = NetworkManager.savedProfiles.indexOf(wifiNetRow.net_ssid) !== -1
+                                        if (wifiNetRow.net_secured && !hasSaved) {
+                                            wifiPage.pendingSsid = wifiNetRow.net_ssid
+                                            wifiPage.showPasswordField = true
+                                            wifiPage.passwordInput = ""
+                                            wifiPasswordField.text = ""
+                                            wifiPasswordField.forceActiveFocus()
+                                        } else {
+                                            NetworkManager.connectTo(wifiNetRow.net_ssid)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Item { width: 1; height: 8 }
+                    }
+                }
+            }
+            // end pageContainer
+            }
         }
     }
 }
+

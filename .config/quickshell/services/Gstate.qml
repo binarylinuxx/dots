@@ -6,4 +6,5 @@ QtObject {
     property bool settingsOpen: false
     property bool sidebarOpen: false
     property bool dndEnabled: false
+
 }

@@ -70,6 +70,7 @@ FloatingWindow {
 			id: configAdapter
 			property bool barFloating: false
 			property bool barOnTop: true
+			property string barPosition: "bottom"
 			property int barHeight: 35
 			property int barRadius: 20
 			property int barGap: 5
@@ -1238,27 +1239,65 @@ FloatingWindow {
 										Layout.fillWidth: true
 										spacing: 15
 
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Bar Position"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-											Text { text: configAdapter && configAdapter.barOnTop ? "Bar at top of screen" : "Bar at bottom of screen"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Bar Position"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+										Text {
+											text: {
+												const p = configAdapter ? configAdapter.barPosition : "bottom"
+												if (p === "top")    return "Bar at top of screen"
+												if (p === "bottom") return "Bar at bottom of screen"
+												if (p === "left")   return "Vertical bar on left"
+												if (p === "right")  return "Vertical bar on right"
+												return ""
+											}
+											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
 										}
+									}
 
-										RowLayout {
-											spacing: 8
-											Text { text: "Bottom"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant }
-											ToggleSwitch {
-												checked: configAdapter ? configAdapter.barOnTop : true
-												onToggled: (state) => {
-													if (configAdapter) {
-														configAdapter.barOnTop = state
-														saveConfig()
+									// 4-position chip selector
+									Row {
+										spacing: 6
+
+										Repeater {
+											model: [
+												{ pos: "top",    icon: "vertical_align_top"    },
+												{ pos: "bottom", icon: "vertical_align_bottom" },
+												{ pos: "left",   icon: "align_horizontal_left" },
+												{ pos: "right",  icon: "align_horizontal_right"}
+											]
+
+											Rectangle {
+												required property var modelData
+												property bool active: (configAdapter ? configAdapter.barPosition : "bottom") === modelData.pos
+												width: 44; height: 44; radius: 12
+												color: active ? col.primaryContainer : col.surfaceContainerHigh
+												Behavior on color { ColorAnimation { duration: 150 } }
+
+												MaterialSymbol {
+													anchors.centerIn: parent
+													icon: parent.modelData.icon
+													iconSize: 20
+													color: parent.active ? col.onPrimaryContainer : col.onSurfaceVariant
+													Behavior on color { ColorAnimation { duration: 150 } }
+												}
+
+												MouseArea {
+													anchors.fill: parent
+													cursorShape: Qt.PointingHandCursor
+													onClicked: {
+														if (configAdapter) {
+															configAdapter.barPosition = parent.modelData.pos
+															// keep legacy barOnTop in sync
+															configAdapter.barOnTop = (parent.modelData.pos === "top")
+															saveConfig()
+														}
 													}
 												}
 											}
-											Text { text: "Top"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant }
 										}
+									}
 									}
 
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }

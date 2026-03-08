@@ -1,5 +1,5 @@
 {
-  "image": "/home/blx/.local/wallpapers/mountain_view.jpg",
+  "image": "/home/blx/.local/wallpapers/black-whole2.png",
   "grid": {
     "cols": 24,
     "rows": 16
@@ -8,18 +8,18 @@
     {
       "type": "clock",
       "gridX": 18,
-      "gridY": 11,
+      "gridY": 6,
       "gridWidth": 6,
       "gridHeight": 5,
-      "reason": "score: 14.6"
+      "reason": "score: 8.3"
     },
     {
       "type": "weather",
-      "gridX": 0,
-      "gridY": 3,
+      "gridX": 18,
+      "gridY": 12,
       "gridWidth": 6,
       "gridHeight": 4,
-      "reason": "score: 16.8"
+      "reason": "score: 10.9"
     }
   ]
 }

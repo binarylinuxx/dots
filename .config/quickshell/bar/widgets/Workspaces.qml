@@ -15,6 +15,7 @@ Item {
     property string wsStyle: cfg ? cfg.workspaceStyle : "dots"
     property int moduleRadius: cfg ? Math.max(8, Math.round(cfg.barRadius * 0.7)) : 14
     property string fontFamily: cfg ? cfg.fontFamily : "Rubik"
+    property bool vertical: false   // set true for left/right bar
 
     // Helper function to check if workspace has windows
     function workspaceHasWindows(wsId) {
@@ -53,14 +54,13 @@ Item {
 
     Rectangle {
         id: container
-        width: wsRow.width
-        height: 29
+        width:  root.vertical ? 29 : wsRow.width
+        height: root.vertical ? wsRow.height : 29
         anchors.centerIn: parent
         radius: moduleRadius
         color: col.surfaceContainer
-        Behavior on width {
-            NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-        }
+        Behavior on width  { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
         // Metaball canvas for dots style
         Canvas {
@@ -233,9 +233,11 @@ Item {
         }
 
         // Interaction layer
-        Row {
+        Grid {
             id: wsRow
             z: 2
+            columns: root.vertical ? 1 : root.wsCount
+            rows:    root.vertical ? root.wsCount : 1
             Repeater {
                 model: root.wsCount
                 Rectangle {
@@ -285,32 +287,41 @@ Item {
             anchors.fill: parent
             z: 10
 
-            property real targetX: Hyprland.focusedMonitor && Hyprland.focusedMonitor.activeWorkspace
+            property real targetPos: Hyprland.focusedMonitor && Hyprland.focusedMonitor.activeWorkspace
                 ? (Hyprland.focusedMonitor.activeWorkspace.id - 1) * 29 + 3
                 : 3
+            // keep legacy alias for horizontal
+            property real targetX: !root.vertical ? targetPos : 3
+            property real targetY:  root.vertical ? targetPos : 3
 
             // Stretching trail capsule
             Rectangle {
                 id: trail
-                height: 23
+                width:  root.vertical ? 23 : Math.abs(activeIndicator.x - tailPos.x) + 45
+                height: root.vertical ? Math.abs(activeIndicator.y - tailPos.y) + 45 : 23
                 radius: 11.5
                 color: col.primary
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter:   root.vertical ? undefined : parent.verticalCenter
+                anchors.horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
                 visible: trailAnimation.running
-                
-                x: Math.min(activeIndicator.x, tailX.x)
-                width: Math.abs(activeIndicator.x - tailX.x) + 45
-                
+
+                x: root.vertical ? undefined : Math.min(activeIndicator.x, tailPos.x)
+                y: root.vertical ? Math.min(activeIndicator.y, tailPos.y) : undefined
+
                 Item {
-                    id: tailX
-                    x: activeIndicatorContainer.targetX
-                    
+                    id: tailPos
+                    x: root.vertical ? 0 : activeIndicatorContainer.targetPos
+                    y: root.vertical ? activeIndicatorContainer.targetPos : 0
+
                     Behavior on x {
                         NumberAnimation {
                             id: trailAnimation
                             duration: 250
                             easing.type: Easing.OutCubic
                         }
+                    }
+                    Behavior on y {
+                        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
                     }
                 }
             }
@@ -322,14 +333,16 @@ Item {
                 height: 23
                 radius: 40
                 color: col.primary
-                anchors.verticalCenter: parent.verticalCenter
-                x: activeIndicatorContainer.targetX
-                
+                anchors.verticalCenter:   root.vertical ? undefined : parent.verticalCenter
+                anchors.horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
+                x: root.vertical ? 3 : activeIndicatorContainer.targetPos
+                y: root.vertical ? activeIndicatorContainer.targetPos : 3
+
                 Behavior on x {
-                    NumberAnimation {
-                        duration: 150
-                        easing.type: Easing.OutCubic
-                    }
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                }
+                Behavior on y {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
                 }
 
                 // Content based on style

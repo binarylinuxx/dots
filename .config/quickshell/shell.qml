@@ -22,6 +22,7 @@ ShellRoot {
 			id: cfg
 			property bool barFloating: false
 			property bool barOnTop: true
+			property string barPosition: "bottom"  // top / bottom / left / right
 			property int barHeight: 35
 			property int barRadius: 20
 			property int barGap: 5

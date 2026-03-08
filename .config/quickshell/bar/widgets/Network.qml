@@ -45,13 +45,13 @@ Item {
                 } else if (NetworkManager.primaryConnectionType === "wifi") {
                     const strength = NetworkManager.wifiSignalStrength
                     if (strength > 75) {
-                        return "signal_wifi_4_bar"
+                        return "network_wifi"
                     } else if (strength > 50) {
-                        return "signal_wifi_3_bar"
+                        return "network_wifi_3_bar"
                     } else if (strength > 25) {
-                        return "signal_wifi_2_bar"
+                        return "network_wifi_2_bar"
                     } else {
-                        return "signal_wifi_1_bar"
+                        return "network_wifi_1_bar"
                     }
                 } else {
                     return "ethernet"

@@ -1,1 +1,1 @@
-[{"id": "w1", "type": "clock", "gridX": 18, "gridY": 11, "gridWidth": 6, "gridHeight": 5, "title": "Clock"}, {"id": "w2", "type": "weather", "gridX": 0, "gridY": 3, "gridWidth": 6, "gridHeight": 4, "title": "Weather"}]
+[{"id": "w1", "type": "clock", "gridX": 18, "gridY": 6, "gridWidth": 6, "gridHeight": 5, "title": "Clock"}, {"id": "w2", "type": "weather", "gridX": 18, "gridY": 12, "gridWidth": 6, "gridHeight": 4, "title": "Weather"}]

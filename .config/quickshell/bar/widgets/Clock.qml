@@ -6,13 +6,20 @@ Item {
 	property int moduleRadius: cfg ? Math.max(8, Math.round(cfg.barRadius * 0.7)) : 14
 	property string fontFamily: cfg ? cfg.fontFamily : "Rubik"
 	property string clockFormat: cfg ? cfg.clockFormat : "hh:mm AP"
+	property bool sidebarOpen: false
+
+	signal clicked()
 
 	Rectangle {
 		height: 28
 		width: parent.width
 		anchors.centerIn: parent
 		radius: moduleRadius
-		color: col.surfaceContainer
+		color: sidebarOpen ? col.primary : col.surfaceContainer
+
+		Behavior on color {
+			ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+		}
 
 		Text {
 			id: clock
@@ -30,7 +37,17 @@ Item {
 			font.family: fontFamily
 			font.weight: 600
 			font.pixelSize: 16
-			color: col.primary
+			color: sidebarOpen ? col.onPrimary : col.primary
+
+			Behavior on color {
+				ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+			}
+		}
+
+		MouseArea {
+			anchors.fill: parent
+			cursorShape: Qt.PointingHandCursor
+			onClicked: parent.parent.clicked()
 		}
 	}
 }

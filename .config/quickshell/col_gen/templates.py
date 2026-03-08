@@ -24,6 +24,7 @@ TEMPLATE_OUTPUTS = {
         "~/.config/gtk-4.0/colors.css",
     ],
     "micro.micro": ["~/.config/micro/colorschemes/matugen.micro"],
+    "waybar.css": ["~/.config/waybar/colors.css"],
 }
 
 

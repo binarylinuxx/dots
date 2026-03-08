@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.modules
+import qs.services
 import QtQuick
 
 PanelWindow {
@@ -56,10 +57,11 @@ PanelWindow {
 	// Calculate offset: center workspace = no offset, edges = max offset
 	property real normalizedPosition: (currentWorkspace - 1) / Math.max(1, totalWorkspaces - 1)
 	property real parallaxOffset: (normalizedPosition - 0.5) * parallaxStrength
+	property real sidebarOffset: Gstate.sidebarOpen ? 0 : 0
 
 	// Calculate the centered X position with parallax applied
 	property real centeredX: (width - width * (1 + parallaxStrength)) / 2
-	property real parallaxX: centeredX + (-parallaxOffset * width)
+	property real parallaxX: centeredX + (-parallaxOffset * width) + sidebarOffset
 
 	function startWallpaperTransition() {
 		if (isTransitioning) return
@@ -130,7 +132,7 @@ PanelWindow {
 
 		// Center by default, shift based on workspace
 		anchors.centerIn: parent
-		anchors.horizontalCenterOffset: -parallaxOffset * parent.width
+		anchors.horizontalCenterOffset: (-parallaxOffset * parent.width) + sidebarOffset
 
 		Behavior on anchors.horizontalCenterOffset {
 			enabled: !isTransitioning && enableParallax

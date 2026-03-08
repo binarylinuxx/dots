@@ -46,6 +46,11 @@ FloatingWindow {
 		{ name: "Slow", value: "slow", multiplier: 1.5 }
 	]
 
+	property var weatherProviders: [
+		{ name: "Auto (wttr.in)", value: "wttr" },
+		{ name: "OpenWeatherMap", value: "openweather" }
+	]
+
 	property var workspaceStyles: [
 		{ name: "Dots", value: "dots", icon: "radio_button_checked" },
 		{ name: "Numbers", value: "numbers", icon: "123" },
@@ -77,6 +82,7 @@ FloatingWindow {
 			property bool dynamicWorkspaces: false
 			property string workspaceStyle: "dots"
 			property bool showSystemTray: true
+			property bool dndEnabled: false
 			property string clockFormat: "hh:mm AP"
 			property string clockPreset: "time12"
 			property string fontFamily: "Rubik"
@@ -108,6 +114,10 @@ FloatingWindow {
 			property string widgetBorderColor: ""
 			property string widgetBackgroundColor: ""
 			property real widgetOpacity: 0.85
+			property bool weatherUseApiProvider: false
+			property string weatherProvider: "wttr"
+			property string weatherCity: ""
+			property string weatherApiKey: ""
 
 			onLauncherMaxItemsChanged: launcherHeight = launcherMaxItems * launcherItemHeight + 70
 			onLauncherItemHeightChanged: launcherHeight = launcherMaxItems * launcherItemHeight + 70
@@ -178,6 +188,42 @@ FloatingWindow {
 
 	Process {
 		id: openUrlProcess
+	}
+
+	Process {
+		id: weatherRefreshProcess
+		command: ["qs", "ipc", "call", "widgets", "weatherRefresh"]
+	}
+
+	Process {
+		id: smartAnalyzeProcess
+		stdout: StdioCollector {
+			onStreamFinished: {
+				if (text.indexOf("Applied to:") !== -1) {
+					smartReloadWidgetsProcess.running = true
+					smartStatusText.text = "Widgets repositioned!"
+					smartStatusClearTimer.start()
+				}
+			}
+		}
+		stderr: StdioCollector {
+			onStreamFinished: {
+				if (text.trim() !== "") {
+					smartStatusText.text = "Error: " + text.trim().substring(0, 50)
+				}
+			}
+		}
+	}
+
+	Process {
+		id: smartReloadWidgetsProcess
+		command: ["qs", "ipc", "call", "widgets", "reload"]
+	}
+
+	Timer {
+		id: smartStatusClearTimer
+		interval: 5000
+		onTriggered: smartStatusText.text = ""
 	}
 
 	// Main container
@@ -2644,7 +2690,6 @@ FloatingWindow {
 										Layout.fillWidth: true
 									}
 
-									// Status text
 									Text {
 										id: smartStatusText
 										text: ""
@@ -2671,7 +2716,6 @@ FloatingWindow {
 												icon: smartAnalyzeProcess.running ? "hourglass_empty" : "auto_fix_high"
 												iconSize: 20
 												color: smartPlacementMouse.containsMouse ? col.onPrimary : col.onPrimaryContainer
-
 												RotationAnimation on rotation {
 													from: 0
 													to: 360
@@ -2696,7 +2740,6 @@ FloatingWindow {
 											cursorShape: Qt.PointingHandCursor
 											hoverEnabled: true
 											enabled: !smartAnalyzeProcess.running && configAdapter && configAdapter.desktopWidgets
-
 											onClicked: {
 												if (col && col.wallpaper) {
 													smartStatusText.text = "Analyzing wallpaper..."
@@ -2719,39 +2762,198 @@ FloatingWindow {
 								}
 							}
 
-							// Process for smart analysis
-							Process {
-								id: smartAnalyzeProcess
-								stdout: StdioCollector {
-									onStreamFinished: {
-										if (text.indexOf("Applied to:") !== -1) {
-											smartReloadWidgetsProcess.running = true
-											smartStatusText.text = "Widgets repositioned!"
-											smartStatusClearTimer.start()
+							// Weather Provider section
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: weatherProviderContent.height + 30
+								radius: 16
+								color: col.surfaceContainer
+								opacity: configAdapter && configAdapter.desktopWidgets ? 1.0 : 0.5
+
+								ColumnLayout {
+									id: weatherProviderContent
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.top: parent.top
+									anchors.margins: 15
+									spacing: 15
+
+									RowLayout {
+										spacing: 10
+										MaterialSymbol { icon: "cloud"; iconSize: 22; color: col.primary }
+										Text { text: "Weather Provider"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+									}
+
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Use API provider & city"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+											Text { text: "Override auto location with a specific provider"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										ToggleSwitch {
+											checked: configAdapter ? configAdapter.weatherUseApiProvider : false
+											onToggled: (state) => {
+												if (configAdapter) {
+													configAdapter.weatherUseApiProvider = state
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5; visible: configAdapter ? configAdapter.weatherUseApiProvider : false }
+
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 12
+										visible: configAdapter ? configAdapter.weatherUseApiProvider : false
+
+										Text { text: "Provider"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+
+										Flow {
+											Layout.fillWidth: true
+											spacing: 8
+											Repeater {
+												model: weatherProviders
+												delegate: Rectangle {
+													radius: 14
+													color: configAdapter && configAdapter.weatherProvider === modelData.value ? col.primary : col.surfaceContainerHigh
+													opacity: configAdapter && configAdapter.weatherProvider === modelData.value ? 1.0 : 0.8
+													border.width: 1
+													border.color: configAdapter && configAdapter.weatherProvider === modelData.value ? col.primary : col.outlineVariant
+													implicitHeight: 30
+													implicitWidth: weatherProviderLabel.implicitWidth + 20
+
+													Text {
+														id: weatherProviderLabel
+														anchors.centerIn: parent
+														text: modelData.name
+														font.pixelSize: 12
+														font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+														font.weight: 700
+														color: configAdapter && configAdapter.weatherProvider === modelData.value ? col.onPrimary : col.onSurfaceVariant
+													}
+
+													MouseArea {
+														anchors.fill: parent
+														cursorShape: Qt.PointingHandCursor
+														onClicked: {
+															if (configAdapter) {
+																configAdapter.weatherProvider = modelData.value
+																saveConfig()
+															}
+														}
+													}
+												}
+											}
+										}
+
+										Text { text: "City"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+
+										Rectangle {
+											Layout.fillWidth: true
+											Layout.preferredHeight: 44
+											radius: 12
+											color: col.surfaceContainerHigh
+											border.width: weatherCityField.activeFocus ? 2 : 0
+											border.color: col.primary
+
+											TextField {
+												id: weatherCityField
+												anchors.fill: parent
+												anchors.margins: 4
+												text: configAdapter ? configAdapter.weatherCity : ""
+												placeholderText: "e.g. Berlin"
+												placeholderTextColor: col.onSurfaceVariant
+												background: null
+												color: col.onSurface
+												font.pixelSize: 14
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												verticalAlignment: Text.AlignVCenter
+												onTextChanged: {
+													if (configAdapter && text !== configAdapter.weatherCity) {
+														configAdapter.weatherCity = text
+														saveConfig()
+													}
+												}
+											}
+										}
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 6
+											visible: configAdapter && configAdapter.weatherProvider === "openweather"
+											Text { text: "OpenWeatherMap API Key"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+
+											Rectangle {
+												Layout.fillWidth: true
+												Layout.preferredHeight: 44
+												radius: 12
+												color: col.surfaceContainerHigh
+												border.width: weatherApiKeyField.activeFocus ? 2 : 0
+												border.color: col.primary
+
+												TextField {
+													id: weatherApiKeyField
+													anchors.fill: parent
+													anchors.margins: 4
+													text: configAdapter ? configAdapter.weatherApiKey : ""
+													placeholderText: "Enter API key..."
+													placeholderTextColor: col.onSurfaceVariant
+													background: null
+													color: col.onSurface
+													font.pixelSize: 14
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													echoMode: TextInput.Password
+													verticalAlignment: Text.AlignVCenter
+													onTextChanged: {
+														if (configAdapter && text !== configAdapter.weatherApiKey) {
+															configAdapter.weatherApiKey = text
+															saveConfig()
+														}
+													}
+												}
+											}
+										}
+
+										RowLayout {
+											Layout.fillWidth: true
+											spacing: 10
+											Item { Layout.fillWidth: true }
+
+											Rectangle {
+												Layout.preferredWidth: updateWeatherRow.width + 28
+												Layout.preferredHeight: 40
+												radius: 20
+												color: updateWeatherMouse.containsMouse ? col.primaryContainer : col.primary
+												opacity: configAdapter && configAdapter.weatherUseApiProvider ? 1.0 : 0.6
+												Behavior on color { ColorAnimation { duration: 150 } }
+
+												RowLayout {
+													id: updateWeatherRow
+													anchors.centerIn: parent
+													spacing: 8
+													MaterialSymbol { icon: "refresh"; iconSize: 18; color: updateWeatherMouse.containsMouse ? col.onPrimaryContainer : col.onPrimary }
+													Text { text: "Update Now"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: updateWeatherMouse.containsMouse ? col.onPrimaryContainer : col.onPrimary }
+												}
+
+												MouseArea {
+													id: updateWeatherMouse
+													anchors.fill: parent
+													enabled: configAdapter && configAdapter.weatherUseApiProvider
+													hoverEnabled: true
+													cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+													onClicked: weatherRefreshProcess.running = true
+												}
+											}
 										}
 									}
 								}
-								stderr: StdioCollector {
-									onStreamFinished: {
-										if (text.trim() !== "") {
-											smartStatusText.text = "Error: " + text.trim().substring(0, 50)
-										}
-									}
-								}
 							}
-
-							// Process to reload widgets via IPC
-							Process {
-								id: smartReloadWidgetsProcess
-								command: ["qs", "ipc", "call", "widgets", "reload"]
-							}
-
-							Timer {
-								id: smartStatusClearTimer
-								interval: 5000
-								onTriggered: smartStatusText.text = ""
-							}
-
 						}
 					}
 

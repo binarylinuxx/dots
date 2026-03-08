@@ -11,33 +11,38 @@ import shutil
 HOOKS = [
     ("hyprland", "hyprctl reload", "hyprctl"),
     ("ghostty", "pkill -SIGUSR2 ghostty", "ghostty"),
-    ("gtk", 'gsettings set org.gnome.desktop.interface gtk-theme ""; gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-{mode}', "gsettings"),
+    (
+        "gtk",
+        'gsettings set org.gnome.desktop.interface gtk-theme ""; gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-{mode}',
+        "gsettings",
+    ),
+    ("waybar", "pkill -SIGUSR2 waybar", "waybar"),
 ]
 
 
 def run_hooks(mode: str, verbose: bool = False) -> list[str]:
     """
     Run post-generation hooks.
-    
+
     Args:
         mode: "dark" or "light" (used in gtk hook)
         verbose: Print hook output
-    
+
     Returns:
         List of successfully executed hook names
     """
     executed = []
-    
+
     for name, command, check_binary in HOOKS:
         # Check if required binary exists
         if check_binary and not shutil.which(check_binary):
             if verbose:
                 print(f"Skipping {name} hook: {check_binary} not found")
             continue
-        
+
         # Substitute mode in command
         cmd = command.format(mode=mode)
-        
+
         try:
             result = subprocess.run(
                 cmd,
@@ -56,5 +61,5 @@ def run_hooks(mode: str, verbose: bool = False) -> list[str]:
             print(f"Hook {name} timed out")
         except Exception as e:
             print(f"Hook {name} failed: {e}")
-    
+
     return executed

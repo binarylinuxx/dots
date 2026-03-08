@@ -1,5 +1,5 @@
 {
-  "image": "/home/blx/.local/wallpapers/apex_octane.jpg",
+  "image": "/home/blx/.local/wallpapers/mountain_view.jpg",
   "grid": {
     "cols": 24,
     "rows": 16
@@ -7,19 +7,19 @@
   "widgets": [
     {
       "type": "clock",
-      "gridX": 11,
-      "gridY": 12,
-      "gridWidth": 9,
-      "gridHeight": 4,
-      "reason": "score: 5.3"
+      "gridX": 18,
+      "gridY": 11,
+      "gridWidth": 6,
+      "gridHeight": 5,
+      "reason": "score: 14.6"
     },
     {
       "type": "weather",
       "gridX": 0,
-      "gridY": 7,
-      "gridWidth": 11,
-      "gridHeight": 9,
-      "reason": "score: 226.9"
+      "gridY": 3,
+      "gridWidth": 6,
+      "gridHeight": 4,
+      "reason": "score: 16.8"
     }
   ]
 }

@@ -73,26 +73,78 @@ PanelWindow {
     property string weatherHumidity: ""
     property string weatherWind: ""
     property bool weatherLoaded: false
+    property string lastWeatherProvider: "wttr"
 
-    // Fetch weather via wttr.in (auto-detects location by IP)
+    property bool weatherUseApiProvider: cfg ? cfg.weatherUseApiProvider : false
+    property string weatherProvider: cfg ? cfg.weatherProvider : "wttr"
+    property string weatherApiKey: cfg ? cfg.weatherApiKey : ""
+    property string weatherCityOverride: cfg ? cfg.weatherCity : ""
+
+    // Fetch weather via provider (default: wttr.in)
     Process {
         id: weatherProcess
-        command: ["curl", "-sf", "wttr.in/?format=%t|%C|%h|%w|%l"]
         stdout: StdioCollector {
             onStreamFinished: {
                 var output = text.trim()
-                if (output && output.indexOf("|") !== -1) {
-                    var parts = output.split("|")
-                    weatherTemp = parts[0] || "--"
-                    weatherCondition = parts[1] || ""
-                    weatherHumidity = parts[2] || ""
-                    weatherWind = parts[3] || ""
-                    weatherCity = parts[4] ? parts[4].split(",")[0] : ""
-                    weatherIcon = mapWeatherIcon(weatherCondition)
-                    weatherLoaded = true
+                if (!output) {
+                    return
+                }
+
+                if (lastWeatherProvider === "openweather") {
+                    try {
+                        var data = JSON.parse(output)
+                        if (data && data.main && data.weather && data.weather.length > 0) {
+                            var temp = Math.round(data.main.temp)
+                            weatherTemp = temp + "°C"
+                            weatherCondition = data.weather[0].description || ""
+                            weatherHumidity = data.main.humidity ? data.main.humidity + "%" : ""
+                            if (data.wind && data.wind.speed !== undefined) {
+                                var windKph = Math.round(data.wind.speed * 3.6)
+                                weatherWind = windKph + " km/h"
+                            } else {
+                                weatherWind = ""
+                            }
+                            weatherCity = data.name || weatherCityOverride
+                            weatherIcon = mapWeatherIcon(weatherCondition)
+                            weatherLoaded = true
+                        }
+                    } catch (e) {
+                        // Ignore parse errors
+                    }
+                } else {
+                    if (output.indexOf("|") !== -1) {
+                        var parts = output.split("|")
+                        weatherTemp = parts[0] || "--"
+                        weatherCondition = parts[1] || ""
+                        weatherHumidity = parts[2] || ""
+                        weatherWind = parts[3] || ""
+                        weatherCity = parts[4] ? parts[4].split(",")[0] : ""
+                        weatherIcon = mapWeatherIcon(weatherCondition)
+                        weatherLoaded = true
+                    }
                 }
             }
         }
+    }
+
+    function buildWeatherCommand(provider) {
+        if (provider === "openweather") {
+            var city = weatherCityOverride ? weatherCityOverride.trim() : ""
+            var key = weatherApiKey ? weatherApiKey.trim() : ""
+            if (!city || !key) {
+                provider = "wttr"
+            } else {
+                var encodedCity = encodeURIComponent(city)
+                return ["curl", "-sf", "https://api.openweathermap.org/data/2.5/weather?q=" + encodedCity + "&appid=" + key + "&units=metric"]
+            }
+        }
+
+        var wttrCity = weatherUseApiProvider ? (weatherCityOverride ? weatherCityOverride.trim() : "") : ""
+        var wttrBase = "wttr.in/"
+        if (wttrCity) {
+            wttrBase += encodeURIComponent(wttrCity)
+        }
+        return ["curl", "-sf", wttrBase + "?format=%t|%C|%h|%w|%l"]
     }
 
     function mapWeatherIcon(condition) {
@@ -114,7 +166,20 @@ PanelWindow {
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: weatherProcess.running = true
+        onTriggered: {
+            triggerWeatherRefresh()
+        }
+    }
+
+    function triggerWeatherRefresh() {
+        var provider = weatherUseApiProvider ? weatherProvider : "wttr"
+        if (provider === "openweather" && (!weatherCityOverride || !weatherApiKey)) {
+            provider = "wttr"
+        }
+        lastWeatherProvider = provider
+        weatherLoaded = false
+        weatherProcess.command = buildWeatherCommand(provider)
+        weatherProcess.running = true
     }
 
     // ── Widget persistence via widgets.json ──
@@ -182,11 +247,16 @@ PanelWindow {
         readProcess.running = true
     }
 
-    // IPC handler for reloading widgets from external sources
+    // IPC handler for widget actions
     IpcHandler {
         target: "widgets"
+
         function reload() {
             loadWidgets()
+        }
+
+        function weatherRefresh() {
+            triggerWeatherRefresh()
         }
     }
 

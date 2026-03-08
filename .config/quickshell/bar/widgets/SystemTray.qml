@@ -1,9 +1,9 @@
 import QtQuick
 import Quickshell
+import qs.services
 
 Item {
 	anchors.fill: parent
-	property bool sidebarOpen: false
 
 	Rectangle {
 		anchors.right: parent.right
@@ -19,13 +19,7 @@ Item {
 			anchors.centerIn: parent
 			spacing: 3
 			height: parent.height
-			/*
-			TaskbarButton {
-				id: taskbarBtn
-				isOpen: sidebarOpen
-				onClicked: sidebarOpen = !sidebarOpen
-			}
-			*/
+
 			QuickButtons {
 				id: quickButtons
 				height: 33
@@ -33,28 +27,23 @@ Item {
 			Clock {
 				id: clockWidget
 				height: parent.height
+				sidebarOpen: Gstate.sidebarOpen
+				onClicked: Gstate.sidebarOpen = !Gstate.sidebarOpen
 			}
 			Network {
 				id: networkWidget
 				height: parent.height
-				taskbarOpen: sidebarOpen
+				taskbarOpen: Gstate.sidebarOpen
 			}
-
 			Audio {
 				id: audioWidget
 				height: parent.height
-				taskbarOpen: sidebarOpen
+				taskbarOpen: Gstate.sidebarOpen
 			}
-
 			Battery {
 				id: batteryWidget
 				height: parent.height
 			}
 		}
-	}
-	
-	Taskbar {
-		isOpen: sidebarOpen
-		onClose: sidebarOpen = false
 	}
 }

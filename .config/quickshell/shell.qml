@@ -8,6 +8,7 @@ import qs.widgets
 import qs.modules
 import qs.launcher
 import qs.notifications
+import qs.services
 
 ShellRoot {
 	// Config file for settings
@@ -33,6 +34,7 @@ ShellRoot {
 			property bool dynamicWorkspaces: false
 			property string workspaceStyle: "dots"
 			property bool showSystemTray: true
+			property bool dndEnabled: false
 			property string clockFormat: "hh:mm AP"
 			property string clockPreset: "time12"
 			property string fontFamily: "Rubik"
@@ -64,6 +66,11 @@ ShellRoot {
 			property string widgetBorderColor: ""
 			property string widgetBackgroundColor: ""
 			property real widgetOpacity: 0.85
+			// Weather settings
+			property bool weatherUseApiProvider: false
+			property string weatherProvider: "wttr"
+			property string weatherCity: ""
+			property string weatherApiKey: ""
 		}
 	}
 
@@ -127,7 +134,15 @@ ShellRoot {
 	    }
 	}
 
+	// Sync dndEnabled between cfg and Gstate (cfg is not accessible in Singletons)
+	Binding { target: Gstate; property: "dndEnabled"; value: cfg.dndEnabled }
+	Connections {
+		target: Gstate
+		function onDndEnabledChanged() { cfg.dndEnabled = Gstate.dndEnabled }
+	}
+
 	Bar {}
+	Sidebar {}
 	AudioOsd {}
 	Background {
 		id: background
@@ -135,9 +150,11 @@ ShellRoot {
 	BackgroundClock {
 		id: backgroundGrid
 	}
+	
 	HotCornerTrigger {
 		onTriggered: backgroundGrid.toggleEditMode()
 	}
+	
 	Launcher {}
 	Notifications {}
 	Settings {}

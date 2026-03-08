@@ -1243,30 +1243,26 @@ FloatingWindow {
 										Layout.fillWidth: true
 										spacing: 2
 										Text { text: "Bar Position"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-										Text {
-											text: {
-												const p = configAdapter ? configAdapter.barPosition : "bottom"
-												if (p === "top")    return "Bar at top of screen"
-												if (p === "bottom") return "Bar at bottom of screen"
-												if (p === "left")   return "Vertical bar on left"
-												if (p === "right")  return "Vertical bar on right"
-												return ""
-											}
-											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
+									Text {
+										text: {
+											const p = configAdapter ? configAdapter.barPosition : "bottom"
+											if (p === "top")    return "Bar at top of screen"
+											if (p === "bottom") return "Bar at bottom of screen"
+											return ""
 										}
+										font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
 									}
+								}
 
-									// 4-position chip selector
-									Row {
-										spacing: 6
+								// 2-position chip selector
+								Row {
+									spacing: 6
 
-										Repeater {
-											model: [
-												{ pos: "top",    icon: "vertical_align_top"    },
-												{ pos: "bottom", icon: "vertical_align_bottom" },
-												{ pos: "left",   icon: "align_horizontal_left" },
-												{ pos: "right",  icon: "align_horizontal_right"}
-											]
+									Repeater {
+										model: [
+											{ pos: "top",    icon: "vertical_align_top"    },
+											{ pos: "bottom", icon: "vertical_align_bottom" }
+										]
 
 											Rectangle {
 												required property var modelData

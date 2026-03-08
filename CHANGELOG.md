@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.5.0] - 2026-03-07
+
+### Added
+
+- **Technical**
+  - since now blx-sshell was heavily tested and reworked to work with portable-devices(LapTops)
+  - implemented simple easy to use WiFi menu so you can be connect to network out of the box
+
+- **Desktop Widgets**
+  - weather widget now can use API from openweathermap if you want more precise location than automatic by API
+
+- **Desktop**
+  - now added sidebar with quick toggle's
+
+### Changed
+- Improved NetworkManager service so it works now perfectly
+- Baterry service are now custom
+
 ## [2.0.0] - 2026-02-05
 
 ### Added

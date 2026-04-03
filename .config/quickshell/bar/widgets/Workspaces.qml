@@ -1,3 +1,4 @@
+import qs.services
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
@@ -59,8 +60,8 @@ Item {
         anchors.centerIn: parent
         radius: moduleRadius
         color: col.surfaceContainer
-        Behavior on width  { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-        Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on width  { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
+        Behavior on height { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
 
         // Metaball canvas for dots style
         Canvas {
@@ -253,7 +254,7 @@ Item {
                         color: col.surfaceContainerHighest
                         opacity: 0
                         Behavior on opacity {
-                            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                         }
                     }
 
@@ -316,12 +317,12 @@ Item {
                     Behavior on x {
                         NumberAnimation {
                             id: trailAnimation
-                            duration: 250
+                            duration: Gstate.animDuration
                             easing.type: Easing.OutCubic
                         }
                     }
                     Behavior on y {
-                        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                     }
                 }
             }
@@ -339,10 +340,10 @@ Item {
                 y: root.vertical ? activeIndicatorContainer.targetPos : 3
 
                 Behavior on x {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                 }
                 Behavior on y {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                 }
 
                 // Content based on style

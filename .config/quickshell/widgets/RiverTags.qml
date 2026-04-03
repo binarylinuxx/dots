@@ -114,11 +114,11 @@ Item {
                 }
                 
                 Behavior on color {
-                    ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+                    ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                 }
                 
                 Behavior on border.color {
-                    ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+                    ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                 }
                 
                 Behavior on scale {

@@ -1,15 +1,32 @@
 import Quickshell
+import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 import Quickshell.Widgets
 import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import qs.widgets
 import qs.services
 
 Scope {
     id: sidebarRoot
+
+    function refreshSinkList() {
+        if (!sinkListProc.running)
+            sinkListProc.running = true
+    }
+
+    function arraysEqual(a, b) {
+        if (!a || !b || a.length !== b.length)
+            return false
+        for (var i = 0; i < a.length; i++) {
+            if (a[i] !== b[i])
+                return false
+        }
+        return true
+    }
 
     PwObjectTracker {
         objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
@@ -21,18 +38,16 @@ Scope {
         anchors.right: true
         anchors.top: true
         anchors.bottom: true
-        exclusiveZone: 0
         margins.right: 5
+        exclusiveZone: 0
 
-        implicitWidth: Gstate.sidebarOpen ? 360 : 1
+        implicitWidth: Gstate.sidebarOpen ? 400 : 1
         color: "transparent"
 
-        // The compositor already subtracts the bar's exclusive zone from our height.
-        // We only need a small margin from the remaining edges.
         readonly property string barPos: cfg ? cfg.barPosition : "bottom"
         readonly property int edgeMargin: 5
 
-        property real panelX: Gstate.sidebarOpen ? 0 : 360
+        property real panelX: Gstate.sidebarOpen ? 0 : 400
         Behavior on panelX {
             NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
         }
@@ -45,10 +60,8 @@ Scope {
 
         Rectangle {
             id: panel
-            width: 360
+            width: 400
             x: sidebarWindow.panelX
-            // The PanelWindow already excludes the bar's reserved zone.
-            // Just add a small margin from the free edges.
             y: sidebarWindow.edgeMargin
             height: sidebarWindow.height - sidebarWindow.edgeMargin * 2
             color: col.surface
@@ -67,7 +80,7 @@ Scope {
                 x: panel.currentPage === 0 ? 0 : -panel.width
 
                 Behavior on x {
-                    NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                 }
 
             // ── PAGE 0: Main content ──
@@ -138,6 +151,63 @@ Scope {
 
                         Process { id: themeModeProc; command: [] }
 
+                        // ── Sink listing / switching ──
+                        Process {
+                            id: sinkListProc
+                            // Parse name + description pairs from pactl list sinks
+                            command: ["bash", "-c", "pactl list sinks | awk '/^Sink #/{id++} /Name:/{name=$2} /Description:/{desc=substr($0, index($0,$2)); print name \"|\" desc}'"]
+                            running: false
+                            stdout: StdioCollector {
+                                onStreamFinished: {
+                                    var names = []
+                                    var labels = []
+                                    var lines = text.trim().split("\n")
+                                    for (var i = 0; i < lines.length; i++) {
+                                        var line = lines[i].trim()
+                                        if (!line)
+                                            continue
+                                        var sep = line.indexOf("|")
+                                        if (sep < 0)
+                                            continue
+                                        var name = line.substring(0, sep).trim()
+                                        var desc = line.substring(sep + 1).trim()
+                                        if (name && desc) {
+                                            names.push(name)
+                                            labels.push(desc)
+                                        }
+                                    }
+
+                                    if (!sidebarRoot.arraysEqual(sinkDropdown.sinkNames, names)
+                                            || !sidebarRoot.arraysEqual(sinkDropdown.model, labels)) {
+                                        sinkDropdown.sinkNames = names
+                                        sinkDropdown.model = labels
+                                    }
+
+                                    sinkDropdown.syncDefaultSink()
+                                }
+                            }
+                        }
+
+                        Timer {
+                            interval: 2500
+                            repeat: true
+                            running: Gstate.sidebarOpen
+                            triggeredOnStart: true
+                            onTriggered: sidebarRoot.refreshSinkList()
+                        }
+
+                        Connections {
+                            target: Pipewire
+                            ignoreUnknownSignals: true
+                            function onDefaultAudioSinkChanged() { sidebarRoot.refreshSinkList() }
+                            function onLinkGroupsChanged() { sidebarRoot.refreshSinkList() }
+                        }
+
+                        Process {
+                            id: setDefaultSinkProc
+                            command: []
+                        }
+
                         Grid {
                             id: tilesGrid
                             anchors.top: parent.top
@@ -161,7 +231,7 @@ Scope {
                                 radius: 20
                                 color: connected ? col.primaryContainer : col.surfaceContainer
 
-                                Behavior on color { ColorAnimation { duration: 250 } }
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -175,14 +245,14 @@ Scope {
                                         height: 40
                                         radius: 20
                                         color: networkTile.connected ? col.primary : col.surfaceContainerHighest
-                                        Behavior on color { ColorAnimation { duration: 250 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
                                             iconSize: 20
                                             fill: 1
                                             color: networkTile.connected ? col.onPrimary : col.onSurfaceVariant
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                             icon: {
                                                 if (NetworkManager.primaryConnectionType === "ethernet") return "lan"
                                                 if (NetworkManager.primaryConnectionType === "wifi") {
@@ -215,7 +285,7 @@ Scope {
                                             color: networkTile.connected
                                                 ? col.onPrimaryContainer : col.onSurface
                                             elide: Text.ElideRight
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
 
                                         Text {
@@ -233,7 +303,7 @@ Scope {
                                                 ? col.onPrimaryContainer : col.onSurfaceVariant
                                             opacity: 0.8
                                             elide: Text.ElideRight
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
 
@@ -243,7 +313,7 @@ Scope {
                                         icon: "chevron_right"
                                         color: networkTile.connected ? col.onPrimaryContainer : col.onSurfaceVariant
                                         opacity: 0.7
-                                        Behavior on color { ColorAnimation { duration: 250 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
                                 }
 
@@ -260,27 +330,12 @@ Scope {
                             // ── Night Light tile ──
                             Rectangle {
                                 id: nightLightTile
-                                property bool active: false
+                                property bool active: Gstate.nightLightEnabled
                                 width: (tilesGrid.width - 8) / 2
                                 height: 72
                                 radius: 20
                                 color: active ? col.primaryContainer : col.surfaceContainer
-                                Behavior on color { ColorAnimation { duration: 250 } }
-
-                                // Detect if wlsunset is already running on load
-                                Process {
-                                    id: nightLightCheck
-                                    command: ["pgrep", "-x", "wlsunset"]
-                                    running: true
-                                    onExited: function(code) {
-                                        nightLightTile.active = (code === 0)
-                                    }
-                                }
-
-                                // Single process used for both kill and start via startDetached()
-                                Process {
-                                    id: nightLightProc
-                                }
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -293,7 +348,7 @@ Scope {
                                         height: 40
                                         radius: 20
                                         color: nightLightTile.active ? col.primary : col.surfaceContainerHighest
-                                        Behavior on color { ColorAnimation { duration: 250 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
@@ -301,7 +356,7 @@ Scope {
                                             fill: nightLightTile.active ? 1 : 0
                                             color: nightLightTile.active ? col.onPrimary : col.onSurfaceVariant
                                             icon: "nightlight"
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
 
@@ -315,7 +370,7 @@ Scope {
                                             font.pixelSize: 14
                                             font.weight: 600
                                             color: nightLightTile.active ? col.onPrimaryContainer : col.onSurface
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
 
                                         Text {
@@ -324,7 +379,7 @@ Scope {
                                             font.pixelSize: 12
                                             color: nightLightTile.active ? col.onPrimaryContainer : col.onSurfaceVariant
                                             opacity: 0.8
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
                                 }
@@ -332,17 +387,7 @@ Scope {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (nightLightTile.active) {
-                                            nightLightTile.active = false
-                                            nightLightProc.command = ["pkill", "-x", "wlsunset"]
-                                            nightLightProc.startDetached()
-                                        } else {
-                                            nightLightTile.active = true
-                                            nightLightProc.command = ["sh", "-c", "pkill -x wlsunset; wlsunset -S 00:00 -s 00:01 -t 2700"]
-                                            nightLightProc.startDetached()
-                                        }
-                                    }
+                                    onClicked: Gstate.nightLightEnabled = !Gstate.nightLightEnabled
                                 }
                             }
 
@@ -353,7 +398,7 @@ Scope {
                                 height: 72
                                 radius: 20
                                 color: NotificationService.dndEnabled ? col.tertiaryContainer : col.surfaceContainer
-                                Behavior on color { ColorAnimation { duration: 250 } }
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -366,7 +411,7 @@ Scope {
                                         height: 40
                                         radius: 20
                                         color: NotificationService.dndEnabled ? col.tertiary : col.surfaceContainerHighest
-                                        Behavior on color { ColorAnimation { duration: 250 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
@@ -374,7 +419,7 @@ Scope {
                                             fill: NotificationService.dndEnabled ? 1 : 0
                                             color: NotificationService.dndEnabled ? col.onTertiary : col.onSurfaceVariant
                                             icon: NotificationService.dndEnabled ? "notifications_off" : "notifications_active"
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
 
@@ -392,7 +437,7 @@ Scope {
                                             wrapMode: Text.WordWrap
                                             maximumLineCount: 2
                                             elide: Text.ElideRight
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
 
                                         Text {
@@ -401,7 +446,7 @@ Scope {
                                             font.pixelSize: 12
                                             color: NotificationService.dndEnabled ? col.onTertiaryContainer : col.onSurfaceVariant
                                             opacity: 0.8
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
                                 }
@@ -421,7 +466,7 @@ Scope {
                                 height: 72
                                 radius: 20
                                 color: darkMode ? col.secondaryContainer : col.primaryContainer
-                                Behavior on color { ColorAnimation { duration: 250 } }
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -434,7 +479,7 @@ Scope {
                                         height: 40
                                         radius: 20
                                         color: themeModeTile.darkMode ? col.secondary : col.primary
-                                        Behavior on color { ColorAnimation { duration: 250 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
@@ -442,7 +487,7 @@ Scope {
                                             fill: 1
                                             color: themeModeTile.darkMode ? col.onSecondary : col.onPrimary
                                             icon: themeModeTile.darkMode ? "dark_mode" : "light_mode"
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
 
@@ -456,7 +501,7 @@ Scope {
                                             font.pixelSize: 14
                                             font.weight: 600
                                             color: themeModeTile.darkMode ? col.onSecondaryContainer : col.onPrimaryContainer
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
 
                                         Text {
@@ -465,7 +510,7 @@ Scope {
                                             font.pixelSize: 12
                                             color: themeModeTile.darkMode ? col.onSecondaryContainer : col.onPrimaryContainer
                                             opacity: 0.8
-                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
                                 }
@@ -521,7 +566,7 @@ Scope {
                                 radius: 16
                                 color: col.secondaryContainer
                                 Behavior on x {
-                                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                                    NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                                 }
                             }
 
@@ -539,7 +584,7 @@ Scope {
                                         font.pixelSize: 13
                                         font.weight: panel.activeTab === 0 ? 600 : 400
                                         color: panel.activeTab === 0 ? col.onSecondaryContainer : col.onSurfaceVariant
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
 
                                     MouseArea {
@@ -560,7 +605,7 @@ Scope {
                                         font.pixelSize: 13
                                         font.weight: panel.activeTab === 1 ? 600 : 400
                                         color: panel.activeTab === 1 ? col.onSecondaryContainer : col.onSurfaceVariant
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
 
                                     MouseArea {
@@ -588,7 +633,7 @@ Scope {
                             - headerItem.height
                             - tilesItem.height
                             - tabBarItem.height
-                            - 364  // calendar card (352) + bottom spacer (12)
+                            - (calendarWidget.implicitHeight + 12)  // calendar card + bottom spacer
                         )
 
                         ClippingRectangle {
@@ -654,17 +699,26 @@ Scope {
                                             height: notifCard.height + 6
                                             clip: true
 
-                                            property var snapId: modelData ? modelData.id : null
+                                             property var snapId: modelData ? modelData.id : null
+                                             property var frozenId: snapId
 
-                                            NumberAnimation {
-                                                id: collapseAnim
-                                                target: notifItem
-                                                property: "height"
-                                                to: 0
-                                                duration: 200
-                                                easing.type: Easing.InCubic
-                                                onFinished: NotificationService.removeSidebarItem(notifItem.snapId)
-                                            }
+                                             Component.onCompleted: {
+                                                 frozenId = snapId
+                                                 console.log("notif item created, snapId:", snapId, "frozenId:", frozenId)
+                                             }
+
+                                             NumberAnimation {
+                                                 id: collapseAnim
+                                                 target: notifItem
+                                                 property: "height"
+                                                 to: 0
+                                                 duration: 200
+                                                 easing.type: Easing.InCubic
+                                                 onFinished: {
+                                                     console.log("collapseAnim finished, frozenId:", notifItem.frozenId, "snapId:", notifItem.snapId)
+                                                     NotificationService.removeSidebarItem(notifItem.frozenId)
+                                                 }
+                                             }
 
                                             NumberAnimation {
                                                 id: swipeAnim
@@ -761,27 +815,29 @@ Scope {
                                                             opacity: 0.55
                                                         }
 
-                                                        // ── Dismiss button — z:1 so it sits above the drag MouseArea ──
+                                                        // ── Dismiss button ──
                                                         Item {
                                                             width: 24
                                                             height: 24
-                                                            z: 1
 
                                                             MaterialSymbol {
                                                                 anchors.centerIn: parent
                                                                 icon: "close"
                                                                 iconSize: 15
                                                                 color: col.onSurfaceVariant
-                                                                opacity: notifDragArea.containsMouse ? 0.9 : 0.45
+                                                                opacity: dismissArea.containsMouse ? 0.9 : 0.45
                                                                 Behavior on opacity { NumberAnimation { duration: 100 } }
                                                             }
 
                                                             MouseArea {
+                                                                id: dismissArea
                                                                 anchors.fill: parent
                                                                 anchors.margins: -4
                                                                 cursorShape: Qt.PointingHandCursor
-                                                                // propagateComposedEvents: false stops drag area from stealing this click
+                                                                z: 10
+                                                                propagateComposedEvents: false
                                                                 onClicked: {
+                                                                    console.log("dismiss clicked, frozenId:", notifItem.frozenId)
                                                                     mouse.accepted = true
                                                                     swipeAnim.start()
                                                                 }
@@ -817,26 +873,27 @@ Scope {
                                                     }
                                                 }
 
-                                                // Swipe-to-dismiss drag area — z:0, behind dismiss button
-                                                MouseArea {
-                                                    id: notifDragArea
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    z: 0
-                                                    drag.target: notifCard
-                                                    drag.axis: Drag.XAxis
-                                                    drag.minimumX: 0
-                                                    drag.maximumX: notifColumn.width
+                                            }
 
-                                                    property bool wasDragged: false
-                                                    onPressed: wasDragged = false
-                                                    onPositionChanged: if (drag.active) wasDragged = true
-                                                    onReleased: {
-                                                        if (wasDragged && notifCard.x > notifColumn.width * 0.35)
-                                                            swipeAnim.start()
-                                                        else if (wasDragged)
-                                                            snapBack.start()
-                                                    }
+                                            // Swipe-to-dismiss — sibling of notifCard, so it doesn't block card children
+                                            MouseArea {
+                                                id: notifDragArea
+                                                anchors.fill: notifCard
+                                                hoverEnabled: true
+                                                z: -1
+                                                drag.target: notifCard
+                                                drag.axis: Drag.XAxis
+                                                drag.minimumX: 0
+                                                drag.maximumX: notifColumn.width
+
+                                                property bool wasDragged: false
+                                                onPressed: wasDragged = false
+                                                onPositionChanged: if (drag.active) wasDragged = true
+                                                onReleased: {
+                                                    if (wasDragged && notifCard.x > notifColumn.width * 0.35)
+                                                        swipeAnim.start()
+                                                    else if (wasDragged)
+                                                        snapBack.start()
                                                 }
                                             }
                                         }
@@ -889,7 +946,7 @@ Scope {
                                         height: 26
                                         radius: 13
                                         color: clearBtnHover.containsMouse ? col.errorContainer : "transparent"
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                         Row {
                                             id: clearBtnRow
@@ -901,7 +958,7 @@ Scope {
                                                 icon: "delete_sweep"
                                                 iconSize: 14
                                                 color: clearBtnHover.containsMouse ? col.onErrorContainer : col.onSurfaceVariant
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                             }
 
                                             Text {
@@ -911,7 +968,7 @@ Scope {
                                                 font.pixelSize: 12
                                                 font.weight: 500
                                                 color: clearBtnHover.containsMouse ? col.onErrorContainer : col.onSurfaceVariant
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                             }
                                         }
 
@@ -932,14 +989,16 @@ Scope {
                     Rectangle {
                         width: parent.width - 24
                         anchors.horizontalCenter: parent.horizontalCenter
-                        height: 352
+                        height: calendarWidget.implicitHeight
                         radius: 20
                         color: col.surfaceContainer
-                        clip: true
+                        clip: false
 
                         Calendar {
                             id: calendarWidget
-                            anchors.fill: parent
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
                         }
                     }
 
@@ -976,6 +1035,70 @@ Scope {
                             width: parent.width - 32
                         }
 
+                        // ── Output device selector ──
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width - 32
+                            height: sinkDropdownRow.implicitHeight + 24
+                            radius: 20
+                            color: col.surfaceContainer
+
+                            RowLayout {
+                                id: sinkDropdownRow
+                                anchors.fill: parent
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
+                                spacing: 10
+
+                                MaterialSymbol {
+                                    icon: "speaker"
+                                    iconSize: 18
+                                    color: col.primary
+                                }
+
+                                Text {
+                                    text: "Output"
+                                    font.family: cfg ? cfg.fontFamily : "Rubik"
+                                    font.pixelSize: 13
+                                    color: col.onSurfaceVariant
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                StyledDropdown {
+                                    id: sinkDropdown
+                                    property var sinkNames: []
+                                    implicitWidth: 180
+                                    implicitHeight: 36
+                                    placeholder: "Loading..."
+                                    popupParent: panel
+
+                                    function syncDefaultSink() {
+                                        if (sinkNames.length === 0)
+                                            return
+                                        var defName = Pipewire.defaultAudioSink
+                                            ? (Pipewire.defaultAudioSink.properties["node.name"] ?? "") : ""
+                                        for (var i = 0; i < sinkNames.length; i++) {
+                                            if (sinkNames[i] === defName) {
+                                                currentIndex = i
+                                                return
+                                            }
+                                        }
+                                    }
+
+                                    // Pre-select the current default sink on model load
+                                    onModelChanged: syncDefaultSink()
+
+                                    onActivated: index => {
+                                        if (index < sinkNames.length) {
+                                            setDefaultSinkProc.command = ["pactl", "set-default-sink", sinkNames[index]]
+                                            setDefaultSinkProc.running = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Volume card
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -996,7 +1119,7 @@ Scope {
                                     height: 40
                                     radius: 20
                                     color: volIcon.muted ? col.errorContainer : col.secondaryContainer
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol {
                                         id: volIcon
@@ -1013,7 +1136,7 @@ Scope {
                                         }
 
                                         color: volIcon.muted ? col.onErrorContainer : col.onSecondaryContainer
-                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         icon: {
                                             if (muted || vol === 0) return "volume_off"
                                             if (vol > 0.66) return "volume_up"
@@ -1066,7 +1189,7 @@ Scope {
                                     height: 40
                                     radius: 20
                                     color: micIcon.micMuted ? col.errorContainer : col.secondaryContainer
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol {
                                         id: micIcon
@@ -1081,7 +1204,7 @@ Scope {
                                         }
 
                                         color: micIcon.micMuted ? col.onErrorContainer : col.onSecondaryContainer
-                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         icon: micMuted ? "mic_off" : "mic"
 
                                         MouseArea {
@@ -1338,7 +1461,7 @@ Scope {
                         Rectangle {
                             width: 36; height: 36; radius: 18
                             color: backBtnMa.containsMouse ? col.surfaceContainerHigh : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                             MaterialSymbol {
                                 anchors.centerIn: parent
@@ -1375,7 +1498,7 @@ Scope {
                         Rectangle {
                             width: 36; height: 36; radius: 18
                             color: wifiRefreshMa.containsMouse ? col.surfaceContainerHigh : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                             MaterialSymbol {
                                 anchors.centerIn: parent
@@ -1428,7 +1551,7 @@ Scope {
                             radius: 12
                             color: col.errorContainer
                             visible: height > 0
-                            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                            Behavior on height { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
 
                             RowLayout {
                                 id: wifiErrRow
@@ -1469,7 +1592,7 @@ Scope {
                             radius: 14
                             color: col.surfaceContainerHigh
                             visible: height > 0
-                            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                            Behavior on height { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
 
                             RowLayout {
                                 anchors.fill: parent
@@ -1518,7 +1641,7 @@ Scope {
                                     width: 30; height: 30; radius: 15
                                     color: col.primary
                                     opacity: wifiPage.passwordInput.length >= 8 ? 1.0 : 0.35
-                                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                                    Behavior on opacity { NumberAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol { anchors.centerIn: parent; icon: "arrow_forward"; iconSize: 16; color: col.onPrimary }
 
@@ -1539,7 +1662,7 @@ Scope {
                                 Rectangle {
                                     width: 30; height: 30; radius: 15
                                     color: cancelPwMa.containsMouse ? col.surfaceContainerHighest : "transparent"
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol { anchors.centerIn: parent; icon: "close"; iconSize: 15; color: col.onSurfaceVariant }
 
@@ -1609,7 +1732,7 @@ Scope {
                                     if (wifiRowHover.containsMouse) return col.surfaceContainerHigh
                                     return col.surfaceContainer
                                 }
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -1628,7 +1751,7 @@ Scope {
                                             if (s > 25) return "network_wifi_2_bar"
                                             return "network_wifi_1_bar"
                                         }
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
 
                                     Column {
@@ -1643,7 +1766,7 @@ Scope {
                                             font.weight: wifiNetRow.net_connected ? 600 : 400
                                             color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurface
                                             elide: Text.ElideRight
-                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
 
                                         Text {
@@ -1653,7 +1776,7 @@ Scope {
                                             font.pixelSize: 11
                                             color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
                                             opacity: 0.8
-                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
 
@@ -1669,7 +1792,7 @@ Scope {
                                         font.pixelSize: 11
                                         color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
                                         opacity: 0.6
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
                                 }
 
@@ -1682,13 +1805,13 @@ Scope {
                                     anchors.rightMargin: 9
                                     anchors.verticalCenter: parent.verticalCenter
                                     color: wifiDisconnectMa.containsMouse ? col.error : "transparent"
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol {
                                         anchors.centerIn: parent
                                         icon: "logout"; iconSize: 17
                                         color: wifiDisconnectMa.containsMouse ? col.onError : col.onPrimaryContainer
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
 
                                     MouseArea {
@@ -1730,6 +1853,7 @@ Scope {
             // end pageContainer
             }
         }
+
     }
 }
 

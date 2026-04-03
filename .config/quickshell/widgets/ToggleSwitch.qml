@@ -1,3 +1,4 @@
+import qs.services
 import QtQuick
 
 Item {
@@ -28,7 +29,7 @@ Item {
 		border.width: toggleSwitch.borderWidth
 
 		Behavior on color {
-			ColorAnimation { duration: 150 }
+			ColorAnimation { duration: Gstate.animDuration }
 		}
 
 		Rectangle {
@@ -42,7 +43,7 @@ Item {
 
 			Behavior on x {
 				NumberAnimation { 
-					duration: 200
+					duration: Gstate.animDuration
 					easing.type: Easing.OutCubic
 				}
 			}

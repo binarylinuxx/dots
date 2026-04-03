@@ -29,7 +29,7 @@ PanelWindow {
 
     // PanelWindow properties
     exclusiveZone: 0
-    aboveWindows: true
+    //aboveWindows: true
     color: "transparent"
     focusable: false
 

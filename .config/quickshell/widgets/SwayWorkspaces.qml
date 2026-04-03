@@ -118,7 +118,7 @@ Item {
                     color: occupiedFg
                     
                     Behavior on opacity {
-                        NumberAnimation { duration: 150 }
+                        NumberAnimation { duration: Gstate.animDuration }
                     }
                 }
                 
@@ -144,11 +144,11 @@ Item {
                 
                 // Smooth transitions
                 Behavior on color {
-                    ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+                    ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                 }
                 
                 Behavior on border.color {
-                    ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+                    ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                 }
                 
                 Behavior on scale {

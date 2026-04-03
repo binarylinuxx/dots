@@ -6,6 +6,7 @@ import QtQuick
 import qs.bar
 import qs.widgets
 import qs.modules
+import qs.modules as Modules
 import qs.launcher
 import qs.notifications
 import qs.services
@@ -67,13 +68,38 @@ ShellRoot {
 			property string widgetBorderColor: ""
 			property string widgetBackgroundColor: ""
 			property real widgetOpacity: 0.85
-			// Weather settings
-			property bool weatherUseApiProvider: false
-			property string weatherProvider: "wttr"
-			property string weatherCity: ""
-			property string weatherApiKey: ""
-		}
+		// Weather settings
+		property bool weatherUseApiProvider: false
+		property string weatherProvider: "wttr"
+		property string weatherCity: ""
+		property string weatherApiKey: ""
+		// Screen recorder settings
+		property string recordingDir: ""       // empty = ~/Videos
+		property string recordingMonitor: "HDMI-A-1"
+		property int    recordingFps: 60
+		property string recordingQuality: "very_high"  // very_high|high|medium|low
+		property string recordingCodec: "av1"          // h264|hevc|av1
+		property string recordingAudio: "default_output"
+			// Sidebar
+			property int sidebarTopPadding: 120*2
+		// Night Light
+		property bool nightLightEnabled: false
+		property real nightLightTemperature: 0.6
+		property real nightLightStrength: 0.45
+		// Idle
+		property bool idleEnabled: true
+		property int  idleTimeout: 300
+		property bool idleInhibitRecording: true
+		property bool idleDpmsEnabled: true
+		property int  idleDpmsDelay: 300
+		property bool idleSuspendEnabled: true
+		property int  idleSuspendDelay: 600
+		// Wallhaven
+		property string wallhavenApiKey: ""
+		property string wallhavenPurityMode: "sfw"
+		property string pexelsApiKey: ""
 	}
+}
 
 	// Using matugen generated colors
 	FileView {
@@ -142,8 +168,139 @@ ShellRoot {
 		function onDndEnabledChanged() { cfg.dndEnabled = Gstate.dndEnabled }
 	}
 
-	Bar {}
+	// Sync animDuration from cfg.animationSpeed into Gstate
+	Binding {
+		target: Gstate
+		property: "animDuration"
+		value: {
+			const s = cfg ? cfg.animationSpeed : "normal"
+			if (s === "disabled") return 0
+			if (s === "fast")     return 130
+			if (s === "slow")     return 500
+			return 250  // normal
+		}
+	}
+
+	// Sync nightLightEnabled between cfg and Gstate
+	Binding { target: Gstate; property: "nightLightEnabled"; value: cfg.nightLightEnabled }
+	Connections {
+		target: Gstate
+		function onNightLightEnabledChanged() {
+			cfg.nightLightEnabled = Gstate.nightLightEnabled
+			configWatcher.writeAdapter()
+		}
+	}
+
+	// Sync recording config into ScreenRecorder singleton (cfg not accessible inside singletons)
+	Binding { target: ScreenRecorder; property: "monitor";     value: cfg.recordingMonitor }
+	Binding { target: ScreenRecorder; property: "fps";         value: cfg.recordingFps }
+	Binding { target: ScreenRecorder; property: "quality";     value: cfg.recordingQuality }
+	Binding { target: ScreenRecorder; property: "codec";       value: cfg.recordingCodec }
+	Binding { target: ScreenRecorder; property: "audioDevice"; value: cfg.recordingAudio }
+	Binding { target: ScreenRecorder; property: "outputDir";   value: cfg.recordingDir }
+
+	// ── Idle tracking ──────────────────────────────────────────────────────
+	Binding { target: IdleService; property: "enabled";              value: cfg.idleEnabled }
+	Binding { target: IdleService; property: "timeout";              value: cfg.idleTimeout }
+	Binding { target: IdleService; property: "inhibitWhenRecording"; value: cfg.idleInhibitRecording }
+	Binding { target: IdleService; property: "dpmsEnabled";          value: cfg.idleDpmsEnabled }
+	Binding { target: IdleService; property: "dpmsDelay";            value: cfg.idleDpmsDelay }
+	Binding { target: IdleService; property: "suspendEnabled";       value: cfg.idleSuspendEnabled }
+	Binding { target: IdleService; property: "suspendDelay";         value: cfg.idleSuspendDelay }
+
+
+	// Re-apply IdleMonitor.enabled after compositor seat is ready
+	Timer {
+		id: enableRetryTimer
+		interval: 2000
+		repeat: false
+		onTriggered: {
+			idleMonitor.enabled = false
+			idleMonitor.enabled = cfg.idleEnabled
+			console.log("[IdleMonitor] re-applied enabled:", idleMonitor.enabled)
+		}
+	}
+
+	IdleMonitor {
+		id: idleMonitor
+		timeout: cfg.idleTimeout > 0 ? cfg.idleTimeout : 300
+		// NOTE: remove hardcode after confirming works
+		enabled: cfg.idleEnabled === true
+		respectInhibitors: true
+		onIsIdleChanged: {
+			console.log("[IdleMonitor] isIdle changed:", isIdle, "— timeout was:", timeout)
+			Gstate.idle = isIdle
+			if (isIdle) IdleService.onIdle()
+			else        IdleService.onResume()
+		}
+		onEnabledChanged: console.log("[IdleMonitor] enabled changed to:", enabled)
+		onTimeoutChanged: console.log("[IdleMonitor] timeout changed to:", timeout)
+		Component.onCompleted: {
+			console.log("[IdleMonitor] cfg.idleEnabled =", cfg.idleEnabled, "type =", typeof cfg.idleEnabled)
+			// Force re-apply enabled after short delay in case protocol seat isn't ready
+			enableRetryTimer.start()
+		}
+	}
+
+	// Handle IdleService signals — executed here where lock/Process are in scope
+	Connections {
+		target: IdleService
+
+		function onRequestLock() {
+			console.log("[shell] Locking screen")
+			IdleService._locked = true
+			lock.locked = true
+		}
+		function onRequestDpmsOff() {
+			idleDpmsOffProcess.running = true
+		}
+		function onRequestDpmsOn() {
+			idleDpmsOnProcess.running = true
+		}
+		function onRequestSuspend() {
+			idleSuspendProcess.running = true
+		}
+	}
+
+	// Track lock state directly in IdleService (no Binding lag)
+	Connections {
+		target: lock
+		function onLockedChanged() {
+			IdleService._locked = lock.locked
+			console.log("[shell] lock.locked →", lock.locked)
+			if (!lock.locked) {
+				IdleService.onUnlocked()
+			}
+		}
+	}
+
+	Process {
+		id: idleDpmsOffProcess
+		command: ["hyprctl", "dispatch", "dpms", "off"]
+		onRunningChanged: if (!running) console.log("[shell] DPMS off done")
+	}
+	Process {
+		id: idleDpmsOnProcess
+		command: ["hyprctl", "dispatch", "dpms", "on"]
+		onRunningChanged: if (!running) console.log("[shell] DPMS on done")
+	}
+	Process {
+		id: idleSuspendProcess
+		command: ["systemctl", "suspend"]
+		onRunningChanged: if (!running) console.log("[shell] Suspend done")
+	}
+
+	// Inhibit idle while recording (if enabled in settings)
+	IdleInhibitor {
+		enabled: cfg.idleInhibitRecording && ScreenRecorder.recording
+		window: barWindow
+	}
+
+	Bar {
+		id: barWindow
+	}
 	Sidebar {}
+	NightLight {}
 	AudioOsd {}
 	Background {
 		id: background
@@ -159,6 +316,8 @@ ShellRoot {
 	Launcher {}
 	Notifications {}
 	Settings {}
+	WeatherDetail {}
+	FirstLaunch {}
 
 	// ── Lockscreen ──
 	LockContext {

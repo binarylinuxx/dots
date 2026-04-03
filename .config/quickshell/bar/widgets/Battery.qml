@@ -40,7 +40,7 @@ Item {
                 return "battery_0_bar"
             }
 
-            Behavior on color { ColorAnimation { duration: 200 } }
+            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
         }
 
         // Percent label — only visible on hover
@@ -55,7 +55,7 @@ Item {
             visible: opacity > 0
 
             Behavior on opacity {
-                NumberAnimation { duration: 150 }
+                NumberAnimation { duration: Gstate.animDuration }
             }
         }
     }

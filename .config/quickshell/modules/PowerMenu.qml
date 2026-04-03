@@ -108,11 +108,11 @@ PanelWindow {
 					? (col.primaryContainer || "#331443")
 					: (col.surfaceContainer || "#221f22")
 
-				Behavior on color { ColorAnimation { duration: 200 } }
-				Behavior on radius { NumberAnimation { duration: 200 } }
+				Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+				Behavior on radius { NumberAnimation { duration: Gstate.animDuration } }
 
 				scale: btnMouse.pressed ? 0.92 : (isActive ? 1.05 : 1.0)
-				Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+				Behavior on scale { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
 
 				Column {
 					anchors.centerIn: parent
@@ -127,7 +127,7 @@ PanelWindow {
 							? (col.onPrimaryContainer || "#c79fd7")
 							: (col.onSurfaceVariant || "#cec3ce")
 
-						Behavior on color { ColorAnimation { duration: 200 } }
+						Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 					}
 
 					Text {
@@ -140,7 +140,7 @@ PanelWindow {
 							? (col.onPrimaryContainer || "#c79fd7")
 							: (col.onSurface || "#e8e0e5")
 
-						Behavior on color { ColorAnimation { duration: 200 } }
+						Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 					}
 				}
 

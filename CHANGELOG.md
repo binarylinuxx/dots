@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.5.1] - 2026-03-13
+
+### Added
+- openSUSE Tumbleweed support
+  - New `opensuse-deps/` directory with RPM spec files mirroring all `arch-deps/` metapackages
+  - Specs: `blxshell-shell`, `blxshell-audio`, `blxshell-hyprland`, `blxshell-quickshell-git`, `blxshell-fonts` and all font sub-packages
+  - Four new font specs for packages missing from Tumbleweed repos: `blxshell-font-material-symbols`, `blxshell-font-readex-pro`, `blxshell-font-rubik`, `blxshell-font-space-grotesk`
+  - Packages published to OBS at `home:binarylinuxx:blxshell`
+- OS detection now recognises openSUSE Tumbleweed (`IS_OPENSUSE=true`)
+- Installer automatically adds `home:binarylinuxx:blxshell` OBS repo and installs via `zypper`
+
 ## [2.5.0] - 2026-03-07
 
 ### Added

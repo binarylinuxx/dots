@@ -18,7 +18,7 @@ FloatingWindow {
 	visible: Gstate.settingsOpen
 
 	property int selectedIndex: 0
-	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "Advanced", "About"]
+	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "Advanced", "Performance", "About"]
 	property int darkModeIndex: 0
 	property int colorSchemeIndex: 7
 	property int workspaceCount: 10
@@ -57,7 +57,7 @@ FloatingWindow {
 		{ name: "Bars", value: "bars", icon: "view_week" }
 	]
 
-	property var fontFamilies: ["Bitcount Single", "Rubik", "Google Sans Flex", "Cantarell", "Fira Sans", "JetBrains Mono", "Noto Sans"]
+	property var fontFamilies: ["nothing font", "Monocraft" ,"Bitcount Single", "Rubik", "Google Sans Flex", "Cantarell", "Fira Sans", "JetBrains Mono", "Noto Sans"]
 
 	// Config file management
 	FileView {
@@ -119,6 +119,23 @@ FloatingWindow {
 			property string weatherProvider: "wttr"
 			property string weatherCity: ""
 			property string weatherApiKey: ""
+			// Night Light
+			property bool nightLightEnabled: false
+			property real nightLightTemperature: 0.6
+			property real nightLightStrength: 0.45
+			// Idle
+			property bool idleEnabled: true
+			property int  idleTimeout: 300
+			property bool idleInhibitRecording: true
+			property bool idleDpmsEnabled: true
+			property int  idleDpmsDelay: 300
+			property bool idleSuspendEnabled: true
+			property int  idleSuspendDelay: 600
+			// Wallhaven
+			property string wallhavenApiKey: ""
+			property string wallhavenPurityMode: "sfw"  // "sfw" | "nsfw" | "apikey"
+			property string pexelsApiKey: ""
+
 
 			onLauncherMaxItemsChanged: launcherHeight = launcherMaxItems * launcherItemHeight + 70
 			onLauncherItemHeightChanged: launcherHeight = launcherMaxItems * launcherItemHeight + 70
@@ -221,6 +238,8 @@ FloatingWindow {
 		command: ["qs", "ipc", "call", "widgets", "reload"]
 	}
 
+
+
 	Timer {
 		id: smartStatusClearTimer
 		interval: 5000
@@ -303,7 +322,7 @@ FloatingWindow {
 								spacing: 12
 
 								MaterialSymbol {
-									icon: index === 0 ? "palette" : index === 1 ? "wallpaper" : index === 2 ? "view_sidebar" : index === 3 ? "rocket_launch" : index === 4 ? "schedule" : index === 5 ? "science" : "info"
+									icon: index === 0 ? "palette" : index === 1 ? "wallpaper" : index === 2 ? "view_sidebar" : index === 3 ? "rocket_launch" : index === 4 ? "schedule" : index === 5 ? "science" : index === 6 ? "speed" : "info"
 									iconSize: 22
 									color: index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
 								}
@@ -1593,6 +1612,117 @@ FloatingWindow {
 									}
 								}
 							}
+
+							// Night Light
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: nightLightContent.height + 30
+								radius: 16
+								color: col.surfaceContainer
+
+								ColumnLayout {
+									id: nightLightContent
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.top: parent.top
+									anchors.margins: 15
+									spacing: 15
+
+									RowLayout {
+										spacing: 10
+										MaterialSymbol { icon: "nightlight"; iconSize: 22; color: col.primary }
+										Text { text: "Night Light"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+									}
+
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Enable Night Light"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+											Text { text: "Warm overlay to reduce eye strain"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										ToggleSwitch {
+											checked: configAdapter ? configAdapter.nightLightEnabled : false
+											onToggled: (state) => {
+												if (configAdapter) {
+													configAdapter.nightLightEnabled = state
+													Gstate.nightLightEnabled = state
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Temperature
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Color Temperature"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+											Text {
+												text: {
+													var t = configAdapter ? configAdapter.nightLightTemperature : 0.5
+													var k = Math.round(6500 - t * 4700)
+													return k + "K"
+												}
+												font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
+											}
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: 0.0
+											to: 1.0
+											stepSize: 0.05
+											value: configAdapter ? configAdapter.nightLightTemperature : 0.6
+											onValueChanged: {
+												if (configAdapter && Math.abs(configAdapter.nightLightTemperature - value) > 0.01) {
+													configAdapter.nightLightTemperature = value
+													saveConfig()
+												}
+											}
+										}
+									}
+
+									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+									// Strength
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 15
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 2
+											Text { text: "Strength"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+											Text { text: Math.round((configAdapter ? configAdapter.nightLightStrength : 0.45) * 100) + "% opacity"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+										}
+
+										StyledSlider {
+											sliderWidth: 180
+											from: 0.1
+											to: 0.8
+											stepSize: 0.05
+											value: configAdapter ? configAdapter.nightLightStrength : 0.45
+											onValueChanged: {
+												if (configAdapter && Math.abs(configAdapter.nightLightStrength - value) > 0.01) {
+													configAdapter.nightLightStrength = value
+													saveConfig()
+												}
+											}
+										}
+									}
+								}
+							}
 						}
 					}
 
@@ -2043,8 +2173,357 @@ FloatingWindow {
 									}
 								}
 							}
+
+						// Wallhaven
+						Rectangle {
+							Layout.fillWidth: true
+							Layout.preferredHeight: wallhavenKeyContent.height + 30
+							radius: 16
+							color: col.surfaceContainer
+
+							ColumnLayout {
+								id: wallhavenKeyContent
+								anchors.left: parent.left
+								anchors.right: parent.right
+								anchors.top: parent.top
+								anchors.margins: 15
+								spacing: 12
+
+								RowLayout {
+									spacing: 10
+									MaterialSymbol { icon: "wallpaper"; iconSize: 20; color: col.primary }
+									Text {
+										text: "Wallhaven"
+										font.pixelSize: 14
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										font.weight: 600
+										color: col.onSurface
+									}
+								}
+
+								// Purity mode chips
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 6
+
+									Repeater {
+										model: [
+											{ label: "SFW",        value: "sfw",    icon: "check_circle" },
+											{ label: "NSFW",       value: "nsfw",   icon: "no_adult_content" },
+											{ label: "Use API Key", value: "apikey", icon: "vpn_key" }
+										]
+
+										Rectangle {
+											property bool active: (configAdapter ? configAdapter.wallhavenPurityMode : "sfw") === modelData.value
+											height: 32
+											width: chipRow.width + 18
+											radius: active ? 16 : 8
+											color: active ? col.primaryContainer : col.surfaceContainerHigh
+											Behavior on radius { NumberAnimation { duration: 150 } }
+											Behavior on color { ColorAnimation { duration: 150 } }
+
+											RowLayout {
+												id: chipRow
+												anchors.centerIn: parent
+												spacing: 5
+												MaterialSymbol {
+													icon: modelData.icon
+													iconSize: 15
+													color: parent.parent.active ? col.onPrimaryContainer : col.onSurfaceVariant
+												}
+												Text {
+													text: modelData.label
+													font.pixelSize: 12
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													font.weight: 600
+													color: parent.parent.active ? col.onPrimaryContainer : col.onSurfaceVariant
+												}
+											}
+
+											MouseArea {
+												anchors.fill: parent
+												cursorShape: Qt.PointingHandCursor
+												onClicked: {
+													if (configAdapter) {
+														configAdapter.wallhavenPurityMode = modelData.value
+														saveConfig()
+													}
+												}
+											}
+										}
+									}
+								}
+
+								// API key field — only shown in apikey mode
+								Rectangle {
+									Layout.fillWidth: true
+									height: 44
+									radius: 12
+									color: col.surfaceContainerHigh
+									border.width: wallhavenKeyField.activeFocus ? 2 : 0
+									border.color: col.primary
+									visible: (configAdapter ? configAdapter.wallhavenPurityMode : "sfw") === "apikey"
+
+									Behavior on border.width { NumberAnimation { duration: 150 } }
+
+									TextField {
+										id: wallhavenKeyField
+										anchors.fill: parent
+										anchors.margins: 4
+										text: configAdapter ? configAdapter.wallhavenApiKey : ""
+										placeholderText: "Paste API key here..."
+										placeholderTextColor: col.onSurfaceVariant
+										color: col.onSurface
+										font.pixelSize: 14
+										font.family: "JetBrains Mono"
+										background: null
+										echoMode: TextInput.Password
+										verticalAlignment: Text.AlignVCenter
+										onEditingFinished: {
+											if (configAdapter) {
+												configAdapter.wallhavenApiKey = text.trim()
+												saveConfig()
+											}
+										}
+									}
+								}
+
+								RowLayout {
+									spacing: 8
+									visible: (configAdapter ? configAdapter.wallhavenPurityMode : "sfw") === "apikey"
+
+									// Toggle visibility button
+									Rectangle {
+										width: showKeyRow.width + 16
+										height: 30
+										radius: 15
+										color: showKeyMouse.containsMouse ? col.surfaceContainerHighest : col.surfaceContainerHigh
+										Behavior on color { ColorAnimation { duration: 150 } }
+
+										RowLayout {
+											id: showKeyRow
+											anchors.centerIn: parent
+											spacing: 6
+											MaterialSymbol {
+												icon: wallhavenKeyField.echoMode === TextInput.Password ? "visibility" : "visibility_off"
+												iconSize: 16
+												color: col.onSurfaceVariant
+											}
+											Text {
+												text: wallhavenKeyField.echoMode === TextInput.Password ? "Show" : "Hide"
+												font.pixelSize: 12
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												color: col.onSurfaceVariant
+											}
+										}
+
+										MouseArea {
+											id: showKeyMouse
+											anchors.fill: parent
+											cursorShape: Qt.PointingHandCursor
+											hoverEnabled: true
+											onClicked: {
+												if (wallhavenKeyField.echoMode === TextInput.Password)
+													wallhavenKeyField.echoMode = TextInput.Normal
+												else
+													wallhavenKeyField.echoMode = TextInput.Password
+											}
+										}
+									}
+
+									// Clear button
+									Rectangle {
+										width: clearKeyRow.width + 16
+										height: 30
+										radius: 15
+										color: clearKeyMouse.containsMouse ? col.errorContainer : col.surfaceContainerHigh
+										visible: (configAdapter ? configAdapter.wallhavenApiKey : "") !== ""
+										Behavior on color { ColorAnimation { duration: 150 } }
+
+										RowLayout {
+											id: clearKeyRow
+												anchors.centerIn: parent
+												spacing: 6
+												MaterialSymbol {
+													icon: "delete"
+													iconSize: 16
+													color: clearKeyMouse.containsMouse ? col.onErrorContainer : col.onSurfaceVariant
+												}
+												Text {
+													text: "Clear"
+													font.pixelSize: 12
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													color: clearKeyMouse.containsMouse ? col.onErrorContainer : col.onSurfaceVariant
+												}
+											}
+
+											MouseArea {
+												id: clearKeyMouse
+												anchors.fill: parent
+												cursorShape: Qt.PointingHandCursor
+												hoverEnabled: true
+												onClicked: {
+													wallhavenKeyField.text = ""
+													if (configAdapter) {
+														configAdapter.wallhavenApiKey = ""
+														saveConfig()
+													}
+												}
+											}
+									}
+								}
+							}
+						}
+
+					// Pexels API Key
+					Rectangle {
+						Layout.fillWidth: true
+						Layout.preferredHeight: pexelsKeyContent.height + 30
+						radius: 16
+						color: col.surfaceContainer
+
+						ColumnLayout {
+							id: pexelsKeyContent
+							anchors.left: parent.left
+							anchors.right: parent.right
+							anchors.top: parent.top
+							anchors.margins: 15
+							spacing: 12
+
+							RowLayout {
+								spacing: 10
+								MaterialSymbol { icon: "photo_camera"; iconSize: 20; color: col.primary }
+								Text {
+									text: "Pexels API Key"
+									font.pixelSize: 14
+									font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+									font.weight: 600
+									color: col.onSurface
+								}
+							}
+
+							Text {
+								text: "Free key at pexels.com/api — enables /pexels command in launcher."
+								font.pixelSize: 11
+								font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+								color: col.onSurfaceVariant
+								opacity: 0.8
+								wrapMode: Text.WordWrap
+								Layout.fillWidth: true
+							}
+
+							Rectangle {
+								Layout.fillWidth: true
+								height: 44
+								radius: 12
+								color: col.surfaceContainerHigh
+								border.width: pexelsKeyField.activeFocus ? 2 : 0
+								border.color: col.primary
+								Behavior on border.width { NumberAnimation { duration: 150 } }
+
+								TextField {
+									id: pexelsKeyField
+									anchors.fill: parent
+									anchors.margins: 4
+									text: configAdapter ? configAdapter.pexelsApiKey : ""
+									placeholderText: "Paste Pexels API key..."
+									placeholderTextColor: col.onSurfaceVariant
+									color: col.onSurface
+									font.pixelSize: 13
+									font.family: "JetBrains Mono"
+									background: null
+									echoMode: TextInput.Password
+									verticalAlignment: Text.AlignVCenter
+									onEditingFinished: {
+										if (configAdapter) {
+											configAdapter.pexelsApiKey = text.trim()
+											saveConfig()
+										}
+									}
+								}
+							}
+
+							RowLayout {
+								spacing: 8
+
+								Rectangle {
+									width: showPexelsRow.width + 16
+									height: 30
+									radius: 15
+									color: showPexelsMouse.containsMouse ? col.surfaceContainerHighest : col.surfaceContainerHigh
+									Behavior on color { ColorAnimation { duration: 150 } }
+									RowLayout {
+										id: showPexelsRow
+										anchors.centerIn: parent
+										spacing: 6
+										MaterialSymbol {
+											icon: pexelsKeyField.echoMode === TextInput.Password ? "visibility" : "visibility_off"
+											iconSize: 16
+											color: col.onSurfaceVariant
+										}
+										Text {
+											text: pexelsKeyField.echoMode === TextInput.Password ? "Show" : "Hide"
+											font.pixelSize: 12
+											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+											color: col.onSurfaceVariant
+										}
+									}
+									MouseArea {
+										id: showPexelsMouse
+										anchors.fill: parent
+										cursorShape: Qt.PointingHandCursor
+										hoverEnabled: true
+										onClicked: {
+											if (pexelsKeyField.echoMode === TextInput.Password)
+												pexelsKeyField.echoMode = TextInput.Normal
+											else
+												pexelsKeyField.echoMode = TextInput.Password
+										}
+									}
+								}
+
+								Rectangle {
+									width: clearPexelsRow.width + 16
+									height: 30
+									radius: 15
+									color: clearPexelsMouse.containsMouse ? col.errorContainer : col.surfaceContainerHigh
+									visible: (configAdapter ? configAdapter.pexelsApiKey : "") !== ""
+									Behavior on color { ColorAnimation { duration: 150 } }
+									RowLayout {
+										id: clearPexelsRow
+										anchors.centerIn: parent
+										spacing: 6
+										MaterialSymbol {
+											icon: "delete"
+											iconSize: 16
+											color: clearPexelsMouse.containsMouse ? col.onErrorContainer : col.onSurfaceVariant
+										}
+										Text {
+											text: "Clear"
+											font.pixelSize: 12
+											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+											color: clearPexelsMouse.containsMouse ? col.onErrorContainer : col.onSurfaceVariant
+										}
+									}
+									MouseArea {
+										id: clearPexelsMouse
+										anchors.fill: parent
+										cursorShape: Qt.PointingHandCursor
+										hoverEnabled: true
+										onClicked: {
+											pexelsKeyField.text = ""
+											if (configAdapter) {
+												configAdapter.pexelsApiKey = ""
+												saveConfig()
+											}
+										}
+									}
+								}
 						}
 					}
+				}
+			}
+		}
 
 					// === Clock Page ===
 					ScrollView {
@@ -2992,17 +3471,459 @@ FloatingWindow {
 						}
 					}
 
-				// === About Page ===
-					ScrollView {
-						clip: true
+				// === Performance Page ===
+				ScrollView {
+					clip: true
 
-						ColumnLayout {
-							width: stackLayout.width - 50
-							spacing: 25
+					ColumnLayout {
+						width: stackLayout.width - 50
+						spacing: 25
 
-							Item { Layout.preferredHeight: 10 }
+						Text {
+							text: "Performance"
+							font.pixelSize: 26
+							font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+							font.weight: 700
+							color: col.onSurface
+						}
 
-							// OS Info Section
+						// ── Animations ──
+						Rectangle {
+							Layout.fillWidth: true
+							Layout.preferredHeight: perfAnimContent.height + 30
+							radius: 16
+							color: col.surfaceContainer
+
+							ColumnLayout {
+								id: perfAnimContent
+								anchors.left: parent.left
+								anchors.right: parent.right
+								anchors.top: parent.top
+								anchors.margins: 15
+								spacing: 15
+
+								RowLayout {
+									spacing: 10
+									MaterialSymbol { icon: "animation"; iconSize: 22; color: col.primary }
+									Text { text: "Animations"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+								}
+
+								// Animation Speed
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Speed"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: "UI transition speed"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+
+									Row {
+										spacing: 6
+										Repeater {
+											model: animationSpeeds
+											Rectangle {
+												width: animSpeedLabel2.implicitWidth + 20
+												height: 32
+												radius: configAdapter && configAdapter.animationSpeed === modelData.value ? 16 : 8
+												color: configAdapter && configAdapter.animationSpeed === modelData.value ? col.primary : col.surfaceContainerHigh
+												Behavior on radius { NumberAnimation { duration: 150 } }
+												Behavior on color { ColorAnimation { duration: 150 } }
+												Text {
+													id: animSpeedLabel2
+													anchors.centerIn: parent
+													text: modelData.name
+													font.pixelSize: 12
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													font.weight: 600
+													color: configAdapter && configAdapter.animationSpeed === modelData.value ? col.onPrimary : col.onSurfaceVariant
+												}
+												MouseArea {
+													anchors.fill: parent
+													cursorShape: Qt.PointingHandCursor
+													onClicked: {
+														if (configAdapter) {
+															configAdapter.animationSpeed = modelData.value
+															saveConfig()
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								// Wallpaper parallax
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Wallpaper Parallax"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: "Parallax shift on workspace change"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									ToggleSwitch {
+										checked: configAdapter ? configAdapter.wallpaperParallax : true
+										onToggled: (state) => {
+											if (configAdapter) {
+												configAdapter.wallpaperParallax = state
+												saveConfig()
+											}
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								// Wallpaper transition duration
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Wallpaper Transition"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: (configAdapter ? configAdapter.wallpaperTransitionDuration : 600) + "ms"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									StyledSlider {
+										sliderWidth: 160
+										from: 0
+										to: 1500
+										stepSize: 50
+										value: configAdapter ? configAdapter.wallpaperTransitionDuration : 600
+										onValueChanged: {
+											if (configAdapter && configAdapter.wallpaperTransitionDuration !== value) {
+												configAdapter.wallpaperTransitionDuration = value
+												saveConfig()
+											}
+										}
+									}
+								}
+							}
+						}
+
+
+
+						// ── Night Light ──
+						Rectangle {
+							Layout.fillWidth: true
+							Layout.preferredHeight: perfNightLightContent.height + 30
+							radius: 16
+							color: col.surfaceContainer
+
+							ColumnLayout {
+								id: perfNightLightContent
+								anchors.left: parent.left
+								anchors.right: parent.right
+								anchors.top: parent.top
+								anchors.margins: 15
+								spacing: 15
+
+								RowLayout {
+									spacing: 10
+									MaterialSymbol { icon: "nightlight"; iconSize: 22; color: col.primary }
+									Text { text: "Night Light"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+								}
+
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Enable Night Light"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: "Warm color temperature via Hyprland shader"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									ToggleSwitch {
+										checked: configAdapter ? configAdapter.nightLightEnabled : false
+										onToggled: (state) => {
+											if (configAdapter) {
+												configAdapter.nightLightEnabled = state
+												Gstate.nightLightEnabled = state
+												saveConfig()
+											}
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								// Temperature
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.nightLightEnabled ? 1.0 : 0.5
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Color Temperature"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text {
+											text: {
+												var t = configAdapter ? configAdapter.nightLightTemperature : 0.5
+												return Math.round(6500 - t * 4700) + "K"
+											}
+											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
+										}
+									}
+									StyledSlider {
+										sliderWidth: 160
+										from: 0.0
+										to: 1.0
+										stepSize: 0.05
+										value: configAdapter ? configAdapter.nightLightTemperature : 0.5
+										onMoved: newValue => {
+											if (configAdapter) {
+												configAdapter.nightLightTemperature = newValue
+												saveConfig()
+											}
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								// Strength
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.nightLightEnabled ? 1.0 : 0.5
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Strength"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: Math.round((configAdapter ? configAdapter.nightLightStrength : 0.8) * 100) + "%"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									StyledSlider {
+										sliderWidth: 160
+										from: 0.1
+										to: 1.0
+										stepSize: 0.05
+										value: configAdapter ? configAdapter.nightLightStrength : 0.8
+										onMoved: newValue => {
+											if (configAdapter) {
+												configAdapter.nightLightStrength = newValue
+												saveConfig()
+											}
+										}
+									}
+								}
+							}
+						}
+
+						// ── Idle ──
+						Rectangle {
+							Layout.fillWidth: true
+							Layout.preferredHeight: perfIdleContent.height + 30
+							radius: 16
+							color: col.surfaceContainer
+
+							ColumnLayout {
+								id: perfIdleContent
+								anchors.left: parent.left
+								anchors.right: parent.right
+								anchors.top: parent.top
+								anchors.margins: 15
+								spacing: 15
+
+								RowLayout {
+									spacing: 10
+									MaterialSymbol { icon: "timelapse"; iconSize: 22; color: col.primary }
+									Text { text: "Idle Tracking"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
+								}
+
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Enable Idle Detection"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: "Track when you stop providing input"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									ToggleSwitch {
+										checked: configAdapter ? configAdapter.idleEnabled : true
+										onToggled: (state) => {
+											if (configAdapter) { configAdapter.idleEnabled = state; saveConfig() }
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.idleEnabled ? 1.0 : 0.4
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Idle Timeout"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text {
+											text: {
+												var s = configAdapter ? configAdapter.idleTimeout : 300
+												if (s < 60) return s + "s"
+												var m = Math.floor(s / 60)
+												var r = s % 60
+												return r > 0 ? (m + "m " + r + "s") : (m + "m")
+											}
+											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
+										}
+									}
+									StyledSlider {
+										sliderWidth: 160
+										from: 30; to: 1800; stepSize: 30
+										value: configAdapter ? configAdapter.idleTimeout : 300
+										enabled: configAdapter ? configAdapter.idleEnabled : true
+										onMoved: newValue => {
+											if (configAdapter) { configAdapter.idleTimeout = newValue; saveConfig() }
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.idleEnabled ? 1.0 : 0.4
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Inhibit When Recording"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: "Prevent idle while screen recording is active"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									ToggleSwitch {
+										checked: configAdapter ? configAdapter.idleInhibitRecording : true
+										enabled: configAdapter ? configAdapter.idleEnabled : true
+										onToggled: (state) => {
+											if (configAdapter) { configAdapter.idleInhibitRecording = state; saveConfig() }
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								// ── DPMS ──────────────────────────────────────────────────────────
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.idleEnabled ? 1.0 : 0.4
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Blank Display"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: "Turn off monitor after locking"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									ToggleSwitch {
+										checked: configAdapter ? configAdapter.idleDpmsEnabled : true
+										enabled: configAdapter ? configAdapter.idleEnabled : true
+										onToggled: (state) => {
+											if (configAdapter) { configAdapter.idleDpmsEnabled = state; saveConfig() }
+										}
+									}
+								}
+
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.idleEnabled && configAdapter.idleDpmsEnabled ? 1.0 : 0.4
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Display Off Delay"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text {
+											text: {
+												var s = configAdapter ? configAdapter.idleDpmsDelay : 300
+												var m = Math.floor(s / 60)
+												var r = s % 60
+												return "After lock + " + (r > 0 ? (m + "m " + r + "s") : (m + "m"))
+											}
+											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
+										}
+									}
+									StyledSlider {
+										sliderWidth: 160
+										from: 30; to: 1800; stepSize: 30
+										value: configAdapter ? configAdapter.idleDpmsDelay : 300
+										enabled: configAdapter && configAdapter.idleEnabled && configAdapter.idleDpmsEnabled
+										onMoved: newValue => {
+											if (configAdapter) { configAdapter.idleDpmsDelay = newValue; saveConfig() }
+										}
+									}
+								}
+
+								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+
+								// ── Suspend ───────────────────────────────────────────────────────
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.idleEnabled ? 1.0 : 0.4
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Auto Suspend"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text { text: "Suspend system after inactivity"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
+									}
+									ToggleSwitch {
+										checked: configAdapter ? configAdapter.idleSuspendEnabled : true
+										enabled: configAdapter ? configAdapter.idleEnabled : true
+										onToggled: (state) => {
+											if (configAdapter) { configAdapter.idleSuspendEnabled = state; saveConfig() }
+										}
+									}
+								}
+
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 15
+									opacity: configAdapter && configAdapter.idleEnabled && configAdapter.idleSuspendEnabled ? 1.0 : 0.4
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+										Text { text: "Suspend Delay"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
+										Text {
+											text: {
+												var s = configAdapter ? configAdapter.idleSuspendDelay : 600
+												var m = Math.floor(s / 60)
+												var r = s % 60
+												return "After lock + " + (r > 0 ? (m + "m " + r + "s") : (m + "m"))
+											}
+											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
+										}
+									}
+									StyledSlider {
+										sliderWidth: 160
+										from: 60; to: 3600; stepSize: 60
+										value: configAdapter ? configAdapter.idleSuspendDelay : 600
+										enabled: configAdapter && configAdapter.idleEnabled && configAdapter.idleSuspendEnabled
+										onMoved: newValue => {
+											if (configAdapter) { configAdapter.idleSuspendDelay = newValue; saveConfig() }
+										}
+									}
+								}
+
+							}
+						}
+					}
+				}
+
+			// === About Page ===
+				ScrollView {
+					clip: true
+
+					ColumnLayout {
+						width: stackLayout.width - 50
+						spacing: 25
+
+						Item { Layout.preferredHeight: 10 }
+
+						// OS Info Section
 							Rectangle {
 								Layout.fillWidth: true
 								Layout.preferredHeight: osInfoContent.height + 40

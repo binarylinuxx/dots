@@ -1,5 +1,5 @@
 {
-  "image": "/home/blx/.local/wallpapers/black-whole2.png",
+  "image": "/home/blx/.local/wallpapers/wallhaven-1ppgmv.jpg",
   "grid": {
     "cols": 24,
     "rows": 16
@@ -7,19 +7,19 @@
   "widgets": [
     {
       "type": "clock",
-      "gridX": 18,
-      "gridY": 6,
-      "gridWidth": 6,
-      "gridHeight": 5,
-      "reason": "score: 8.3"
+      "gridX": 6,
+      "gridY": 11,
+      "gridWidth": 9,
+      "gridHeight": 3,
+      "reason": "score: 7.1"
     },
     {
       "type": "weather",
-      "gridX": 18,
-      "gridY": 12,
-      "gridWidth": 6,
-      "gridHeight": 4,
-      "reason": "score: 10.9"
+      "gridX": 1,
+      "gridY": 0,
+      "gridWidth": 7,
+      "gridHeight": 7,
+      "reason": "score: 22.5"
     }
   ]
 }

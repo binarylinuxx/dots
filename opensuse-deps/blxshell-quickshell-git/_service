@@ -1,0 +1,9 @@
+<services>
+  <service name="tar_scm">
+    <param name="url">https://github.com/quickshell-mirror/quickshell.git</param>
+    <param name="scm">git</param>
+    <param name="revision">4b77936</param>
+    <param name="filename">quickshell-4b77936</param>
+    <param name="versionformat">4b77936</param>
+  </service>
+</services>

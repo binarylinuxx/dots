@@ -11,8 +11,16 @@ import qs.services
 PanelWindow {
 	id: root
 	exclusiveZone: 0
-	width: cfg ? cfg.launcherWidth + 20 : 420
-	height: cfg ? cfg.launcherHeight : 540
+	property bool isWallpaperBrowserMode: isWallhavenMode || isPexelsMode
+	width: isWallpaperBrowserMode ? 1220 : (cfg ? cfg.launcherWidth + 20 : 420)
+	height: isWallpaperBrowserMode ? 700 : (cfg ? cfg.launcherHeight : 540)
+
+	Behavior on width {
+		NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
+	}
+	Behavior on height {
+		NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
+	}
 	color: "transparent"
 	visible: Gstate.appsOpen
 	focusable: true
@@ -63,6 +71,11 @@ PanelWindow {
 				apps.push(app)
 			}
 		}
+		if (term) {
+			apps.sort(function(a, b) {
+				return appSortScore(b, term) - appSortScore(a, term)
+			})
+		}
 		filteredApps = apps
 		visibleAppCount = apps.length
 	}
@@ -71,8 +84,30 @@ PanelWindow {
 	property bool isWallpaperMode: false
 	property bool isEmojiMode: false
 	property bool isClipboardMode: false
+	property bool isWallhavenMode: false
+	property bool isPexelsMode: false
 	property bool isMathMode: false
 	property string mathResult: ""
+
+	// Shared wallpaper browser state
+	property string wallpaperProvider: "wallhaven"  // "wallhaven" | "pexels"
+
+	// Wallhaven state
+	property var wallhavenResults: []
+	property bool isLoadingWallhaven: false
+	property string wallhavenQuery: ""
+	property string wallhavenRawData: ""
+	property int wallhavenPage: 1
+	property int wallhavenLastPage: 1
+	property bool wallhavenHasMore: false
+
+	// Pexels state
+	property var pexelsResults: []
+	property bool isLoadingPexels: false
+	property string pexelsQuery: ""
+	property string pexelsRawData: ""
+	property int pexelsPage: 1
+	property bool pexelsHasMore: false
 	
 	function evaluateMath(expression) {
 		try {
@@ -136,7 +171,7 @@ PanelWindow {
 	}
 
 	// Filtered search term (excludes commands)
-	property string appSearchTerm: (isWallpaperMode || isEmojiMode || isClipboardMode) ? "" : searchTerm
+	property string appSearchTerm: (isWallpaperMode || isEmojiMode || isClipboardMode || isWallhavenMode || isPexelsMode) ? "" : searchTerm
 
 	Timer {
 		id: updateVisibleCount
@@ -324,6 +359,240 @@ PanelWindow {
 		}
 	}
 
+	function wallhavenUrlParams() {
+		var mode = cfg ? cfg.wallhavenPurityMode : "sfw"
+		var purity = (mode === "sfw") ? "100" : "111"
+		var key = (mode === "apikey" && cfg && cfg.wallhavenApiKey) ? cfg.wallhavenApiKey : ""
+		return "&purity=" + purity + (key.length > 0 ? ("&apikey=" + key) : "")
+	}
+
+	// Wallhaven search debounce timer
+	Timer {
+		id: wallhavenSearchTimer
+		interval: 500
+		repeat: false
+		onTriggered: {
+			var q = searchTerm.replace(/^\/wallhaven\s*/, "").trim()
+			if (q.length > 0) {
+				root.wallhavenQuery = q
+				root.wallhavenPage = 1
+				root.wallhavenResults = []
+				root.wallhavenRawData = ""
+				root.isLoadingWallhaven = true
+				wallhavenSearchProcess.command = [
+					"curl", "-s", "--max-time", "10",
+					"https://wallhaven.cc/api/v1/search?q=" + encodeURIComponent(q) +
+					"&categories=111&sorting=relevance&order=desc&ratios=16x9,16x10&page=1" +
+					wallhavenUrlParams()
+				]
+				wallhavenSearchProcess.running = true
+			} else {
+				root.wallhavenResults = []
+				root.isLoadingWallhaven = false
+			}
+		}
+	}
+
+	function wallhavenLoadMore() {
+		if (root.isLoadingWallhaven || !root.wallhavenHasMore) return
+		var nextPage = root.wallhavenPage + 1
+		root.isLoadingWallhaven = true
+		root.wallhavenRawData = ""
+		wallhavenSearchProcess.command = [
+			"curl", "-s", "--max-time", "10",
+			"https://wallhaven.cc/api/v1/search?q=" + encodeURIComponent(root.wallhavenQuery) +
+			"&categories=111&sorting=relevance&order=desc&ratios=16x9,16x10&page=" + nextPage +
+			wallhavenUrlParams()
+		]
+		wallhavenSearchProcess.running = true
+		root.wallhavenPage = nextPage
+	}
+
+	Process {
+		id: wallhavenSearchProcess
+		stdout: SplitParser {
+			splitMarker: ""
+			onRead: data => { root.wallhavenRawData += data }
+		}
+		onExited: (code, status) => {
+			root.isLoadingWallhaven = false
+			if (code === 0 && root.wallhavenRawData.length > 0) {
+				try {
+					var parsed = JSON.parse(root.wallhavenRawData)
+					var items = parsed.data || []
+					var meta = parsed.meta || {}
+					var newResults = items.map(function(w) {
+						return {
+							id: w.id,
+							thumb: w.thumbs.large,
+							path: w.path,
+							resolution: w.resolution,
+							dimX: w.dimension_x,
+							dimY: w.dimension_y,
+							ratio: parseFloat(w.ratio),
+							fileType: w.file_type
+						}
+					})
+					if (root.wallhavenPage === 1) {
+						root.wallhavenResults = newResults
+					} else {
+						root.wallhavenResults = root.wallhavenResults.concat(newResults)
+					}
+					root.wallhavenLastPage = meta.last_page || 1
+					root.wallhavenHasMore = root.wallhavenPage < root.wallhavenLastPage
+				} catch (e) {
+					console.error("Wallhaven parse error:", e)
+				}
+			}
+		}
+	}
+
+	// Pexels search
+	function pexelsApiKey() {
+		return cfg ? cfg.pexelsApiKey : ""
+	}
+
+	Timer {
+		id: pexelsSearchTimer
+		interval: 500
+		repeat: false
+		onTriggered: {
+			var q = searchTerm.replace(/^\/pexels\s*/, "").trim()
+			if (q.length > 0 && pexelsApiKey().length > 0) {
+				root.pexelsQuery = q
+				root.pexelsPage = 1
+				root.pexelsResults = []
+				root.pexelsRawData = ""
+				root.isLoadingPexels = true
+				pexelsSearchProcess.command = [
+					"curl", "-s", "--max-time", "10",
+					"-H", "Authorization: " + pexelsApiKey(),
+					"https://api.pexels.com/v1/search?query=" + encodeURIComponent(q) +
+					"&per_page=20&page=1&orientation=landscape"
+				]
+				pexelsSearchProcess.running = true
+			} else {
+				root.pexelsResults = []
+				root.isLoadingPexels = false
+			}
+		}
+	}
+
+	function pexelsLoadMore() {
+		if (root.isLoadingPexels || !root.pexelsHasMore) return
+		var nextPage = root.pexelsPage + 1
+		root.isLoadingPexels = true
+		root.pexelsRawData = ""
+		pexelsSearchProcess.command = [
+			"curl", "-s", "--max-time", "10",
+			"-H", "Authorization: " + pexelsApiKey(),
+			"https://api.pexels.com/v1/search?query=" + encodeURIComponent(root.pexelsQuery) +
+			"&per_page=20&page=" + nextPage + "&orientation=landscape"
+		]
+		pexelsSearchProcess.running = true
+		root.pexelsPage = nextPage
+	}
+
+	Process {
+		id: pexelsSearchProcess
+		stdout: SplitParser {
+			splitMarker: ""
+			onRead: data => { root.pexelsRawData += data }
+		}
+		onExited: (code, status) => {
+			root.isLoadingPexels = false
+			if (code === 0 && root.pexelsRawData.length > 0) {
+				try {
+					var parsed = JSON.parse(root.pexelsRawData)
+					var items = parsed.photos || []
+					var newResults = items.map(function(p) {
+						return {
+							id: p.id,
+							thumb: p.src.medium,
+							path: p.src.original,
+							resolution: p.width + "x" + p.height,
+							dimX: p.width,
+							dimY: p.height,
+							ratio: p.width / p.height,
+							fileType: "image/jpeg",
+							author: p.photographer || "",
+							authorUrl: p.photographer_url || ""
+						}
+					})
+					if (root.pexelsPage === 1) {
+						root.pexelsResults = newResults
+					} else {
+						root.pexelsResults = root.pexelsResults.concat(newResults)
+					}
+					root.pexelsHasMore = parsed.next_page !== undefined && parsed.next_page !== null
+				} catch(e) {
+					console.error("Pexels parse error:", e)
+				}
+			}
+		}
+	}
+
+	// Pexels download + apply
+	property string pexelsDownloadId: ""
+	Process {
+		id: pexelsDownloadProcess
+		onExited: (code, status) => {
+			if (code === 0) {
+				var dest = root.wallpaperDir + "/pexels-" + root.pexelsDownloadId + ".jpg"
+				var mode = cfg ? cfg.matugenMode : "dark"
+				var scheme = cfg ? cfg.matugenScheme : "tonal-spot"
+				var contrast = cfg ? cfg.matugenContrast : 0.0
+				var genScript = Qt.resolvedUrl("../col_gen/generate").toString().replace("file://", "")
+				matugenProcess.command = [genScript, "image", dest, "-m", mode, "-s", scheme, "-c", contrast.toString()]
+				matugenProcess.running = true
+				searchField.text = ""
+				Gstate.appsOpen = false
+			}
+		}
+	}
+
+	function downloadAndApplyPexels(wallpaper) {
+		var dest = root.wallpaperDir + "/pexels-" + wallpaper.id + ".jpg"
+		root.pexelsDownloadId = wallpaper.id
+		pexelsDownloadProcess.command = ["curl", "-sL", "--max-time", "60", "-o", dest, wallpaper.path]
+		pexelsDownloadProcess.running = true
+	}
+
+	// Wallhaven download + apply
+	property string wallhavenDownloadUrl: ""
+	property string wallhavenDownloadId: ""
+	Process {
+		id: wallhavenDownloadProcess
+		onExited: (code, status) => {
+			if (code === 0) {
+				var ext = root.wallhavenDownloadUrl.split(".").pop()
+				var dest = root.wallpaperDir + "/wallhaven-" + root.wallhavenDownloadId + "." + ext
+				var mode = cfg ? cfg.matugenMode : "dark"
+				var scheme = cfg ? cfg.matugenScheme : "tonal-spot"
+				var contrast = cfg ? cfg.matugenContrast : 0.0
+				var genScript = Qt.resolvedUrl("../col_gen/generate").toString().replace("file://", "")
+				matugenProcess.command = [
+					genScript, "image", dest,
+					"-m", mode, "-s", scheme, "-c", contrast.toString()
+				]
+				matugenProcess.running = true
+				searchField.text = ""
+				Gstate.appsOpen = false
+			} else {
+				console.error("Wallhaven download failed, exit code:", code)
+			}
+		}
+	}
+
+	function downloadAndApplyWallhaven(wallpaper) {
+		var ext = wallpaper.path.split(".").pop()
+		var dest = root.wallpaperDir + "/wallhaven-" + wallpaper.id + "." + ext
+		root.wallhavenDownloadUrl = wallpaper.path
+		root.wallhavenDownloadId = wallpaper.id
+		wallhavenDownloadProcess.command = ["curl", "-s", "-L", "--max-time", "60", "-o", dest, wallpaper.path]
+		wallhavenDownloadProcess.running = true
+	}
+
 	function launchApp(appData) {
 		console.log("Attempting to launch:", appData.name)
 		
@@ -348,13 +617,48 @@ PanelWindow {
 		Gstate.appsOpen = false
 	}
 
+	// Returns a fuzzy match score: -1 = no match, higher = better match
+	function fuzzyScore(str, term) {
+		if (!str) return -1
+		var s = str.toLowerCase()
+		var t = term.toLowerCase()
+		if (s === t) return 1000
+		if (s.startsWith(t)) return 900
+		if (s.includes(t)) return 800
+		// Check all chars of term appear in order (scattered match)
+		var si = 0, ti = 0, consecutive = 0, score = 0
+		while (si < s.length && ti < t.length) {
+			if (s[si] === t[ti]) {
+				score += consecutive * 10 + 1
+				consecutive++
+				ti++
+			} else {
+				consecutive = 0
+			}
+			si++
+		}
+		if (ti < t.length) return -1 // not all chars matched
+		return score
+	}
+
 	function matchesSearch(app, term) {
 		if (!term || term === "") return true
-		var search = term.toLowerCase()
-		if (app.name && app.name.toLowerCase().includes(search)) return true
-		if (app.genericName && app.genericName.toLowerCase().includes(search)) return true
-		if (app.comment && app.comment.toLowerCase().includes(search)) return true
-		return false
+		return fuzzyScore(app.name, term) >= 0 ||
+		       fuzzyScore(app.genericName, term) >= 0 ||
+		       fuzzyScore(app.comment, term) >= 0
+	}
+
+	function appSortScore(app, term) {
+		if (!term || term === "") return 0
+		var scores = [
+			fuzzyScore(app.name, term),
+			fuzzyScore(app.genericName, term),
+			fuzzyScore(app.comment, term)
+		]
+		var best = -1
+		for (var i = 0; i < scores.length; i++)
+			if (scores[i] > best) best = scores[i]
+		return best
 	}
 
 	onVisibleChanged: {
@@ -364,6 +668,16 @@ PanelWindow {
 			appsListView.currentIndex = 0
 		} else {
 			searchField.text = ""
+			root.isWallhavenMode = false
+			root.wallhavenResults = []
+			root.wallhavenQuery = ""
+			root.wallhavenPage = 1
+			root.wallhavenHasMore = false
+			root.isPexelsMode = false
+			root.pexelsResults = []
+			root.pexelsQuery = ""
+			root.pexelsPage = 1
+			root.pexelsHasMore = false
 		}
 	}
 
@@ -371,7 +685,9 @@ PanelWindow {
 		var searchBarHeight = 50 // search bar + margins
 		var maxHeight = maxItems * itemHeight + searchBarHeight
 		
-		if (isWallpaperMode) {
+		if (isWallpaperBrowserMode) {
+			return 680
+		} else if (isWallpaperMode) {
 			return Math.min(Math.max(Math.ceil(visibleWallpaperCount / 3) * 110 + searchBarHeight, 120), maxHeight)
 		} else if (isEmojiMode) {
 			return Math.min(Math.max(visibleEmojiCount * itemHeight + searchBarHeight, 120), maxHeight)
@@ -383,15 +699,19 @@ PanelWindow {
 
 	Rectangle {
 		id: mainContainer
-		width: launcherWidth
+		width: isWallpaperBrowserMode ? 1200 : launcherWidth
 		height: getContainerHeight()
 		radius: launcherRadius
 		color: col.background
 		anchors.centerIn: parent
 
+		Behavior on width {
+			NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
+		}
+
 		Behavior on height {
 			NumberAnimation {
-				duration: 200
+				duration: Gstate.animDuration
 				easing.type: Easing.OutCubic
 			}
 		}
@@ -416,7 +736,7 @@ PanelWindow {
 				anchors.leftMargin: 5
 				color: col.secondaryContainer
 				MaterialSymbol {
-					icon: isWallpaperMode ? "image" : (isEmojiMode ? "emoji_emotions" : (isClipboardMode ? "content_paste" : "search"))
+					icon: isPexelsMode ? "photo_camera" : (isWallhavenMode ? "wallpaper" : (isWallpaperMode ? "image" : (isEmojiMode ? "emoji_emotions" : (isClipboardMode ? "content_paste" : "search"))))
 					iconSize: 28
 					anchors.centerIn: parent
 					color: col.background
@@ -428,7 +748,7 @@ PanelWindow {
 				anchors.fill: parent
 				anchors.leftMargin: 45
 				anchors.rightMargin: 10
-				placeholderText: isWallpaperMode ? "Search wallpapers..." : (isEmojiMode ? "Search emojis..." : (isClipboardMode ? "Search clipboard..." : "Search apps..."))
+				placeholderText: isPexelsMode ? "Search Pexels..." : (isWallhavenMode ? "Search Wallhaven..." : (isWallpaperMode ? "Search wallpapers..." : (isEmojiMode ? "Search emojis..." : (isClipboardMode ? "Search clipboard..." : "Search apps..."))))
 				placeholderTextColor: col.onSurfaceVariant
 				background: null
 				color: col.onSurface
@@ -444,9 +764,19 @@ PanelWindow {
 			root.isWallpaperMode = false
 			root.isEmojiMode = false
 			root.isClipboardMode = false
-			
+			root.isWallhavenMode = false
+			root.isPexelsMode = false
+
 			// Check for commands
-			if (trimmed.startsWith("/wallpaper") && wallpaperModeEnabled) {
+			if (trimmed.startsWith("/pexels")) {
+				root.isPexelsMode = true
+				root.wallpaperProvider = "pexels"
+				pexelsSearchTimer.restart()
+			} else if (trimmed.startsWith("/wallhaven")) {
+				root.isWallhavenMode = true
+				root.wallpaperProvider = "wallhaven"
+				wallhavenSearchTimer.restart()
+			} else if (trimmed.startsWith("/wallpaper") && wallpaperModeEnabled) {
 				root.isWallpaperMode = true
 				if (!root.isLoadingWallpapers && root.wallpapers.length === 0) {
 					root.isLoadingWallpapers = true
@@ -523,7 +853,7 @@ PanelWindow {
 		ScrollView {
 			id: appsScrollView
 			clip: true
-			visible: !isWallpaperMode && !isEmojiMode && !isClipboardMode
+			visible: !isWallpaperMode && !isEmojiMode && !isClipboardMode && !isWallhavenMode && !isPexelsMode
 			anchors {
 				top: searchBox.bottom
 				topMargin: 5
@@ -554,17 +884,17 @@ PanelWindow {
 					scale: mouseArea.containsMouse ? 0.97 : 1.0
 					Behavior on scale {
 						NumberAnimation {
-							duration: 200
+							duration: Gstate.animDuration
 							easing.type: Easing.OutBack
 						}
 					}
 
 					Behavior on color {
-						ColorAnimation { duration: 150 }
+						ColorAnimation { duration: Gstate.animDuration }
 					}
 
 					Behavior on radius {
-						NumberAnimation { duration: 150 }
+						NumberAnimation { duration: Gstate.animDuration }
 					}
 
 					RowLayout {
@@ -672,6 +1002,511 @@ PanelWindow {
 			}
 		}
 
+		// Wallhaven Grid
+		Item {
+			id: wallhavenSection
+			visible: isWallhavenMode
+			anchors {
+				top: searchBox.bottom
+				topMargin: 5
+				left: parent.left
+				leftMargin: 5
+				right: parent.right
+				rightMargin: 5
+				bottom: parent.bottom
+				bottomMargin: 5
+			}
+
+			// Empty / loading state
+			Text {
+				anchors.centerIn: parent
+				text: isLoadingWallhaven
+					? "Searching Wallhaven..."
+					: (wallhavenQuery === ""
+						? "Type to search wallpapers"
+						: (wallhavenResults.length === 0 ? "No results" : ""))
+				color: col.onSurfaceVariant
+				font.pixelSize: 14
+				font.family: cfg ? cfg.fontFamily : "Rubik"
+				visible: wallhavenResults.length === 0
+			}
+
+			// Masonry layout engine
+			// Splits results into 4 columns, each tile height = tileWidth / ratio
+			// Assigns each tile to the shortest column (greedy bin-packing)
+			property int colCount: 4
+			property int gap: 4
+			property real colWidth: (width - gap * (colCount - 1)) / colCount
+
+			// Computed layout: array of {x, y, w, h} per result index
+			property var layout: []
+			property real masonryHeight: 0
+
+			function computeLayout() {
+				var cols = colCount
+				var cw = colWidth
+				var g = gap
+				var colHeights = []
+				for (var c = 0; c < cols; c++) colHeights[c] = 0
+
+				var positions = []
+				for (var i = 0; i < wallhavenResults.length; i++) {
+					var item = wallhavenResults[i]
+					var ratio = item.ratio > 0 ? item.ratio : 16/9
+					var th = cw / ratio
+
+					// Find shortest column
+					var shortest = 0
+					for (var c2 = 1; c2 < cols; c2++) {
+						if (colHeights[c2] < colHeights[shortest]) shortest = c2
+					}
+
+					positions.push({
+						x: shortest * (cw + g),
+						y: colHeights[shortest],
+						w: cw,
+						h: th
+					})
+					colHeights[shortest] += th + g
+				}
+
+				// Total height = tallest column
+				var maxH = 0
+				for (var c3 = 0; c3 < cols; c3++) {
+					if (colHeights[c3] > maxH) maxH = colHeights[c3]
+				}
+				layout = positions
+				masonryHeight = maxH
+			}
+
+			onWidthChanged: if (wallhavenResults.length > 0) computeLayout()
+
+			Connections {
+				target: root
+				function onWallhavenResultsChanged() { wallhavenSection.computeLayout() }
+			}
+
+			Flickable {
+				id: wallhavenFlickable
+				anchors.fill: parent
+				clip: true
+				contentWidth: width
+				contentHeight: wallhavenSection.masonryHeight + 60 // extra space for load-more row
+				boundsBehavior: Flickable.StopAtBounds
+				ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+				// Masonry canvas
+				Item {
+					id: wallhavenCanvas
+					width: wallhavenFlickable.contentWidth
+					height: wallhavenSection.masonryHeight
+
+					Repeater {
+						id: whRepeater
+						model: wallhavenResults
+
+					delegate: Item {
+						id: whDelegate
+						property var pos: wallhavenSection.layout[index] || {x:0,y:0,w:0,h:0}
+						x: pos.x
+						y: pos.y
+						width: pos.w
+						height: pos.h
+
+						// Entrance pop animation from bottom-right corner
+						transformOrigin: Item.BottomRight
+						scale: 0
+						Component.onCompleted: {
+							popInTimer.interval = index * 30
+							popInTimer.start()
+						}
+						Timer {
+							id: popInTimer
+							repeat: false
+							onTriggered: popInAnim.start()
+						}
+						NumberAnimation {
+							id: popInAnim
+							target: whDelegate
+							property: "scale"
+							from: 0
+							to: 1
+							duration: 220
+							easing.type: Easing.OutBack
+							easing.overshoot: 1.1
+						}
+
+						ClippingRectangle {
+							id: whTile
+							anchors.fill: parent
+							radius: 8
+							color: col.surfaceContainerHigh
+
+								Image {
+									id: whThumb
+									anchors.fill: parent
+									source: modelData.thumb
+									fillMode: Image.PreserveAspectCrop
+									asynchronous: true
+									smooth: true
+								}
+
+								// Placeholder shown while loading
+								Rectangle {
+									anchors.fill: parent
+									color: col.surfaceContainer
+									visible: whThumb.status !== Image.Ready
+									radius: parent.radius
+
+									MaterialSymbol {
+										anchors.centerIn: parent
+										icon: "image"
+										iconSize: 28
+										color: col.onSurfaceVariant
+									}
+								}
+
+								// Hover overlay
+								Rectangle {
+									anchors.fill: parent
+									color: Qt.rgba(0, 0, 0, 0.5)
+									radius: parent.radius
+									opacity: whMouse.containsMouse ? 1 : 0
+									Behavior on opacity {
+										NumberAnimation { duration: Gstate.animDuration }
+									}
+
+									Column {
+										anchors.centerIn: parent
+										spacing: 5
+
+										Rectangle {
+											anchors.horizontalCenter: parent.horizontalCenter
+											width: 80
+											height: 26
+											radius: 13
+											color: col.primary
+
+											Text {
+												anchors.centerIn: parent
+												text: "Apply"
+												color: col.onPrimary
+												font.pixelSize: 12
+												font.family: cfg ? cfg.fontFamily : "Rubik"
+												font.weight: Font.Medium
+											}
+										}
+
+										Text {
+											anchors.horizontalCenter: parent.horizontalCenter
+											text: modelData.resolution
+											color: "white"
+											font.pixelSize: 10
+											font.family: cfg ? cfg.fontFamily : "Rubik"
+										}
+									}
+								}
+
+								MouseArea {
+									id: whMouse
+									anchors.fill: parent
+									hoverEnabled: true
+									cursorShape: Qt.PointingHandCursor
+									onClicked: downloadAndApplyWallhaven(modelData)
+								}
+
+								scale: whMouse.containsMouse ? 0.95 : 1.0
+								Behavior on scale {
+									NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutBack }
+								}
+							}
+						}
+					}
+				}
+
+				// Load more / loading row anchored below masonry canvas
+				Item {
+					y: wallhavenSection.masonryHeight + 8
+					width: wallhavenFlickable.contentWidth
+					height: 44
+					visible: wallhavenResults.length > 0
+
+					Rectangle {
+						anchors.centerIn: parent
+						width: 130
+						height: 34
+						radius: 17
+						color: col.surfaceContainer
+						visible: wallhavenHasMore && !isLoadingWallhaven
+
+						Text {
+							anchors.centerIn: parent
+							text: "Load more"
+							color: col.onSurfaceVariant
+							font.pixelSize: 13
+							font.family: cfg ? cfg.fontFamily : "Rubik"
+						}
+
+						MouseArea {
+							anchors.fill: parent
+							cursorShape: Qt.PointingHandCursor
+							onClicked: wallhavenLoadMore()
+						}
+					}
+
+					Text {
+						anchors.centerIn: parent
+						text: "Loading..."
+						color: col.onSurfaceVariant
+						font.pixelSize: 13
+						font.family: cfg ? cfg.fontFamily : "Rubik"
+						visible: isLoadingWallhaven
+					}
+				}
+			}
+		}
+
+		// Pexels Grid
+		Item {
+			id: pexelsSection
+			visible: isPexelsMode
+			anchors {
+				top: searchBox.bottom
+				topMargin: 5
+				left: parent.left
+				leftMargin: 5
+				right: parent.right
+				rightMargin: 5
+				bottom: parent.bottom
+				bottomMargin: 5
+			}
+
+			Text {
+				anchors.centerIn: parent
+				text: isLoadingPexels
+					? "Searching Pexels..."
+					: (pexelsApiKey().length === 0
+						? "Add Pexels API key in Settings"
+						: (pexelsQuery === ""
+							? "Type to search wallpapers"
+							: (pexelsResults.length === 0 ? "No results" : "")))
+				color: col.onSurfaceVariant
+				font.pixelSize: 14
+				font.family: cfg ? cfg.fontFamily : "Rubik"
+				visible: pexelsResults.length === 0
+			}
+
+			property int colCount: 4
+			property int gap: 4
+			property real colWidth: (width - gap * (colCount - 1)) / colCount
+			property var layout: []
+			property real masonryHeight: 0
+
+			function computeLayout() {
+				var cols = colCount
+				var cw = colWidth
+				var g = gap
+				var colHeights = []
+				for (var c = 0; c < cols; c++) colHeights[c] = 0
+				var positions = []
+				for (var i = 0; i < pexelsResults.length; i++) {
+					var item = pexelsResults[i]
+					var ratio = item.ratio > 0 ? item.ratio : 16/9
+					var th = cw / ratio
+					var shortest = 0
+					for (var c2 = 1; c2 < cols; c2++) {
+						if (colHeights[c2] < colHeights[shortest]) shortest = c2
+					}
+					positions.push({ x: shortest * (cw + g), y: colHeights[shortest], w: cw, h: th })
+					colHeights[shortest] += th + g
+				}
+				var maxH = 0
+				for (var c3 = 0; c3 < cols; c3++) {
+					if (colHeights[c3] > maxH) maxH = colHeights[c3]
+				}
+				layout = positions
+				masonryHeight = maxH
+			}
+
+			onWidthChanged: if (pexelsResults.length > 0) computeLayout()
+
+			Connections {
+				target: root
+				function onUnsplashResultsChanged() { pexelsSection.computeLayout() }
+			}
+
+			Flickable {
+				id: pexelsFlickable
+				anchors.fill: parent
+				clip: true
+				contentWidth: width
+				contentHeight: pexelsSection.masonryHeight + 60
+				boundsBehavior: Flickable.StopAtBounds
+				ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+				Item {
+					width: pexelsFlickable.contentWidth
+					height: pexelsSection.masonryHeight
+
+					Repeater {
+						model: pexelsResults
+
+						delegate: Item {
+							id: pexelsDelegate
+							property var pos: pexelsSection.layout[index] || { x: 0, y: 0, w: 0, h: 0 }
+							x: pos.x
+							y: pos.y
+							width: pos.w
+							height: pos.h
+
+							transformOrigin: Item.BottomRight
+							scale: 0
+							Component.onCompleted: {
+								upopInTimer.interval = index * 30
+								upopInTimer.start()
+							}
+							Timer {
+								id: upopInTimer
+								repeat: false
+								onTriggered: upopInAnim.start()
+							}
+							NumberAnimation {
+								id: upopInAnim
+								target: pexelsDelegate
+								property: "scale"
+								from: 0; to: 1
+								duration: 220
+								easing.type: Easing.OutBack
+								easing.overshoot: 1.1
+							}
+
+							ClippingRectangle {
+								anchors.fill: parent
+								radius: 8
+								color: col.surfaceContainerHigh
+
+								Image {
+									id: pexelsThumb
+									anchors.fill: parent
+									source: modelData.thumb
+									fillMode: Image.PreserveAspectCrop
+									asynchronous: true
+									smooth: true
+								}
+
+								Rectangle {
+									anchors.fill: parent
+									color: col.surfaceContainer
+									visible: pexelsThumb.status !== Image.Ready
+									radius: parent.radius
+									MaterialSymbol {
+										anchors.centerIn: parent
+										icon: "photo_camera"
+										iconSize: 28
+										color: col.onSurfaceVariant
+									}
+								}
+
+								Rectangle {
+									anchors.fill: parent
+									color: Qt.rgba(0, 0, 0, 0.5)
+									radius: parent.radius
+									opacity: pexelsMouse.containsMouse ? 1 : 0
+									Behavior on opacity {
+										NumberAnimation { duration: Gstate.animDuration }
+									}
+
+									Column {
+										anchors.centerIn: parent
+										spacing: 5
+
+										Rectangle {
+											anchors.horizontalCenter: parent.horizontalCenter
+											width: 80; height: 26; radius: 13
+											color: col.primary
+											Text {
+												anchors.centerIn: parent
+												text: "Apply"
+												color: col.onPrimary
+												font.pixelSize: 12
+												font.family: cfg ? cfg.fontFamily : "Rubik"
+												font.weight: Font.Medium
+											}
+										}
+
+										Text {
+											anchors.horizontalCenter: parent.horizontalCenter
+											text: modelData.resolution
+											color: "white"
+											font.pixelSize: 10
+											font.family: cfg ? cfg.fontFamily : "Rubik"
+										}
+
+										Text {
+											anchors.horizontalCenter: parent.horizontalCenter
+											text: modelData.author ? "by " + modelData.author : ""
+											color: Qt.rgba(1, 1, 1, 0.7)
+											font.pixelSize: 9
+											font.family: cfg ? cfg.fontFamily : "Rubik"
+											visible: modelData.author && modelData.author.length > 0
+										}
+									}
+								}
+
+								MouseArea {
+									id: pexelsMouse
+									anchors.fill: parent
+									hoverEnabled: true
+									cursorShape: Qt.PointingHandCursor
+									onClicked: downloadAndApplyPexels(modelData)
+								}
+
+								scale: pexelsMouse.containsMouse ? 0.95 : 1.0
+								Behavior on scale {
+									NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutBack }
+								}
+							}
+						}
+					}
+				}
+
+				Item {
+					y: pexelsSection.masonryHeight + 8
+					width: pexelsFlickable.contentWidth
+					height: 44
+					visible: pexelsResults.length > 0
+
+					Rectangle {
+						anchors.centerIn: parent
+						width: 130; height: 34; radius: 17
+						color: col.surfaceContainer
+						visible: unsplashHasMore && !isLoadingPexels
+						Text {
+							anchors.centerIn: parent
+							text: "Load more"
+							color: col.onSurfaceVariant
+							font.pixelSize: 13
+							font.family: cfg ? cfg.fontFamily : "Rubik"
+						}
+						MouseArea {
+							anchors.fill: parent
+							cursorShape: Qt.PointingHandCursor
+							onClicked: unsplashLoadMore()
+						}
+					}
+
+					Text {
+						anchors.centerIn: parent
+						text: "Loading..."
+						color: col.onSurfaceVariant
+						font.pixelSize: 13
+						font.family: cfg ? cfg.fontFamily : "Rubik"
+						visible: isLoadingPexels
+					}
+				}
+			}
+		}
+
 		// Wallpaper Grid
 		ScrollView {
 			id: wallpaperScrollView
@@ -703,7 +1538,7 @@ PanelWindow {
 					scale: wpMouseArea.containsMouse ? 0.95 : 1.0
 					Behavior on scale {
 						NumberAnimation {
-							duration: 150
+							duration: Gstate.animDuration
 							easing.type: Easing.OutBack
 						}
 					}
@@ -807,9 +1642,9 @@ PanelWindow {
 					color: ListView.isCurrentItem || emojiMouseArea.containsMouse ? col.surfaceContainer : "transparent"
 
 					scale: emojiMouseArea.containsMouse ? 0.97 : 1.0
-					Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-					Behavior on color { ColorAnimation { duration: 150 } }
-					Behavior on radius { NumberAnimation { duration: 150 } }
+					Behavior on scale { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutBack } }
+					Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+					Behavior on radius { NumberAnimation { duration: Gstate.animDuration } }
 
 					RowLayout {
 						anchors.left: parent.left
@@ -927,9 +1762,9 @@ PanelWindow {
 					color: ListView.isCurrentItem || clipMouseArea.containsMouse ? col.surfaceContainer : "transparent"
 
 					scale: clipMouseArea.containsMouse ? 0.97 : 1.0
-					Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-					Behavior on color { ColorAnimation { duration: 150 } }
-					Behavior on radius { NumberAnimation { duration: 150 } }
+					Behavior on scale { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutBack } }
+					Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+					Behavior on radius { NumberAnimation { duration: Gstate.animDuration } }
 
 					RowLayout {
 						anchors.fill: parent

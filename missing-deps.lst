@@ -1,0 +1,137 @@
+# =============================================================================
+# blxshell — openSUSE Tumbleweed Missing / Renamed Dependencies
+# Generated: 2026-03-13
+#
+# Format per entry:
+#   [ARCH_NAME]          → status  →  OPENSUSE_NAME / resolution
+#
+# Statuses:
+#   OK        — available in default Tumbleweed repos under a different name
+#   MISSING   — not in any default repo, must build from source or download
+# =============================================================================
+
+
+# =============================================================================
+# blxshell-shell
+# =============================================================================
+
+fish                            → OK       → fish                       (same name)
+ghostty                         → OK       → ghostty                    (same name, in OSS repo)
+starship                        → OK       → starship                   (same name)
+
+# Fonts — all MISSING, must be handled manually / via spec download
+ttf-jetbrains-mono-nerd         → OK       → jetbrains-mono-fonts       (base font available; nerd-patched variant: symbols-only-nerd-fonts for symbols glyph layer)
+ttf-material-symbols-variable-git → MISSING → no package exists         — must download TTF from GitHub (google/material-design-icons)
+ttf-readex-pro                  → MISSING  → no package exists          — must download TTF from GitHub (Readex Pro)
+ttf-rubik-vf                    → MISSING  → no package exists          — must download TTF from Google Fonts (Rubik variable)
+ttf-twemoji                     → OK       → twemoji-color-font         (available in OSS repo)
+otf-space-grotesk               → MISSING  → no package exists          — must download OTF from GitHub (floriankarsten/space-grotesk)
+
+# Python / col_gen
+uv                              → MISSING  → no zypper package exists   — install via official installer: curl -LsSf https://astral.sh/uv/install.sh | sh
+python                          → OK       → python313                  (Tumbleweed ships Python 3.13 as default; no bare "python3" metapackage)
+python-pillow                   → OK       → python313-Pillow           (versioned name)
+
+
+# =============================================================================
+# blxshell-audio
+# =============================================================================
+
+cava                            → OK       → cava                       (same name)
+pavucontrol-qt                  → OK       → pavucontrol-qt             (same name)
+wireplumber                     → OK       → wireplumber                (same name)
+pipewire-pulse                  → OK       → pipewire-pulseaudio        (renamed)
+libdbusmenu-gtk3                → OK       → libdbusmenu-gtk3-4         (versioned soname suffix)
+playerctl                       → OK       → playerctl                  (same name)
+
+
+# =============================================================================
+# blxshell-hyprland
+# =============================================================================
+
+hyprland                        → OK       → hyprland                   (same name, in OSS repo)
+hyprsunset                      → OK       → hyprsunset                 (same name)
+wl-clipboard                    → OK       → wl-clipboard               (same name)
+xdg-desktop-portal              → OK       → xdg-desktop-portal         (same name)
+xdg-desktop-portal-kde          → OK       → xdg-desktop-portal-kde6   (renamed to kde6 variant)
+xdg-desktop-portal-gtk          → OK       → xdg-desktop-portal-gtk    (same name)
+xdg-desktop-portal-hyprland     → OK       → xdg-desktop-portal-hyprland (same name)
+
+
+# =============================================================================
+# blxshell-quickshell-git  (runtime depends)
+# =============================================================================
+
+qt6-declarative                 → OK       → libQt6Qml6 + libQt6Quick6  (split into runtime libs; devel: qt6-declarative-devel)
+qt6-base                        → OK       → libQt6Core6 + libQt6Gui6   (split; devel: qt6-base-devel)
+jemalloc                        → OK       → libjemalloc2               (runtime lib; devel: jemalloc-devel)
+qt6-svg                         → OK       → libQt6Svg6                 (runtime lib; devel: qt6-svg-devel)
+libpipewire                     → OK       → libpipewire-0_3-0          (versioned soname)
+libxcb                          → OK       → libxcb1                    (versioned soname; devel: libxcb-devel)
+wayland                         → OK       → libwayland-client0         (runtime lib; devel: wayland-devel)
+libdrm                          → OK       → libdrm2                    (runtime lib; devel: libdrm-devel)
+mesa                            → OK       → Mesa                       (same name, capital M on openSUSE)
+google-breakpad                 → MISSING  → no package exists          — must vendor/bundle during quickshell cmake build (quickshell bundles it internally via cmake FetchContent; no system package needed if -DUSE_SYSTEM_BREAKPAD=OFF)
+
+
+# =============================================================================
+# blxshell-quickshell-git  (makedepends)
+# =============================================================================
+
+spirv-tools                     → OK       → spirv-tools                (same name)
+qt6-shadertools                 → OK       → qt6-shadertools-devel      (devel package)
+wayland-protocols               → OK       → wayland-protocols-devel    (devel package)
+cli11                           → OK       → cli11-devel                (header-only, devel package)
+ninja                           → OK       → ninja                      (same name)
+cmake                           → OK       → cmake                      (same name)
+git                             → OK       → git                        (same name)
+
+
+# =============================================================================
+# blxshell-font-bitcount  (custom font, no repo package)
+# =============================================================================
+
+# No zypper equivalent — spec downloads TTFs directly from GitHub:
+# https://github.com/petrvanblokland/TYPETR-Bitcount
+# BitcountSingle[CRSV,ELSH,ELXP,slnt,wght].ttf
+# BitcountGridSingle[CRSV,ELSH,ELXP,slnt,wght].ttf
+# Install path: /usr/share/fonts/truetype/
+
+
+# =============================================================================
+# blxshell-font-googlesans  (custom font, no repo package)
+# =============================================================================
+
+# No zypper equivalent — spec downloads TTF directly from LineageOS mirror:
+# https://github.com/LineageOS/android_external_google-fonts_google-sans-flex
+# GoogleSansFlex-Regular.ttf
+# Install path: /usr/share/fonts/truetype/
+
+
+# =============================================================================
+# SUMMARY — Truly missing (require source build or manual download)
+# =============================================================================
+
+# 1. ttf-material-symbols-variable-git
+#    → Download from: https://github.com/google/material-design-icons/tree/master/variablefont
+#    → File: MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf (and Rounded/Sharp variants)
+
+# 2. ttf-readex-pro
+#    → Download from: https://github.com/Readex-Pro/Readex-Pro/releases
+#    → Files: ReadexPro-*.ttf (variable)
+
+# 3. ttf-rubik-vf
+#    → Download from: https://github.com/googlefonts/rubik/releases
+#    → Files: Rubik[wght].ttf, Rubik-Italic[wght].ttf
+
+# 4. otf-space-grotesk
+#    → Download from: https://github.com/floriankarsten/space-grotesk/releases
+#    → Files: SpaceGrotesk[wght].otf
+
+# 5. uv  (Python package/project manager)
+#    → Install via: curl -LsSf https://astral.sh/uv/install.sh | sh
+#    → No zypper package exists on Tumbleweed
+
+# 6. google-breakpad  (quickshell crash reporter)
+#    → Not needed as a system package — quickshell's CMake bundles it internally
+#    → Build quickshell without -DUSE_SYSTEM_BREAKPAD=ON (default: bundled)

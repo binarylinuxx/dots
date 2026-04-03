@@ -73,7 +73,7 @@ Scope {
                                         color: col.surfaceContainerHighest
                                         opacity: 0
                                         Behavior on opacity {
-                                            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                                            NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                                         }
                                     }
                                     

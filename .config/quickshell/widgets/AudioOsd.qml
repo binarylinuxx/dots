@@ -79,7 +79,7 @@ Scope {
               color: col.primary
               radius: 40
               Behavior on height {
-                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
               }
             }
             Text {
@@ -91,7 +91,7 @@ Scope {
               color: /*Pipewire.defaultAudioSink?.audio.muted ? col.error : col.surfaceContainer*/ "transparent"
 
               Behavior on y {
-                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
               }
 
               text: {

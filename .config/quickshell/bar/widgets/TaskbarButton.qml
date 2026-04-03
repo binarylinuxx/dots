@@ -1,3 +1,4 @@
+import qs.services
 import QtQuick
 import qs.widgets
 
@@ -18,7 +19,7 @@ Item {
         color: root.isOpen ? col.primary : "transparent"
         
         Behavior on color {
-            ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+            ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
         }
         
         MaterialSymbol {
@@ -29,7 +30,7 @@ Item {
             iconSize: 20
             
             Behavior on color {
-                ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+                ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
             }
         }
         

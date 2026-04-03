@@ -22,11 +22,11 @@ Item {
         color: /*taskbarOpen ? col.primary :*/ "transparent"
         
         Behavior on color {
-            ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+            ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
         }
         
         Behavior on width {
-            NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
         }
 
         MaterialSymbol {
@@ -36,7 +36,7 @@ Item {
             iconSize: 20
             
             Behavior on color {
-                ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+                ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
             }
         
             icon: {

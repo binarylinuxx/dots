@@ -84,7 +84,7 @@ PanelWindow {
 					NumberAnimation {
 						properties: "x"
 						to: notifsBG.width
-						duration: 300
+						duration: Gstate.animDuration
 						easing.type: Easing.InCubic
 					}
 				}
@@ -92,7 +92,7 @@ PanelWindow {
 				displaced: Transition {
 					NumberAnimation {
 						properties: "y"
-						duration: 250
+						duration: Gstate.animDuration
 						easing.type: Easing.OutQuart
 					}
 				}
@@ -133,7 +133,7 @@ PanelWindow {
 					transitions: Transition {
 						NumberAnimation {
 							properties: "x"
-							duration: 200
+							duration: Gstate.animDuration
 							easing.type: Easing.OutQuart
 						}
 					}
@@ -452,7 +452,7 @@ PanelWindow {
 							target: notificationRect
 							property: "x"
 							to: 0
-							duration: 200
+							duration: Gstate.animDuration
 							easing.type: Easing.OutBounce
 						}
 					}
@@ -464,7 +464,7 @@ PanelWindow {
 							target: notificationRect
 							property: "x"
 							to: -notifsBG.width
-							duration: 300
+							duration: Gstate.animDuration
 							easing.type: Easing.InCubic
 						}
 

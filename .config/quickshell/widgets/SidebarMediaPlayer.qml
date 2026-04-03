@@ -1,6 +1,8 @@
+import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Widgets
 import Quickshell.Services.Mpris
 import qs.widgets
@@ -9,6 +11,28 @@ Item {
     id: root
 
     implicitHeight: 160
+
+    property var cavaBars: []
+
+    Process {
+        id: cavaProcess
+        command: ["cava", "-p", "/home/blx/.config/quickshell/cava_media.conf"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => {
+                const parts = data.trim().split(";")
+                const vals = []
+                for (let i = 0; i < parts.length; i++) {
+                    const v = parseInt(parts[i])
+                    if (!isNaN(v)) vals.push(v)
+                }
+                if (vals.length > 0) {
+                    root.cavaBars = vals
+                    cavaCanvas.requestPaint()
+                }
+            }
+        }
+    }
 
     property bool seeking: false
     readonly property bool canSeekTrack: activePlayer
@@ -83,7 +107,7 @@ Item {
         anchors.fill: parent
         radius: 20
         color: root.hasArt ? dominantColor.color : col.surfaceContainer
-        clip: true
+        //clip: true
         Behavior on color { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
 
         // Full-bleed blurred art background
@@ -122,6 +146,47 @@ Item {
                     dominantColor.color.r,
                     dominantColor.color.g,
                     dominantColor.color.b, 0.32) }
+            }
+        }
+
+        // Cava visualizer overlay at bottom
+        Canvas {
+            id: cavaCanvas
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 28
+            opacity: 0.18
+
+            onPaint: {
+                const ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                const bars = root.cavaBars
+                if (!bars || bars.length === 0) return
+                const n = bars.length
+                const c = root.hasArt ? root.textColor : col.onSurface
+                ctx.fillStyle = Qt.rgba(c.r, c.g, c.b, 1)
+
+                // Build points: evenly spaced x, y = height - bar amplitude
+                const pts = []
+                for (let i = 0; i < n; i++) {
+                    pts.push({
+                        x: (i / (n - 1)) * width,
+                        y: height - (bars[i] / 100) * height
+                    })
+                }
+
+                // Draw smooth filled wave using cubic bezier curves
+                ctx.beginPath()
+                ctx.moveTo(pts[0].x, pts[0].y)
+                for (let i = 0; i < pts.length - 1; i++) {
+                    const cx = (pts[i].x + pts[i + 1].x) / 2
+                    ctx.bezierCurveTo(cx, pts[i].y, cx, pts[i + 1].y, pts[i + 1].x, pts[i + 1].y)
+                }
+                ctx.lineTo(width, height)
+                ctx.lineTo(0, height)
+                ctx.closePath()
+                ctx.fill()
             }
         }
 
@@ -302,7 +367,8 @@ Item {
                                             : col.primary
                                         ctx.beginPath()
                                         for (let x = 0; x <= width; x += 2) {
-                                            const y = height / 2 + Math.sin((x / 10) + waveSlider.phase) * (height * 0.2)
+                                            const window = Math.sin(Math.PI * x / width)
+                                            const y = height / 2 + Math.sin((x / 3.5) + waveSlider.phase) * (height * 0.12) * window
                                             if (x === 0) ctx.moveTo(x, y)
                                             else ctx.lineTo(x, y)
                                         }
@@ -374,7 +440,7 @@ Item {
                         MaterialSymbol {
                             anchors.centerIn: parent; icon: "skip_previous"; iconSize: 18
                             color: root.hasArt ? root.textColor : col.onSurfaceVariant
-                            Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                         }
                         MouseArea {
                             id: prevHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -393,7 +459,7 @@ Item {
                             icon: root.activePlayer && root.activePlayer.isPlaying ? "pause" : "play_arrow"
                             iconSize: 20
                             color: root.hasArt ? root.textColor : col.onSurface
-                            Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                         }
                         MouseArea {
                             id: playHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -408,7 +474,7 @@ Item {
                         MaterialSymbol {
                             anchors.centerIn: parent; icon: "skip_next"; iconSize: 18
                             color: root.hasArt ? root.textColor : col.onSurfaceVariant
-                            Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                         }
                         MouseArea {
                             id: nextHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor

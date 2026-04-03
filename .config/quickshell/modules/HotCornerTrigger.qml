@@ -1,3 +1,4 @@
+import qs.services
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -100,7 +101,7 @@ PanelWindow {
         opacity: isHovering || isActive ? 1 : 0
 
         Behavior on opacity {
-            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
         }
     }
 
@@ -126,7 +127,7 @@ PanelWindow {
         target: root
         property: "progress"
         to: 0
-        duration: 200
+        duration: Gstate.animDuration
         easing.type: Easing.OutCubic
     }
 

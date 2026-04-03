@@ -26,6 +26,9 @@ readonly REPO_BRANCH="main"
 readonly BACKUP_DIR="$HOME/.cache/.config_backup"
 readonly LOG_FILE="/tmp/blxshell_install_$(date +%Y%m%d_%H%M%S).log"
 readonly PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-font-googlesans" "blxshell-font-bitcount")
+readonly OPENSUSE_PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-fonts" "gcc-c++" "python3-devel")
+readonly OBS_REPO_URL="https://download.opensuse.org/repositories/home:binarylinuxx:blxshell/openSUSE_Tumbleweed/"
+readonly OBS_REPO_ALIAS="home_binarylinuxx_blxshell"
 
 # State (will be set by detect_install_mode)
 SCRIPT_DIR=""
@@ -106,7 +109,11 @@ clone_repository() {
 
     if ! command_exists git; then
         info "Installing git..."
-        sudo pacman -S --needed --noconfirm git || die "Failed to install git"
+        if [[ "$IS_OPENSUSE" == true ]]; then
+            sudo zypper install -y git || die "Failed to install git"
+        else
+            sudo pacman -S --needed --noconfirm git || die "Failed to install git"
+        fi
     fi
 
     git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$SCRIPT_DIR" 2>&1 | tee -a "$LOG_FILE" || {
@@ -131,7 +138,9 @@ preflight_checks() {
     validate_os
 
     # Check internet
-    if ! ping -c 1 -W 3 archlinux.org &>/dev/null; then
+    local ping_host="archlinux.org"
+    [[ "$IS_OPENSUSE" == true ]] && ping_host="opensuse.org"
+    if ! ping -c 1 -W 3 "$ping_host" &>/dev/null; then
         warning "No internet connection detected"
         confirm "Continue anyway?" || exit 1
     fi
@@ -172,6 +181,51 @@ install_yay() {
     (cd "$tmp_dir" && makepkg -si --noconfirm) || die "Failed to install yay"
 
     command_exists yay && success "yay installed" || die "yay installation failed"
+}
+
+# ============================================================================
+# openSUSE Package Installation
+# ============================================================================
+
+add_obs_repo() {
+    if zypper repos 2>/dev/null | grep -q "$OBS_REPO_ALIAS"; then
+        success "OBS repo already added"
+        sudo zypper --gpg-auto-import-keys refresh "$OBS_REPO_ALIAS" 2>&1 | tee -a "$LOG_FILE" || true
+        return 0
+    fi
+
+    info "Adding blxshell OBS repository..."
+    sudo zypper addrepo --refresh --name "blxshell (home:binarylinuxx:blxshell)" \
+        "$OBS_REPO_URL" "$OBS_REPO_ALIAS" 2>&1 | tee -a "$LOG_FILE" || {
+        die "Failed to add OBS repository"
+    }
+
+    info "Importing OBS repository GPG key..."
+    sudo zypper --gpg-auto-import-keys refresh "$OBS_REPO_ALIAS" 2>&1 | tee -a "$LOG_FILE" || {
+        die "Failed to refresh OBS repository"
+    }
+
+    success "OBS repository added"
+}
+
+install_opensuse_packages() {
+    echo -e "\n${BOLD}${BLUE}══════ Installing Packages (openSUSE) ══════${NC}\n"
+
+    add_obs_repo
+
+    info "Packages to install:"
+    for pkg in "${OPENSUSE_PACKAGES[@]}"; do
+        echo -e "  ${GREEN}✓${NC} $pkg"
+    done
+
+    info "Installing blxshell packages via zypper..."
+    # shellcheck disable=SC2086
+    if ! sudo zypper install -y --allow-vendor-change "${OPENSUSE_PACKAGES[@]}" 2>&1 | tee -a "$LOG_FILE"; then
+        error "Failed to install packages"
+        return 1
+    fi
+
+    success "All packages installed!"
 }
 
 # ============================================================================
@@ -398,8 +452,10 @@ main() {
     echo -e "\n${BOLD}${YELLOW}══════ Starting Installation ══════${NC}"
 
     if [[ "$SKIP_PACKAGES" == true ]]; then
-        warning "Skipping package installation (non-Arch system)"
+        warning "Skipping package installation (unsupported system)"
         INSTALL_DOTFILES=true
+    elif [[ "$IS_OPENSUSE" == true ]]; then
+        install_opensuse_packages || exit 1
     else
         install_metapackages || exit 1
     fi
@@ -412,11 +468,21 @@ main() {
     echo -e "\n${BOLD}${BLUE}══════ Setting Up Color Generator ══════${NC}\n"
     setup_col_gen || exit 1
 
-    echo -e "\n${BOLD}${GREEN}══════ Installation Complete! ══════${NC}\n"
+    echo -e "\n${BOLD}${BLUE}══════ Setting Default Shell ══════${NC}\n"
+    info "Setting fish as default shell..."
+    chsh -s /usr/bin/fish || warning "Failed to set fish as default shell (run: chsh -s /usr/bin/fish)"
 
-    info "Restart your session or run:"
-    echo -e "  ${CYAN}source ~/.bashrc${NC}  or  ${CYAN}source ~/.zshrc${NC}"
-    command_exists fish && echo -e "  ${CYAN}exec fish${NC}  (switch to fish shell)"
+    echo -e "\n${BOLD}${BLUE}══════ Configuring Groups ══════${NC}\n"
+    info "Adding $USER to NetworkManager group..."
+    # Only Arch uses a 'network' group — openSUSE uses PolicyKit, no group needed
+    if getent group network &>/dev/null; then
+        sudo /usr/sbin/usermod -aG network "$USER" && success "Added $USER to network" \
+            || warning "Failed to add $USER to network group"
+    else
+        success "NetworkManager managed via PolicyKit — no group needed"
+    fi
+
+    echo -e "\n${BOLD}${GREEN}══════ Installation Complete! ══════${NC}\n"
 
     echo -e "\n${GREEN}Please reboot and login into Hyprland (NOT UWSM)${NC}\n"
 }

@@ -4,6 +4,7 @@ import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 import qs.widgets
+import qs.services
 
 PanelWindow {
     id: root
@@ -80,6 +81,10 @@ PanelWindow {
     property string weatherApiKey: cfg ? cfg.weatherApiKey : ""
     property string weatherCityOverride: cfg ? cfg.weatherCity : ""
 
+    // ── Forecast state (7-day, shared with WeatherDetail overlay) ──
+    property var forecastDays: []   // Array of { dayName, icon, tempHigh, tempLow, condition, humidity, wind }
+    property bool forecastLoaded: false
+
     // Fetch weather via provider (default: wttr.in)
     Process {
         id: weatherProcess
@@ -125,6 +130,121 @@ PanelWindow {
                 }
             }
         }
+    }
+
+    // Forecast fetch process
+    Process {
+        id: forecastProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var output = text.trim()
+                if (!output) return
+                try {
+                    var data = JSON.parse(output)
+                    var days = []
+
+                    if (lastWeatherProvider === "openweather") {
+                        // OWM /forecast returns 3-hour slots; group by day
+                        if (data && data.list) {
+                            var grouped = {}
+                            var orderedKeys = []
+                            for (var i = 0; i < data.list.length; i++) {
+                                var slot = data.list[i]
+                                var d = new Date(slot.dt * 1000)
+                                var key = Qt.formatDate(d, "yyyy-MM-dd")
+                                if (!grouped[key]) {
+                                    grouped[key] = { date: d, temps: [], conditions: [], humidities: [], winds: [] }
+                                    orderedKeys.push(key)
+                                }
+                                grouped[key].temps.push(slot.main.temp)
+                                grouped[key].conditions.push(slot.weather[0].description)
+                                grouped[key].humidities.push(slot.main.humidity)
+                                grouped[key].winds.push(slot.wind.speed * 3.6)
+                            }
+                            // Build up to 7 days
+                            for (var k = 0; k < Math.min(orderedKeys.length, 7); k++) {
+                                var key2 = orderedKeys[k]
+                                var g = grouped[key2]
+                                var tempsSorted = g.temps.slice().sort(function(a,b){return a-b})
+                                var topCond = g.conditions[Math.floor(g.conditions.length / 2)]
+                                days.push({
+                                    dayName: k === 0 ? "Today" : Qt.formatDate(g.date, "ddd"),
+                                    icon: mapWeatherIcon(topCond),
+                                    condition: topCond.charAt(0).toUpperCase() + topCond.slice(1),
+                                    tempHigh: Math.round(tempsSorted[tempsSorted.length - 1]) + "°",
+                                    tempLow: Math.round(tempsSorted[0]) + "°",
+                                    humidity: Math.round(g.humidities.reduce(function(a,b){return a+b},0) / g.humidities.length) + "%",
+                                    wind: Math.round(g.winds.reduce(function(a,b){return a+b},0) / g.winds.length) + " km/h"
+                                })
+                            }
+                        }
+                    } else {
+                        // wttr.in JSON format
+                        if (data && data.weather) {
+                            for (var j = 0; j < Math.min(data.weather.length, 7); j++) {
+                                var w = data.weather[j]
+                                var desc = (w.hourly && w.hourly.length > 0)
+                                    ? (w.hourly[Math.floor(w.hourly.length/2)].weatherDesc[0].value || "")
+                                    : ""
+                                var windKmh = (w.hourly && w.hourly.length > 0)
+                                    ? w.hourly[Math.floor(w.hourly.length/2)].windspeedKmph
+                                    : "0"
+                                var hum = (w.hourly && w.hourly.length > 0)
+                                    ? w.hourly[Math.floor(w.hourly.length/2)].humidity
+                                    : "0"
+                                // Parse date string "YYYY-MM-DD"
+                                var parts = w.date ? w.date.split("-") : []
+                                var dayLabel = j === 0 ? "Today" : (parts.length === 3
+                                    ? Qt.formatDate(new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])), "ddd")
+                                    : ("Day " + (j+1)))
+                                days.push({
+                                    dayName: dayLabel,
+                                    icon: mapWeatherIcon(desc),
+                                    condition: desc,
+                                    tempHigh: w.maxtempC + "°",
+                                    tempLow: w.mintempC + "°",
+                                    humidity: hum + "%",
+                                    wind: windKmh + " km/h"
+                                })
+                            }
+                        }
+                    }
+
+                    if (days.length > 0) {
+                        forecastDays = days
+                        forecastLoaded = true
+                    }
+                } catch(e) {
+                    // ignore parse errors
+                }
+            }
+        }
+    }
+
+    function buildForecastCommand(provider) {
+        if (provider === "openweather") {
+            var city = weatherCityOverride ? weatherCityOverride.trim() : ""
+            var key = weatherApiKey ? weatherApiKey.trim() : ""
+            if (city && key) {
+                var encodedCity = encodeURIComponent(city)
+                return ["curl", "-sf",
+                    "https://api.openweathermap.org/data/2.5/forecast?q=" + encodedCity +
+                    "&appid=" + key + "&units=metric&cnt=40"]
+            }
+        }
+        // wttr.in JSON with 3 days (free tier) — use j1 format for full JSON
+        var wttrCity = weatherCityOverride ? weatherCityOverride.trim() : ""
+        var base = "wttr.in/" + (wttrCity ? encodeURIComponent(wttrCity) : "")
+        return ["curl", "-sf", base + "?format=j1"]
+    }
+
+    function triggerForecastRefresh() {
+        var provider = weatherUseApiProvider ? weatherProvider : "wttr"
+        if (provider === "openweather" && (!weatherCityOverride || !weatherApiKey)) {
+            provider = "wttr"
+        }
+        forecastProcess.command = buildForecastCommand(provider)
+        forecastProcess.running = true
     }
 
     function buildWeatherCommand(provider) {
@@ -180,6 +300,7 @@ PanelWindow {
         weatherLoaded = false
         weatherProcess.command = buildWeatherCommand(provider)
         weatherProcess.running = true
+        triggerForecastRefresh()
     }
 
     // ── Widget persistence via widgets.json ──
@@ -761,6 +882,16 @@ PanelWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         visible: !isTiny
                     }
+                }
+
+                // Click to open weather detail (non-edit mode, weather widgets only)
+                MouseArea {
+                    id: weatherClickArea
+                    anchors.fill: parent
+                    enabled: !editMode && modelData.type === "weather"
+                    hoverEnabled: true
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: Gstate.weatherDetailOpen = !Gstate.weatherDetailOpen
                 }
 
                 // Drag MouseArea — on press, hands off to the root-level overlay

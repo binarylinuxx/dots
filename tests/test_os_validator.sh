@@ -44,6 +44,7 @@ run_test() {
 
     # Reset state
     IS_ARCH_LIKE=false
+    IS_OPENSUSE=false
     SKIP_PACKAGES=false
 
     # Override: source fake os-release instead of /etc/os-release
@@ -61,6 +62,14 @@ run_test() {
             local pretty="${PRETTY_NAME:-$id}"
 
             info "Detected: ${BOLD}$pretty${NC}"
+
+            if [[ "$id" == "opensuse-tumbleweed" ]] || [[ "$id_like" == *"suse"* ]]; then
+                IS_OPENSUSE=true
+                SKIP_PACKAGES=false
+                _show_opensuse_notice "$pretty"
+                _print_result
+                return
+            fi
 
             if [[ "$id" == "arch" ]]; then
                 success "Arch Linux detected"
@@ -94,6 +103,7 @@ run_test() {
             fi
 
             IS_ARCH_LIKE=false
+            IS_OPENSUSE=false
             SKIP_PACKAGES=true
             _show_non_arch_notice
             _print_result
@@ -101,7 +111,7 @@ run_test() {
 
         _print_result() {
             echo ""
-            echo -e "  Result: IS_ARCH_LIKE=${BOLD}$IS_ARCH_LIKE${NC}  SKIP_PACKAGES=${BOLD}$SKIP_PACKAGES${NC}"
+            echo -e "  Result: IS_ARCH_LIKE=${BOLD}$IS_ARCH_LIKE${NC}  IS_OPENSUSE=${BOLD}$IS_OPENSUSE${NC}  SKIP_PACKAGES=${BOLD}$SKIP_PACKAGES${NC}"
         }
 
         validate_os_fake

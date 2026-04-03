@@ -1,3 +1,4 @@
+import qs.services
 import QtQuick
 
 Item {
@@ -18,7 +19,7 @@ Item {
 		color: sidebarOpen ? col.primary : col.surfaceContainer
 
 		Behavior on color {
-			ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+			ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
 		}
 
 		Text {
@@ -40,7 +41,7 @@ Item {
 			color: sidebarOpen ? col.onPrimary : col.primary
 
 			Behavior on color {
-				ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
+				ColorAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
 			}
 		}
 

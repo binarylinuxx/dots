@@ -25,6 +25,7 @@ TEMPLATE_OUTPUTS = {
     ],
     "micro.micro": ["~/.config/micro/colorschemes/matugen.micro"],
     "waybar.css": ["~/.config/waybar/colors.css"],
+    "zwm_colors.lua": ["~/.config/zwm/colors.lua"],
 }
 
 

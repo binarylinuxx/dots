@@ -10,6 +10,7 @@
 # ============================================================================
 
 IS_ARCH_LIKE=false
+IS_OPENSUSE=false
 SKIP_PACKAGES=false
 
 validate_os() {
@@ -31,6 +32,14 @@ validate_os() {
 
     info "Detected: ${BOLD}$pretty${NC}"
     log "OS: ID=$id ID_LIKE=$id_like PRETTY_NAME=$pretty"
+
+    # openSUSE Tumbleweed (and Leap as ID_LIKE fallback)
+    if [[ "$id" == "opensuse-tumbleweed" ]] || [[ "$id_like" == *"suse"* ]]; then
+        IS_OPENSUSE=true
+        SKIP_PACKAGES=false
+        _show_opensuse_notice "$pretty"
+        return
+    fi
 
     # Pure Arch
     if [[ "$id" == "arch" ]]; then
@@ -71,6 +80,25 @@ validate_os() {
     IS_ARCH_LIKE=false
     SKIP_PACKAGES=true
     _show_non_arch_notice
+}
+
+_show_opensuse_notice() {
+    local pretty="$1"
+    echo ""
+    echo -e "${GREEN}${BOLD}  ┌─────────────────────────────────────────────────────┐${NC}"
+    echo -e "${GREEN}${BOLD}  │           openSUSE Tumbleweed Detected              │${NC}"
+    echo -e "${GREEN}${BOLD}  ├─────────────────────────────────────────────────────┤${NC}"
+    echo -e "${GREEN}         │  Detected: ${BOLD}$pretty${NC}${GREEN}                              │${NC}"
+    echo -e "${GREEN}         │                                                     │${NC}"
+    echo -e "${GREEN}         │  The blxshell OBS repository will be added:         │${NC}"
+    echo -e "${GREEN}         │  home:binarylinuxx:blxshell (build.opensuse.org)    │${NC}"
+    echo -e "${GREEN}         │                                                     │${NC}"
+    echo -e "${GREEN}         │  This provides all custom packages not available    │${NC}"
+    echo -e "${GREEN}         │  in the default Tumbleweed repositories.            │${NC}"
+    echo -e "${GREEN}${BOLD}  └─────────────────────────────────────────────────────┘${NC}"
+    echo ""
+    warning "An additional OBS repository will be added to your system"
+    confirm "Continue?" || exit 1
 }
 
 _show_non_arch_notice() {

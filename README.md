@@ -178,3 +178,8 @@ Place wallpapers in `~/.local/wallpapers/`. Change wallpaper from the Settings p
 
 If no wallpaper is set, a gradient fallback background is shown using your current theme colors with a hint to get started.
 
+## License
+GNU GPL3: study, redistribute, modify the code but keep same license and opensource for more info read [LICENSE_file](LICENSE)
+
+## Check also
+- [my friend's dots JES](https://github.com/ORFLEM/just_enough_shell.git)

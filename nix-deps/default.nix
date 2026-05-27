@@ -27,6 +27,12 @@ in {
             "$out/share/blxshell/col_gen/__pycache__"
           find "$out/share/blxshell" -name '__pycache__' -type d -prune -exec rm -rf {} +
           find "$out/share/blxshell" \( -name '*_grim.png' -o -name 'shot-*.png' \) -delete
+          # Nix-specific generate wrapper — uses blxshell-col-gen (in PATH via wrapper)
+          cat > "$out/share/blxshell/col_gen/generate" << 'EOF'
+#!/bin/bash
+cd "$(dirname "$0")"
+exec blxshell-col-gen "$@"
+EOF
           runHook postInstall
         '';
       };
@@ -80,10 +86,25 @@ in {
         };
       };
 
+      blxshell-col-gen = pkgs.writeShellScriptBin "blxshell-col-gen" ''
+        exec ${pkgs.python314.withPackages (ps: [
+          ps.jinja2 ps.materialyoucolor ps.numpy ps.opencv-python ps.pillow
+        ])}/bin/python3 "${blxshell-runtime}/share/blxshell/col_gen/main.py" "$@"
+      '';
+
       blxshell-unwrapped = pkgs.writeShellApplication {
         name = "blxshell-unwrapped";
-        runtimeInputs = [ blxshell-quickshell-git pkgs.uv pkgs.procps ];
+        runtimeInputs = [ blxshell-quickshell-git blxshell-col-gen pkgs.procps ];
         text = ''
+          BLXSHELL_PATH="''${BLXSHELL_PATH:-$HOME/.local/blxshell}"
+          export BLXSHELL_PATH
+
+          QML_IMPORT_PATH="$BLXSHELL_PATH/qml"
+          export QML_IMPORT_PATH
+
+          LD_LIBRARY_PATH="$BLXSHELL_PATH/qml/PluginManager''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export LD_LIBRARY_PATH
+
           usage() {
             printf '%s\n' \
               "Usage: blxshell <command> [args]" \
@@ -99,7 +120,7 @@ in {
               "  help            Show this message" \
               "" \
               "Environment:" \
-              "  BLXSHELL_PATH   Override shell root"
+              "  BLXSHELL_PATH   Override shell root (default: ~/.local/blxshell)"
           }
 
           shell_qml="$BLXSHELL_PATH/shell.qml"
@@ -118,7 +139,7 @@ in {
                 echo "Usage: blxshell theme <image_path>" >&2
                 exit 1
               fi
-              exec uv run --project "$BLXSHELL_PATH/col_gen" "$BLXSHELL_PATH/col_gen/main.py" "$2"
+              exec blxshell-col-gen image "$2"
               ;;
             lock) exec qs -p "$shell_qml" ipc call lockscreen lock ;;
             powermenu) exec qs -p "$shell_qml" ipc call -- powermenu toggle ;;
@@ -137,11 +158,8 @@ in {
         installPhase = ''
           runHook preInstall
           makeWrapper ${blxshell-unwrapped}/bin/blxshell-unwrapped "$out/bin/blxshell" \
-            --set BLXSHELL_PATH ${blxshell-runtime}/share/blxshell \
             --set-default BLXSHELL_PLUGIN_DIRS "\$HOME/.local/share/blxshell/plugins" \
-            --set QML_IMPORT_PATH ${blxshell-runtime}/share/blxshell/qml \
-            --set LD_LIBRARY_PATH ${blxshell-runtime}/share/blxshell/qml/PluginManager \
-            --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git pkgs.uv pkgs.procps ]}
+            --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git blxshell-col-gen pkgs.procps ]}
           runHook postInstall
         '';
 
@@ -186,11 +204,11 @@ in {
 
       blxshell-bundle = pkgs.symlinkJoin {
         name = "blxshell-bundle";
-        paths = [ blxshell-cli blxshell-plugin-manager blxshell-runtime fonts.blxshell-custom-fonts scripts.blxshell-scripts ];
+        paths = [ blxshell-cli blxshell-col-gen blxshell-plugin-manager blxshell-runtime fonts.blxshell-custom-fonts scripts.blxshell-scripts ];
         meta.mainProgram = "blxshell";
       };
     in rec {
-      inherit blxshell-bundle blxshell-cli blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-unwrapped;
+      inherit blxshell-bundle blxshell-cli blxshell-col-gen blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-unwrapped;
       inherit (fonts) blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts;
       inherit (scripts) blxshell-scripts randwall wlshot;
 
@@ -207,7 +225,7 @@ in {
   overlays.default = final: prev:
     let packages = self.packages.${prev.system};
     in {
-      inherit (packages) blxshell-bundle blxshell-cli blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-scripts blxshell-shell blxshell-unwrapped quickshell randwall wlshot;
+      inherit (packages) blxshell-bundle blxshell-cli blxshell-col-gen blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-scripts blxshell-shell blxshell-unwrapped quickshell randwall wlshot;
       blxshell = packages.default;
     };
 

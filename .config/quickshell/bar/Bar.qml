@@ -44,10 +44,10 @@ PanelWindow {
 		color: col.background
 
 		// Docked vertical bars round their side corners; floating bars round all corners.
-		topLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
-		topRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
-		bottomLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
-		bottomRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
+		topLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
+		topRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
+		bottomLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
+		bottomRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
 	}
 
 	Workspaces {

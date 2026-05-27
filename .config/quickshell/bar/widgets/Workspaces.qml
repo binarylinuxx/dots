@@ -3,7 +3,6 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
 import Quickshell
-import Quickshell.Hyprland
 
 Item {
     id: root
@@ -20,13 +19,7 @@ Item {
 
     // Helper function to check if workspace has windows
     function workspaceHasWindows(wsId) {
-        for (let i = 0; i < Hyprland.workspaces.values.length; i++) {
-            let ws = Hyprland.workspaces.values[i]
-            if (ws.id === wsId && ws.toplevels && ws.toplevels.values.length > 0) {
-                return true
-            }
-        }
-        return false
+        return Hyprland.workspaceHasWindows(wsId)
     }
 
     // Store occupied state for each workspace
@@ -40,9 +33,8 @@ Item {
 
     // Refresh states when workspaces change
     Connections {
-        target: Hyprland.workspaces
-        function onObjectInserted() { root.occupiedStates = Qt.binding(() => root.computeStates()) }
-        function onObjectRemoved() { root.occupiedStates = Qt.binding(() => root.computeStates()) }
+        target: Hyprland
+        function onStateChanged() { root.occupiedStates = root.computeStates() }
     }
 
     function computeStates() {
@@ -75,9 +67,8 @@ Item {
             onStatesChanged: requestPaint()
 
             Connections {
-                target: Hyprland.workspaces
-                function onObjectInserted() { metaballCanvas.requestPaint() }
-                function onObjectRemoved() { metaballCanvas.requestPaint() }
+                target: Hyprland
+                function onStateChanged() { metaballCanvas.requestPaint() }
             }
 
             Connections {
@@ -97,7 +88,8 @@ Item {
                 let ctx = getContext("2d")
                 ctx.clearRect(0, 0, width, height)
 
-                let cellWidth = 29
+                let cellSize = 29
+                let centerX = width / 2
                 let centerY = height / 2
                 let dotRadius = 4
                 let bigRadius = 12
@@ -131,20 +123,27 @@ Item {
 
                 for (let g = 0; g < groups.length; g++) {
                     let group = groups[g]
-                    let startX = group.start * cellWidth + cellWidth / 2
-                    let endX = group.end * cellWidth + cellWidth / 2
+                    let startPos = group.start * cellSize + cellSize / 2
+                    let endPos = group.end * cellSize + cellSize / 2
 
                     if (group.start === group.end) {
                         ctx.beginPath()
-                        ctx.arc(startX, centerY, bigRadius, 0, Math.PI * 2)
+                        ctx.arc(root.vertical ? centerX : startPos, root.vertical ? startPos : centerY, bigRadius, 0, Math.PI * 2)
                         ctx.fill()
                     } else {
                         let r = bigRadius
                         ctx.beginPath()
-                        ctx.arc(startX, centerY, r, Math.PI / 2, -Math.PI / 2)
-                        ctx.lineTo(endX, centerY - r)
-                        ctx.arc(endX, centerY, r, -Math.PI / 2, Math.PI / 2)
-                        ctx.lineTo(startX, centerY + r)
+                        if (root.vertical) {
+                            ctx.arc(centerX, startPos, r, Math.PI, 0)
+                            ctx.lineTo(centerX + r, endPos)
+                            ctx.arc(centerX, endPos, r, 0, Math.PI)
+                            ctx.lineTo(centerX - r, startPos)
+                        } else {
+                            ctx.arc(startPos, centerY, r, Math.PI / 2, -Math.PI / 2)
+                            ctx.lineTo(endPos, centerY - r)
+                            ctx.arc(endPos, centerY, r, -Math.PI / 2, Math.PI / 2)
+                            ctx.lineTo(startPos, centerY + r)
+                        }
                         ctx.closePath()
                         ctx.fill()
                     }
@@ -153,7 +152,7 @@ Item {
                 // Draw small dots for all workspaces
                 for (let i = 0; i < root.wsCount; i++) {
                     let occupied = root.workspaceHasWindows(i + 1)
-                    let x = i * cellWidth + cellWidth / 2
+                    let pos = i * cellSize + cellSize / 2
                     
                     if (occupied) {
                         ctx.fillStyle = col.surfaceContainer
@@ -162,18 +161,20 @@ Item {
                     }
                     
                     ctx.beginPath()
-                    ctx.arc(x, centerY, dotRadius, 0, Math.PI * 2)
+                    ctx.arc(root.vertical ? centerX : pos, root.vertical ? pos : centerY, dotRadius, 0, Math.PI * 2)
                     ctx.fill()
                 }
             }
         }
 
         // Numbers/Bars style overlay
-        Row {
+        Grid {
             id: numbersRow
             anchors.centerIn: parent
             visible: wsStyle !== "dots"
             z: 1
+            columns: root.vertical ? 1 : root.wsCount
+            rows: root.vertical ? root.wsCount : 1
 
             Repeater {
                 model: root.wsCount
@@ -183,9 +184,7 @@ Item {
                     height: wsStyle === "bars" ? 16 : 29
                     radius: wsStyle === "bars" ? 4 : moduleRadius
                     color: {
-                        let isActive = Hyprland.focusedMonitor && 
-                                       Hyprland.focusedMonitor.activeWorkspace &&
-                                       Hyprland.focusedMonitor.activeWorkspace.id === (index + 1)
+                        let isActive = Hyprland.activeWorkspaceId === (index + 1)
                         let occupied = root.workspaceHasWindows(index + 1)
                         
                         if (isActive) return "transparent"
@@ -201,9 +200,7 @@ Item {
                         font.family: root.fontFamily
                         font.weight: 700
                         color: {
-                            let isActive = Hyprland.focusedMonitor && 
-                                           Hyprland.focusedMonitor.activeWorkspace &&
-                                           Hyprland.focusedMonitor.activeWorkspace.id === (index + 1)
+                            let isActive = Hyprland.activeWorkspaceId === (index + 1)
                             let occupied = root.workspaceHasWindows(index + 1)
                             
                             if (isActive) return "transparent"
@@ -219,9 +216,7 @@ Item {
                         radius: 2
                         visible: wsStyle === "bars"
                         color: {
-                            let isActive = Hyprland.focusedMonitor && 
-                                           Hyprland.focusedMonitor.activeWorkspace &&
-                                           Hyprland.focusedMonitor.activeWorkspace.id === (index + 1)
+                            let isActive = Hyprland.activeWorkspaceId === (index + 1)
                             let occupied = root.workspaceHasWindows(index + 1)
                             
                             if (isActive) return "transparent"
@@ -266,13 +261,13 @@ Item {
                         onClicked: {
                             Hyprland.dispatch("workspace " + (index + 1))
                         }
-                        onWheel: {
+                        onWheel: wheel => {
                             if (wheel.angleDelta.y > 0) {
-                                if (Hyprland.focusedMonitor.activeWorkspace.id > 1) {
+                                if (Hyprland.activeWorkspaceId > 1) {
                                     Hyprland.dispatch("workspace -1")
                                 }
                             } else if (wheel.angleDelta.y < 0) {
-                                if (Hyprland.focusedMonitor.activeWorkspace.id < root.wsCount) {
+                                if (Hyprland.activeWorkspaceId < root.wsCount) {
                                     Hyprland.dispatch("workspace +1")
                                 }
                             }
@@ -288,9 +283,7 @@ Item {
             anchors.fill: parent
             z: 10
 
-            property real targetPos: Hyprland.focusedMonitor && Hyprland.focusedMonitor.activeWorkspace
-                ? (Hyprland.focusedMonitor.activeWorkspace.id - 1) * 29 + 3
-                : 3
+            property real targetPos: (Hyprland.activeWorkspaceId - 1) * 29 + 3
             // keep legacy alias for horizontal
             property real targetX: !root.vertical ? targetPos : 3
             property real targetY:  root.vertical ? targetPos : 3
@@ -306,8 +299,8 @@ Item {
                 anchors.horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
                 visible: trailAnimation.running
 
-                x: root.vertical ? undefined : Math.min(activeIndicator.x, tailPos.x)
-                y: root.vertical ? Math.min(activeIndicator.y, tailPos.y) : undefined
+			x: root.vertical ? 3 : Math.min(activeIndicator.x, tailPos.x)
+			y: root.vertical ? Math.min(activeIndicator.y, tailPos.y) : 3
 
                 Item {
                     id: tailPos
@@ -358,8 +351,7 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    text: Hyprland.focusedMonitor && Hyprland.focusedMonitor.activeWorkspace 
-                        ? Hyprland.focusedMonitor.activeWorkspace.id : "1"
+                    text: Hyprland.activeWorkspaceId || "1"
                     visible: wsStyle === "numbers"
                     font.pixelSize: 12
                     font.family: root.fontFamily

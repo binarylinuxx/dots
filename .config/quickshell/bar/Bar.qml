@@ -3,32 +3,39 @@ import QtQuick
 import qs.bar.widgets
 import qs.widgets
 import qs.services
+import PluginManager
 
 PanelWindow {
 	id: barWindow
 
 	property int barHeight: cfg ? cfg.barHeight : 35
+	property int barWidth: cfg && cfg.barWidth ? cfg.barWidth : 46
 	property int barRadius: cfg ? cfg.barRadius : 20
 	property int barGap: cfg ? cfg.barGap : 5
 	property bool barFloating: cfg ? cfg.barFloating : false
-	property bool barOnTop: cfg ? cfg.barOnTop : true
+	property string barPosition: cfg ? (cfg.barPosition || (cfg.barOnTop ? "top" : "bottom")) : "top"
+	property string barPreset: cfg ? (cfg.barPreset || "horizontal") : "horizontal"
+	property bool verticalBar: barPreset.indexOf("vertical") === 0 || barPosition === "left" || barPosition === "right"
+	property bool barOnTop: !verticalBar && (barPosition === "top" || (cfg ? cfg.barOnTop : true))
 	property int cornerSize: cfg ? cfg.screenCornerSize : 25
+	property int dockedRadius: barRadius
 
 	anchors {
-		top: barOnTop
-		bottom: !barOnTop
-		left: true
-		right: true
+		top: verticalBar || barOnTop
+		bottom: verticalBar || !barOnTop
+		left: !verticalBar || barPosition === "left"
+		right: !verticalBar || barPosition === "right"
 	}
 
 	margins {
-		top: barFloating && barOnTop ? barGap : 0
-		bottom: barFloating && !barOnTop ? barGap : 0
+		top: barFloating ? barGap : 0
+		bottom: barFloating ? barGap : 0
 		left: barFloating ? barGap : 0
 		right: barFloating ? barGap : 0
 	}
 
-	height: barHeight
+	implicitHeight: verticalBar ? 1 : barHeight
+	implicitWidth: verticalBar ? barWidth : 1
 	color: barFloating ? "transparent" : "black"
 
 	Rectangle {
@@ -36,18 +43,54 @@ PanelWindow {
 		anchors.fill: parent
 		color: col.background
 
-		// Floating: all corners rounded
-		// Top: bottom corners rounded
-		// Bottom: top corners rounded
-		topLeftRadius: barFloating ? barRadius : (barOnTop ? cornerSize : 0)
-		topRightRadius: barFloating ? barRadius : (barOnTop ? cornerSize : 0)
-		bottomLeftRadius: barFloating ? barRadius : (!barOnTop ? cornerSize : 0)
-		bottomRightRadius: barFloating ? barRadius : (!barOnTop ? cornerSize : 0)
+		// Docked vertical bars round their side corners; floating bars round all corners.
+		topLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
+		topRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
+		bottomLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
+		bottomRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
 	}
 
-	Workspaces { anchors.centerIn: parent }
-	SystemTray { anchors.fill: parent }
-	UserProfile { anchors.fill: parent }
+	Workspaces {
+		anchors.centerIn: parent
+		visible: !barWindow.verticalBar
+	}
+	SystemTray {
+		id: systemTray
+		anchors.fill: parent
+		visible: !barWindow.verticalBar
+	}
+	UserProfile {
+		anchors.fill: parent
+		visible: !barWindow.verticalBar
+	}
+	VerticalBarModules {
+		anchors.fill: parent
+		visible: barWindow.verticalBar
+	}
+
+	// Plugin bar items — right-anchored, sits just left of SystemTray.
+	// Tracks tray width so there's no hardcoded gap.
+	Row {
+		id: pluginBarRow
+		anchors.right: parent.right
+		anchors.rightMargin: systemTray.contentWidth + 1
+		anchors.verticalCenter: parent.verticalCenter
+		visible: !barWindow.verticalBar
+		spacing: 6
+
+		Repeater {
+			model: {
+				var all = PluginRegistry.byKind("bar")
+				var disabled = (cfg && cfg.disabledPlugins) ? cfg.disabledPlugins : []
+				return all.filter(function(p) { return disabled.indexOf(p.id) === -1 })
+			}
+			delegate: Loader {
+				anchors.verticalCenter: parent.verticalCenter
+				source: modelData.kindData.componentUrl
+				onLoaded: if (item) item.plugin = modelData
+			}
+		}
+	}
 
 	// Screen corners
 	ScreenCorner {

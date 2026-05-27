@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="/qt/qml/PluginManager">/home/blx/.local/blxshell/qml/PluginManager</file>
+
+  </qresource>
+</RCC>

@@ -1,12 +1,12 @@
 # Maintainer: Nir Rudov <nrw58886@gmail.com>
 
-_commit='db1777c20b936a86528c1095cbcb1ebd92801402'
+_commit='4b4fca3'
 _prefix='blxshell'
 conflicts=("quickshell-git")
 _pkgname=quickshell
 pkgname="$_prefix-$_pkgname-git"
 pkgver=0.1.0.r1
-pkgrel=6
+pkgrel=7
 pkgdesc="$_pkgname-git pinned commit and extra deps for $_prefix since official package still old"
 arch=(x86_64 aarch64)
 url='https://git.outfoxxed.me/quickshell/quickshell'

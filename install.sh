@@ -25,6 +25,8 @@ readonly REPO_URL="https://github.com/binarylinuxx/dots.git"
 readonly REPO_BRANCH="main"
 readonly BACKUP_DIR="$HOME/.cache/.config_backup"
 readonly LOG_FILE="/tmp/blxshell_install_$(date +%Y%m%d_%H%M%S).log"
+readonly BLXSHELL_HOME="$HOME/.local/blxshell"
+readonly USER_BIN_DIR="$HOME/.local/bin"
 readonly PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-font-googlesans" "blxshell-font-bitcount")
 readonly OPENSUSE_PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-fonts" "gcc-c++" "python3-devel")
 readonly OBS_REPO_URL="https://download.opensuse.org/repositories/home:binarylinuxx:blxshell/openSUSE_Tumbleweed/"
@@ -344,12 +346,51 @@ install_dotfiles() {
     success "Dotfiles installed to $HOME/.config"
 }
 
+install_blxshell_runtime() {
+    local source_dir="$SCRIPT_DIR/.config/quickshell"
+    local backup_path timestamp
+
+    [[ -d "$source_dir" ]] || { error "No quickshell runtime in $source_dir"; return 1; }
+
+    info "Installing blxshell runtime to $BLXSHELL_HOME..."
+    mkdir -p "$BACKUP_DIR" "$HOME/.local"
+
+    if [[ -e "$BLXSHELL_HOME" ]]; then
+        timestamp=$(date +%Y%m%d_%H%M%S)
+        backup_path="$BACKUP_DIR/blxshell_$timestamp"
+        info "Backing up existing blxshell runtime to $backup_path..."
+        mv "$BLXSHELL_HOME" "$backup_path" || { error "Failed to backup existing blxshell runtime"; return 1; }
+    fi
+
+    cp -r "$source_dir" "$BLXSHELL_HOME" || { error "Failed to install blxshell runtime"; return 1; }
+
+    # These are local/generated development artifacts, not part of the runtime.
+    rm -rf "$BLXSHELL_HOME/.ruff_cache" "$BLXSHELL_HOME/.obsidian" "$BLXSHELL_HOME/col_gen/.venv"
+    rm -f "$BLXSHELL_HOME"/*_grim.png "$BLXSHELL_HOME"/shot-*.png
+
+    success "blxshell runtime installed"
+}
+
+install_blxshell_cli() {
+    [[ -f "$SCRIPT_DIR/blxshell" ]] || { error "CLI not found at $SCRIPT_DIR/blxshell"; return 1; }
+
+    info "Installing blxshell CLI to $USER_BIN_DIR/blxshell..."
+    mkdir -p "$USER_BIN_DIR"
+    install -m 755 "$SCRIPT_DIR/blxshell" "$USER_BIN_DIR/blxshell" || { error "Failed to install blxshell CLI"; return 1; }
+
+    if [[ ":$PATH:" != *":$USER_BIN_DIR:"* ]]; then
+        warning "$USER_BIN_DIR is not in PATH; add it to your shell profile to run 'blxshell' directly"
+    fi
+
+    success "blxshell CLI installed"
+}
+
 # ============================================================================
 # Color Generator Setup
 # ============================================================================
 
 setup_col_gen() {
-    local col_gen_dir="$HOME/.config/quickshell/col_gen"
+    local col_gen_dir="$BLXSHELL_HOME/col_gen"
 
     [[ -d "$col_gen_dir" ]] || { warning "col_gen directory not found, skipping"; return 0; }
 
@@ -371,6 +412,83 @@ setup_col_gen() {
 }
 
 # ============================================================================
+# Greeter Setup
+# ============================================================================
+
+readonly GREETER_WRAPPER_DIR="$SCRIPT_DIR/.config/quickshell/greeter-wrapper"
+readonly GREETER_BIN_DEST="/usr/local/bin/greeter-launcher"
+readonly GREETER_CACHE_DIR="/var/cache/greeter"
+readonly GREETD_CONFIG="/etc/greetd/config.toml"
+
+install_greeter() {
+    echo -e "\n${BOLD}${BLUE}══════ Setting Up Greeter ══════${NC}\n"
+
+    info "Building greeter-launcher..."
+    (cd "$GREETER_WRAPPER_DIR" && make clean && make) 2>&1 | tee -a "$LOG_FILE" \
+        || { error "Failed to build greeter-launcher"; return 1; }
+
+    info "Installing greeter-launcher to $GREETER_BIN_DEST..."
+    sudo install -m 755 "$GREETER_WRAPPER_DIR/build/greeter-launcher" "$GREETER_BIN_DEST" \
+        || { error "Failed to install greeter-launcher"; return 1; }
+
+    # Ensure greeter group/user exist
+    if ! getent group greeter &>/dev/null; then
+        info "Creating greeter group..."
+        sudo groupadd -r greeter || { error "Failed to create greeter group"; return 1; }
+    fi
+    if ! getent passwd greeter &>/dev/null; then
+        info "Creating greeter user..."
+        sudo useradd -r -g greeter -d "$GREETER_CACHE_DIR" -s /usr/sbin/nologin \
+            -c "Greeter User" greeter || { error "Failed to create greeter user"; return 1; }
+    fi
+
+    # Set up cache directory
+    info "Setting up $GREETER_CACHE_DIR..."
+    sudo install -d -m 2770 -o root -g greeter "$GREETER_CACHE_DIR"
+    for d in .config .config/quickshell .cache .local .local/state .local/share; do
+        sudo install -d -m 0750 -o root -g greeter "$GREETER_CACHE_DIR/$d"
+    done
+
+    # ACLs so greeter user can traverse home and read Colors.json + wallpapers
+    if command_exists setfacl; then
+        info "Setting ACLs for greeter access..."
+        sudo setfacl -m "u:greeter:--x,m:--x"   "$HOME"
+        sudo setfacl -m "u:greeter:r-x,m:r-x"   "$HOME/.config"
+        sudo setfacl -m "u:greeter:r-x,m:r-x"   "$HOME/.config/quickshell"
+        sudo setfacl -m "u:greeter:r--,m:r--"   "$HOME/.config/quickshell/Colors.json" 2>/dev/null || true
+        for d in .local .local/share .local/share/wallpapers; do
+            [[ -d "$HOME/$d" ]] && sudo setfacl -m "u:greeter:r-x,m:r-x" "$HOME/$d"
+        done
+        sudo setfacl -R -m "u:greeter:r-X,m:r-X" "$HOME/.local/share/wallpapers" 2>/dev/null || true
+    else
+        warning "setfacl not found — greeter may not read Colors.json (install 'acl')"
+    fi
+
+    # Write greetd config
+    info "Writing $GREETD_CONFIG..."
+    sudo tee "$GREETD_CONFIG" > /dev/null << EOF
+[terminal]
+vt = 1
+
+[default_session]
+user = "greeter"
+command = "$GREETER_BIN_DEST"
+EOF
+
+    # Enable greetd + graphical target
+    if confirm "Enable greetd to start at boot?" "y"; then
+        sudo systemctl set-default graphical.target  2>&1 | tee -a "$LOG_FILE" || true
+        sudo systemctl enable greetd                 2>&1 | tee -a "$LOG_FILE" \
+            || warning "Failed to enable greetd (enable manually: systemctl enable greetd)"
+        success "greetd enabled — will start on next boot"
+    else
+        info "greetd not enabled — run: sudo systemctl enable greetd"
+    fi
+
+    success "Greeter setup complete"
+}
+
+# ============================================================================
 # Main
 # ============================================================================
 
@@ -389,6 +507,9 @@ EOF
 
 greet_user() {
     echo -e "Hello ${BOLD}$USER${NC}!\n"
+
+    warning "blxshell changed: the shell now runs through the 'blxshell' CLI."
+    info "Installer will place the runtime in $BLXSHELL_HOME and the CLI in $USER_BIN_DIR/blxshell."
 
     if [[ "$REMOTE_INSTALL" == true ]]; then
         info "Remote install mode - dotfiles will be installed by default"
@@ -460,6 +581,10 @@ main() {
         install_metapackages || exit 1
     fi
 
+    echo -e "\n${BOLD}${BLUE}══════ Installing blxshell CLI Runtime ══════${NC}\n"
+    install_blxshell_runtime || exit 1
+    install_blxshell_cli || exit 1
+
     if [[ "$INSTALL_DOTFILES" == true ]]; then
         echo -e "\n${BOLD}${BLUE}══════ Installing Dotfiles ══════${NC}\n"
         install_dotfiles || exit 1
@@ -482,9 +607,13 @@ main() {
         success "NetworkManager managed via PolicyKit — no group needed"
     fi
 
+    if confirm "Set up greeter (greetd login screen)?" "y"; then
+        install_greeter || warning "Greeter setup failed — run install_greeter manually"
+    fi
+
     echo -e "\n${BOLD}${GREEN}══════ Installation Complete! ══════${NC}\n"
 
-    echo -e "\n${GREEN}Please reboot and login into Hyprland (NOT UWSM)${NC}\n"
+    echo -e "\n${GREEN}Run '${BOLD}blxshell start${NC}${GREEN}' to launch the shell, then reboot and login into Hyprland (NOT UWSM).${NC}\n"
 }
 
 main "$@"

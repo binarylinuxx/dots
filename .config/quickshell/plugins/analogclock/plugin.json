@@ -1,0 +1,24 @@
+{
+  "id": "analogclock",
+  "name": "Analog Clock",
+  "version": "1.0",
+  "author": "blx",
+  "description": "Analog clock with a morphing cookie-shaped face on the desktop background.",
+  "icon": "schedule",
+  "provides": {
+    "background": "Widget.qml",
+    "settings": "SettingsPage.qml"
+  },
+  "config": {
+    "schema": [
+      { "key": "sides", "type": "int", "default": 7, "min": 4, "max": 12 },
+      { "key": "innerRatio", "type": "real", "default": 0.84 },
+      { "key": "outerRounding", "type": "real", "default": 0.45 },
+      { "key": "innerRounding", "type": "real", "default": 0.45 },
+      { "key": "morphWithTime", "type": "bool", "default": true },
+      { "key": "showSeconds", "type": "bool", "default": true },
+      { "key": "showTicks", "type": "bool", "default": true },
+      { "key": "clockSize", "type": "int", "default": 280 }
+    ]
+  }
+}

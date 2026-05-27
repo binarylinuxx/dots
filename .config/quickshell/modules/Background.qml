@@ -1,6 +1,5 @@
 import Quickshell 
 import Quickshell.Wayland
-import Quickshell.Hyprland
 import qs.modules
 import qs.services
 import QtQuick
@@ -52,7 +51,7 @@ PanelWindow {
 	}
 
 	// Current workspace (1-indexed)
-	property int currentWorkspace: Hyprland.focusedMonitor?.activeWorkspace?.id ?? 1
+	property int currentWorkspace: Hyprland.activeWorkspaceId || 1
 
 	// Calculate offset: center workspace = no offset, edges = max offset
 	property real normalizedPosition: (currentWorkspace - 1) / Math.max(1, totalWorkspaces - 1)

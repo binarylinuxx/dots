@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.0.0] - 2026-05-27
+
+### Added
+- Hyprland Lua config tree for Hyprland `0.55+`
+  - New `hyprland.lua` entrypoint
+  - Lua modules for monitors, variables, autostart, visuals, binds, rules, and generated colors
+- Quickshell now works via cli default dir $HOME/.local/blxshell
+### Changed
+- blxshell now uses the CLI/runtime layout by default
+  - Runtime path: `~/.local/blxshell`
+  - CLI path: `~/.local/bin/blxshell`
+  - Installer now installs both runtime and CLI and prints a migration notice
+- Hyprland configs are now lua migrated
+- Quickshell config synced from the live `~/.local/blxshell` runtime and cleaned for repository use
+- Added plugins system(beta)
+### Fixed
+- Installer no longer leaves `blxshell start` pointing at a missing runtime path
+- Plugin manager now installs into the active blxshell runtime path instead of stale `~/.config/quickshell`
+
 ## [2.5.1] - 2026-03-13
 
 ### Added

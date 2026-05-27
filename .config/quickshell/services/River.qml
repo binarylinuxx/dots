@@ -22,7 +22,7 @@ Singleton {
     property var windows: ({})
 
     readonly property bool available: Quickshell.env("WAYLAND_DISPLAY") !== ""
-    readonly property string riverFetchPath: "/home/blx/river-fetch/river-fetch"
+    readonly property string riverFetchPath: Quickshell.env("HOME") + "/river-fetch/river-fetch"
 
     Component.onCompleted: {
         console.log("River service initialized")

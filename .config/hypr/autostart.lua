@@ -1,0 +1,5 @@
+hl.on("hyprland.start", function()
+    hl.exec_cmd("blxshell start")
+    hl.exec_cmd("dex -a -s ~/.config/autostart/ &")
+    hl.exec_cmd("hyprctl setcursor Bibata-Modern-Classic 24")
+end)

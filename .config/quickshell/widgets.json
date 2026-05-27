@@ -1,1 +1,1 @@
-[{"id":"w1","type":"clock","gridX":6,"gridY":11,"gridWidth":9,"gridHeight":3,"title":"Clock"},{"id":"w2","type":"weather","gridX":1,"gridY":0,"gridWidth":7,"gridHeight":7,"title":"Weather"}]
+[{"id":"w1","type":"weather","gridX":6,"gridY":8,"gridWidth":9,"gridHeight":4,"title":"Weather"},{"id":"w2","type":"plugin:analogclock","gridX":11,"gridY":2,"gridWidth":4,"gridHeight":5,"title":"Plugin:analogclock"},{"id":"w3","type":"plugin:sysinfo","gridX":15,"gridY":8,"gridWidth":4,"gridHeight":5,"title":"Plugin:sysinfo"}]

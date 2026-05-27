@@ -1,0 +1,7 @@
+module PluginManager
+linktarget qs_plugin_managerplugin
+optional plugin qs_plugin_managerplugin
+classname PluginManagerPlugin
+typeinfo qs_plugin_manager.qmltypes
+prefer :/qt/qml/PluginManager/
+

@@ -1,0 +1,21 @@
+{
+  "id": "sysinfo",
+  "name": "System Stats",
+  "version": "1.0",
+  "author": "blx",
+  "description": "Concentric donut gauges showing CPU, RAM and Disk usage.",
+  "icon": "monitoring",
+  "provides": {
+    "background": "Widget.qml",
+    "settings": "SettingsPage.qml"
+  },
+  "config": {
+    "schema": [
+      { "key": "widgetSize",    "type": "int",  "default": 260 },
+      { "key": "refreshMs",     "type": "int",  "default": 2000 },
+      { "key": "showLabels",    "type": "bool", "default": true },
+      { "key": "showHostname",  "type": "bool", "default": true },
+      { "key": "cookieSides",   "type": "int",  "default": 8, "min": 4, "max": 16 }
+    ]
+  }
+}

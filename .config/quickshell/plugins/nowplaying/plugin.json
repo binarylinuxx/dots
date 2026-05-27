@@ -1,0 +1,17 @@
+{
+  "id": "nowplaying",
+  "name": "Now Playing",
+  "version": "1.0",
+  "author": "blx",
+  "description": "Shows current track in bar with play/pause control.",
+  "icon": "play_circle",
+  "provides": {
+    "bar": { "component": "BarItem.qml", "position": "right", "order": 15 },
+    "settings": "SettingsPage.qml"
+  },
+  "config": {
+    "schema": [
+      { "key": "maxLength", "type": "int", "default": 20, "min": 10, "max": 50 }
+    ]
+  }
+}

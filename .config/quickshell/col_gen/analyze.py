@@ -11,12 +11,13 @@ Usage:
 Options:
     --cols          Grid columns (default: 16)
     --rows          Grid rows (default: 9)
-    --output, -o    Output file (default: ~/.config/quickshell/widget_suggestions.json)
+    --output, -o    Output file (default: $BLXSHELL_PATH/widget_suggestions.json)
     --verbose, -v   Verbose output
 """
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -31,8 +32,9 @@ except ImportError:
     )
     sys.exit(1)
 
-DEFAULT_OUTPUT = Path.home() / ".config/quickshell/widget_suggestions.json"
-WIDGETS_FILE = Path.home() / ".config/quickshell/widgets.json"
+SHELL_ROOT = Path(os.environ.get("BLXSHELL_PATH", Path(__file__).parent.parent))
+DEFAULT_OUTPUT = SHELL_ROOT / "widget_suggestions.json"
+WIDGETS_FILE = SHELL_ROOT / "widgets.json"
 
 
 def analyze_image(image_path: str, cols: int, rows: int) -> np.ndarray:
@@ -120,15 +122,23 @@ def find_best_position(
     return best_pos
 
 
-def load_existing_widgets() -> list:
-    """Load existing widgets from widgets.json to preserve their sizes."""
+def load_existing_widgets() -> tuple:
+    """Load existing widgets and removed types from widgets.json."""
+    widgets = []
+    removed = []
     if WIDGETS_FILE.exists():
         try:
             with open(WIDGETS_FILE) as f:
-                return json.load(f)
+                data = json.load(f)
+                # Support both array format and object format with "removed" key
+                if isinstance(data, list):
+                    widgets = data
+                elif isinstance(data, dict):
+                    widgets = data.get("widgets", [])
+                    removed = data.get("removed", [])
         except (json.JSONDecodeError, IOError):
             pass
-    return []
+    return widgets, removed
 
 
 def suggest_widgets(
@@ -146,42 +156,21 @@ def suggest_widgets(
             print(" ".join(f"{scores[r, c]:6.1f}" for c in range(scores.shape[1])))
         print()
 
-    # Load existing widgets to preserve their sizes
-    existing = load_existing_widgets()
+    # Load existing widgets - only use widgets that exist in widgets.json
+    existing, _ = load_existing_widgets()
     existing_by_type = {w.get("type"): w for w in existing}
-
     widgets = []
     exclude = []
 
-    # Default widget definitions if not in existing: (type, preferred_width, preferred_height)
-    default_sizes = {
-        "clock": (6, 3),
-        "weather": (5, 4),
-    }
+    # Only process widgets that exist in widgets.json (don't add defaults)
+    widget_types = list(existing_by_type.keys())
 
-    # Process existing widgets first (preserve their sizes)
-    widget_types = (
-        list(existing_by_type.keys())
-        if existing_by_type
-        else list(default_sizes.keys())
-    )
-
-    # Add any default types not in existing
-    for wtype in default_sizes:
-        if wtype not in widget_types:
-            widget_types.append(wtype)
+    if not widget_types:
+        return widgets
 
     for wtype in widget_types:
-        # Get size from existing widget or use default
-        if wtype in existing_by_type:
-            w = existing_by_type[wtype].get(
-                "gridWidth", default_sizes.get(wtype, (4, 3))[0]
-            )
-            h = existing_by_type[wtype].get(
-                "gridHeight", default_sizes.get(wtype, (4, 3))[1]
-            )
-        else:
-            w, h = default_sizes.get(wtype, (4, 3))
+        w = existing_by_type[wtype].get("gridWidth", 4)
+        h = existing_by_type[wtype].get("gridHeight", 3)
 
         pos = find_best_position(scores, w, h, exclude)
         if pos:

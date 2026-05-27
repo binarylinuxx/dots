@@ -25,7 +25,7 @@
     "title": "by birthday",
     "date": "2026-04-13",
     "time": "01:00",
-    "fired": false
+    "fired": true
   },
   {
     "id": "1773499226679",
@@ -46,6 +46,13 @@
     "title": "buying MC license",
     "date": "2026-04-02",
     "time": "16:00",
+    "fired": true
+  },
+  {
+    "id": "1777902147886",
+    "title": "codex weekly limit reset",
+    "date": "2026-05-08",
+    "time": "12:00",
     "fired": true
   }
 ]

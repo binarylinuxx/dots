@@ -15,7 +15,7 @@ Scope {
 
     readonly property string shaderPath: Qt.resolvedUrl("../../.config/hypr/shaders/nightlight.glsl")
         .toString().replace("file://", "")
-    readonly property string shaderTemplate: "/home/blx/.config/hypr/shaders/nightlight.glsl"
+    readonly property string shaderTemplate: Quickshell.env("HOME") + "/.config/hypr/shaders/nightlight.glsl"
     readonly property string shaderRuntime: "/tmp/qs-nightlight.glsl"
 
     Process {

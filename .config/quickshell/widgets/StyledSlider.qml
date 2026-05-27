@@ -14,16 +14,14 @@ Item {
 
     // Size
     property int sliderWidth: 180
-    property int sliderHeight: 28
+    property int sliderHeight: 36
 
     // Styling
     property color trackColor: col.surfaceContainerHighest
     property color fillColor: col.primary
-    property color handleColor: col.onPrimary
-    property int radius: 14
+    property color handleColor: col.primary
+    property int radius: sliderHeight / 2
     property bool showHandle: true
-    property int trackThickness: 6
-    property int thumbSize: 16
 
     // Interaction
     property bool enabled: true
@@ -47,15 +45,13 @@ Item {
     function _setFromNormalized(norm) {
         const clamped = Math.max(0, Math.min(1, norm))
         let newValue = from + clamped * (to - from)
-        
-        // Apply step size
+
         if (stepSize > 0) {
             newValue = Math.round(newValue / stepSize) * stepSize
         }
-        
-        // Clamp to range
+
         newValue = Math.max(from, Math.min(to, newValue))
-        
+
         if (Math.abs(value - newValue) > 0.0001) {
             value = newValue
             moved(newValue)
@@ -65,27 +61,36 @@ Item {
     // === UI ===
     Item {
         id: sliderBody
-        anchors.centerIn: parent
-        width: styledSlider.sliderWidth
-        height: styledSlider.sliderHeight
+        anchors.fill: parent
         opacity: styledSlider.enabled ? 1.0 : 0.45
 
+        // Outer track pill
         Rectangle {
-            id: inactiveTrack
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width
-            height: styledSlider.trackThickness
-            radius: height / 2
+            id: track
+            anchors.fill: parent
+            radius: styledSlider.radius
             color: styledSlider.trackColor
         }
 
+        // Filled portion — inset 2px vertically, left corners rounded, right edge flat
         Rectangle {
-            id: activeTrack
-            anchors.left: inactiveTrack.left
-            anchors.verticalCenter: inactiveTrack.verticalCenter
-            width: Math.max(0, inactiveTrack.width * _normalizedValue)
-            height: inactiveTrack.height
-            radius: inactiveTrack.radius
+            id: fill
+            readonly property int inset: 2
+            readonly property real fillRadius: Math.max(0, styledSlider.radius - inset)
+
+            anchors.left: track.left
+            anchors.leftMargin: inset
+            anchors.top: track.top
+            anchors.topMargin: inset
+            anchors.bottom: track.bottom
+            anchors.bottomMargin: inset
+
+            // Right edge flush with handle's left edge
+            width: Math.max(fillRadius * 2, handle.x - inset - 4)
+            topLeftRadius: fillRadius
+            bottomLeftRadius: fillRadius
+            topRightRadius: 2
+            bottomRightRadius: 2
             color: styledSlider.fillColor
 
             Behavior on width {
@@ -93,46 +98,30 @@ Item {
             }
         }
 
-        Item {
-            id: thumb
+        // Handle — pill, 1px inset vertically (taller than fill), left edge touches fill
+        Rectangle {
+            id: handle
             visible: styledSlider.showHandle
-            width: styledSlider.thumbSize + (mouseArea.pressed ? 4 : 0)
-            height: width
-            x: inactiveTrack.x + (inactiveTrack.width * _normalizedValue) - width / 2
-            y: inactiveTrack.y + inactiveTrack.height / 2 - height / 2
+
+            readonly property int vPadding: 4
+            readonly property real travelWidth: track.width - fill.inset * 2 - width
+
+            width: Math.round(track.height * 3 / 16)  // ~proportional to SVG w=3/h=16
+            height: track.height + 5 // full track height — QML renders slightly smaller than spec
+            radius: width / 2
+            color: styledSlider.handleColor
+
+            anchors.verticalCenter: track.verticalCenter
+            x: fill.inset + _normalizedValue * travelWidth
 
             Behavior on x {
                 NumberAnimation { duration: 80; easing.type: Easing.OutCubic }
             }
 
-            Rectangle {
-                anchors.centerIn: parent
-                width: parent.width + (mouseArea.containsMouse || mouseArea.pressed ? 10 : 2)
-                height: width
-                radius: width / 2
-                color: styledSlider.fillColor
-                opacity: mouseArea.pressed ? 0.22 : (mouseArea.containsMouse ? 0.12 : 0)
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-                }
-                Behavior on width {
-                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-                }
-            }
-
-            Rectangle {
-                anchors.centerIn: parent
-                width: parent.width
-                height: width
-                radius: width / 2
-                color: styledSlider.fillColor
-                border.width: 2
-                border.color: styledSlider.handleColor
-
-                Behavior on width {
-                    NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
-                }
+            // Pressed state: slight opacity drop
+            opacity: mouseArea.pressed ? 0.6 : 1.0
+            Behavior on opacity {
+                NumberAnimation { duration: 80 }
             }
         }
 
@@ -168,8 +157,10 @@ Item {
             }
 
             function updateFromPosition(xPos) {
-                const pos = Math.max(0, Math.min(inactiveTrack.width, xPos - inactiveTrack.x))
-                const norm = pos / inactiveTrack.width
+                const inset = fill.inset
+                const travel = handle.travelWidth
+                const pos = Math.max(0, Math.min(travel, xPos - inset - handle.width / 2))
+                const norm = pos / travel
                 _setFromNormalized(norm)
             }
         }

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
-import Quickshell.Hyprland
+import Quickshell.Hyprland as QSHyprland
+import qs.services
 import qs.widgets
 
 Scope {
@@ -55,11 +56,8 @@ Scope {
                         spacing: 5
                         
                         Repeater {
-                            model: Hyprland.workspaces
-                            
-                            Repeater {
-                                model: modelData.toplevels
-                                
+                            model: Hyprland.clients
+
                                 Rectangle {
                                     width: windowsList.width
                                     height: 50
@@ -121,21 +119,18 @@ Scope {
                                         onEntered: windowHover.opacity = 0.3
                                         onExited: windowHover.opacity = 0
                                         onClicked: {
-                                            if (modelData.workspace) {
-                                                modelData.workspace.activate()
-                                            }
+                                            Hyprland.activateClient(modelData.address)
                                             taskbarRoot.close()
                                         }
                                     }
                                 }
-                            }
                         }
                     }
                 }
             }
         }
             
-            HyprlandFocusGrab {
+            QSHyprland.HyprlandFocusGrab {
                 windows: [sidebar]
                 active: sidebar.visible
                 

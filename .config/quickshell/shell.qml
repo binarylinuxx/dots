@@ -10,8 +10,15 @@ import qs.modules as Modules
 import qs.launcher
 import qs.notifications
 import qs.services
+import PluginManager
 
 ShellRoot {
+	id: shellRoot
+	property bool nightLightSyncReady: false
+
+	Component.onCompleted: {
+		PluginRegistry.pluginsDir = Quickshell.shellDir + "/plugins"
+	}
 	// Config file for settings
 	FileView {
 		id: configWatcher
@@ -24,7 +31,9 @@ ShellRoot {
 			property bool barFloating: false
 			property bool barOnTop: true
 			property string barPosition: "bottom"  // top / bottom / left / right
+			property string barPreset: "horizontal"
 			property int barHeight: 35
+			property int barWidth: 46
 			property int barRadius: 20
 			property int barGap: 5
 			property bool screenCorners: true
@@ -84,10 +93,10 @@ ShellRoot {
 			property int sidebarTopPadding: 120*2
 		// Night Light
 		property bool nightLightEnabled: false
-		property real nightLightTemperature: 0.6
-		property real nightLightStrength: 0.45
+		property real nightLightTemperature: 1
+		property real nightLightStrength: 1
 		// Idle
-		property bool idleEnabled: true
+		property bool idleEnabled: false
 		property int  idleTimeout: 300
 		property bool idleInhibitRecording: true
 		property bool idleDpmsEnabled: true
@@ -98,6 +107,8 @@ ShellRoot {
 		property string wallhavenApiKey: ""
 		property string wallhavenPurityMode: "sfw"
 		property string pexelsApiKey: ""
+		// Plugins
+		property var disabledPlugins: []
 	}
 }
 
@@ -181,11 +192,20 @@ ShellRoot {
 		}
 	}
 
-	// Sync nightLightEnabled between cfg and Gstate
+	// Sync nightLightEnabled into runtime state. Settings owns persistent writes.
 	Binding { target: Gstate; property: "nightLightEnabled"; value: cfg.nightLightEnabled }
+	Timer {
+		interval: 0
+		running: true
+		repeat: false
+		onTriggered: shellRoot.nightLightSyncReady = true
+	}
 	Connections {
 		target: Gstate
 		function onNightLightEnabledChanged() {
+			if (!shellRoot.nightLightSyncReady || cfg.nightLightEnabled === Gstate.nightLightEnabled)
+				return
+
 			cfg.nightLightEnabled = Gstate.nightLightEnabled
 			configWatcher.writeAdapter()
 		}
@@ -312,10 +332,11 @@ ShellRoot {
 	HotCornerTrigger {
 		onTriggered: backgroundGrid.toggleEditMode()
 	}
-	
+
 	Launcher {}
 	Notifications {}
 	Settings {}
+	ScreenshotOverlay {}
 	WeatherDetail {}
 	FirstLaunch {}
 
@@ -368,15 +389,15 @@ ShellRoot {
 		target: "powermenu"
 
 		function toggle(): void {
-			powerMenu.showing = !powerMenu.showing;
+			Gstate.powerMenuOpen = !Gstate.powerMenuOpen;
 		}
 
 		function show(): void {
-			powerMenu.showing = true;
+			Gstate.powerMenuOpen = true;
 		}
 
 		function hide(): void {
-			powerMenu.showing = false;
+			Gstate.powerMenuOpen = false;
 		}
 	}
 

@@ -8,6 +8,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import qs.widgets
 import qs.services
+import PluginManager
 
 FloatingWindow {
 	id: root
@@ -18,7 +19,9 @@ FloatingWindow {
 	visible: Gstate.settingsOpen
 
 	property int selectedIndex: 0
-	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "Advanced", "Performance", "About"]
+	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "Advanced", "Performance", "Plugins", "About"]
+	// Icons per-page, matches pageNames order.
+	property var pageIcons: ["palette", "wallpaper", "view_sidebar", "rocket_launch", "schedule", "science", "speed", "extension", "info"]
 	property int darkModeIndex: 0
 	property int colorSchemeIndex: 7
 	property int workspaceCount: 10
@@ -71,7 +74,9 @@ FloatingWindow {
 			property bool barFloating: false
 			property bool barOnTop: true
 			property string barPosition: "bottom"
+			property string barPreset: "horizontal"
 			property int barHeight: 35
+			property int barWidth: 46
 			property int barRadius: 20
 			property int barGap: 5
 			property bool screenCorners: true
@@ -121,10 +126,10 @@ FloatingWindow {
 			property string weatherApiKey: ""
 			// Night Light
 			property bool nightLightEnabled: false
-			property real nightLightTemperature: 0.6
-			property real nightLightStrength: 0.45
+			property real nightLightTemperature: 1
+			property real nightLightStrength: 1
 			// Idle
-			property bool idleEnabled: true
+			property bool idleEnabled: false
 			property int  idleTimeout: 300
 			property bool idleInhibitRecording: true
 			property bool idleDpmsEnabled: true
@@ -135,6 +140,8 @@ FloatingWindow {
 			property string wallhavenApiKey: ""
 			property string wallhavenPurityMode: "sfw"  // "sfw" | "nsfw" | "apikey"
 			property string pexelsApiKey: ""
+			// Plugin system: list of disabled plugin ids
+			property var disabledPlugins: []
 
 
 			onLauncherMaxItemsChanged: launcherHeight = launcherMaxItems * launcherItemHeight + 70
@@ -235,7 +242,17 @@ FloatingWindow {
 
 	Process {
 		id: smartReloadWidgetsProcess
-		command: ["qs", "ipc", "call", "widgets", "reload"]
+		command: [
+            "python3", "-c",
+            "import json,os; p=os.environ.get('BLXSHELL_PATH',os.path.expanduser('~/.local/blxshell'))+'/widgets.json'; f=open(p); d=json.load(f); f.close(); d.setdefault('removed',[]); print(json.dumps(d['removed']))"
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    removedTypes = JSON.parse(text.trim())
+                } catch(e) { removedTypes = [] }
+            }
+        }
 	}
 
 
@@ -322,7 +339,7 @@ FloatingWindow {
 								spacing: 12
 
 								MaterialSymbol {
-									icon: index === 0 ? "palette" : index === 1 ? "wallpaper" : index === 2 ? "view_sidebar" : index === 3 ? "rocket_launch" : index === 4 ? "schedule" : index === 5 ? "science" : index === 6 ? "speed" : "info"
+									icon: root.pageIcons[index] || "circle"
 									iconSize: 22
 									color: index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
 								}
@@ -645,48 +662,24 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Contrast slider
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Contrast"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { 
-												text: {
-													var c = configAdapter ? configAdapter.matugenContrast : 0.0
-													if (c < -0.3) return "Low contrast"
-													if (c > 0.3) return "High contrast"
-													return "Standard"
-												}
-												font.pixelSize: 11
-												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-												color: col.onSurfaceVariant
-												opacity: 0.8
-											}
+										label: "Contrast"
+										subtext: {
+											var c = configAdapter ? configAdapter.matugenContrast : 0.0
+											if (c < -0.3) return "Low contrast"
+											if (c > 0.3) return "High contrast"
+											return "Standard"
 										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: -1.0
-											to: 1.0
-											stepSize: 0.1
-											value: configAdapter ? configAdapter.matugenContrast : 0.0
-											onValueChanged: {
-												if (configAdapter && Math.abs(configAdapter.matugenContrast - value) > 0.01) {
-													configAdapter.matugenContrast = value
-													saveConfig()
-												}
+										from: -1.0; to: 1.0; stepSize: 0.1
+										value: configAdapter ? configAdapter.matugenContrast : 0.0
+										valueText: configAdapter ? configAdapter.matugenContrast.toFixed(1) : "0.0"
+										onChanged: function(v) {
+											if (configAdapter && Math.abs(configAdapter.matugenContrast - v) > 0.01) {
+												configAdapter.matugenContrast = v
+												saveConfig()
+												applyTheme()
 											}
-										}
-
-										Text {
-											text: (configAdapter ? configAdapter.matugenContrast.toFixed(1) : "0.0")
-											font.pixelSize: 12
-											font.family: "JetBrains Mono"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 35
 										}
 									}
 
@@ -994,29 +987,17 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5; visible: configAdapter ? configAdapter.wallpaperParallax : true }
 
 									// Parallax Strength
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
 										visible: configAdapter ? configAdapter.wallpaperParallax : true
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Parallax Strength"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: Math.round((configAdapter ? configAdapter.wallpaperParallaxStrength : 0.1) * 100) + "%"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 0.02
-											to: 0.2
-											stepSize: 0.01
-											value: configAdapter ? configAdapter.wallpaperParallaxStrength : 0.1
-											onValueChanged: {
-												if (configAdapter && Math.abs(configAdapter.wallpaperParallaxStrength - value) > 0.001) {
-													configAdapter.wallpaperParallaxStrength = value
-													saveConfig()
-												}
+										label: "Parallax Strength"
+										subtext: Math.round((configAdapter ? configAdapter.wallpaperParallaxStrength : 0.1) * 100) + "%"
+										from: 0.02; to: 0.2; stepSize: 0.01
+										value: configAdapter ? configAdapter.wallpaperParallaxStrength : 0.1
+										onChanged: function(v) {
+											if (configAdapter && Math.abs(configAdapter.wallpaperParallaxStrength - v) > 0.001) {
+												configAdapter.wallpaperParallaxStrength = v
+												saveConfig()
 											}
 										}
 									}
@@ -1044,28 +1025,16 @@ FloatingWindow {
 										Text { text: "Wallpaper Transition"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
 									}
 
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Transition Duration"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.wallpaperTransitionDuration : 600) + "ms"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 200
-											to: 1500
-											stepSize: 50
-											value: configAdapter ? configAdapter.wallpaperTransitionDuration : 600
-											onValueChanged: {
-												if (configAdapter && configAdapter.wallpaperTransitionDuration !== value) {
-													configAdapter.wallpaperTransitionDuration = value
-													saveConfig()
-												}
+										label: "Transition Duration"
+										subtext: (configAdapter ? configAdapter.wallpaperTransitionDuration : 600) + "ms"
+										from: 200; to: 1500; stepSize: 50
+										value: configAdapter ? configAdapter.wallpaperTransitionDuration : 600
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.wallpaperTransitionDuration !== v) {
+												configAdapter.wallpaperTransitionDuration = v
+												saveConfig()
 											}
 										}
 									}
@@ -1120,29 +1089,16 @@ FloatingWindow {
 									}
 
 									// Bar Height
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Bar Height"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.barHeight : 35) + "px"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											id: barHeightSlider
-											sliderWidth: 180
-											from: 25
-											to: 50
-											stepSize: 1
-											value: configAdapter ? configAdapter.barHeight : 35
-											onValueChanged: {
-												if (configAdapter && configAdapter.barHeight !== value) {
-													configAdapter.barHeight = value
-													saveConfig()
-												}
+										label: "Bar Height"
+										subtext: (configAdapter ? configAdapter.barHeight : 35) + "px"
+										from: 25; to: 50; stepSize: 1
+										value: configAdapter ? configAdapter.barHeight : 35
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.barHeight !== v) {
+												configAdapter.barHeight = v
+												saveConfig()
 											}
 										}
 									}
@@ -1150,29 +1106,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Bar Corner Radius
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Corner Radius"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.barRadius : 20) + "px"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											id: barRadiusSlider
-											sliderWidth: 180
-											from: 0
-											to: 30
-											stepSize: 1
-											value: configAdapter ? configAdapter.barRadius : 20
-											onValueChanged: {
-												if (configAdapter && configAdapter.barRadius !== value) {
-													configAdapter.barRadius = value
-													saveConfig()
-												}
+										label: "Corner Radius"
+										subtext: (configAdapter ? configAdapter.barRadius : 20) + "px"
+										from: 0; to: 30; stepSize: 1
+										value: configAdapter ? configAdapter.barRadius : 20
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.barRadius !== v) {
+												configAdapter.barRadius = v
+												saveConfig()
 											}
 										}
 									}
@@ -1180,29 +1123,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Gap Size
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Floating Gap"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.barGap : 5) + "px margin"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											id: barGapSlider
-											sliderWidth: 180
-											from: 0
-											to: 20
-											stepSize: 1
-											value: configAdapter ? configAdapter.barGap : 5
-											onValueChanged: {
-												if (configAdapter && configAdapter.barGap !== value) {
-													configAdapter.barGap = value
-													saveConfig()
-												}
+										label: "Floating Gap"
+										subtext: (configAdapter ? configAdapter.barGap : 5) + "px margin"
+										from: 0; to: 20; stepSize: 1
+										value: configAdapter ? configAdapter.barGap : 5
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.barGap !== v) {
+												configAdapter.barGap = v
+												saveConfig()
 											}
 										}
 									}
@@ -1267,20 +1197,24 @@ FloatingWindow {
 											const p = configAdapter ? configAdapter.barPosition : "bottom"
 											if (p === "top")    return "Bar at top of screen"
 											if (p === "bottom") return "Bar at bottom of screen"
+											if (p === "left")   return "Vertical bar on left edge"
+											if (p === "right")  return "Vertical bar on right edge"
 											return ""
 										}
 										font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
 									}
 								}
 
-								// 2-position chip selector
+								// 4-position chip selector. Left/right use the vertical bar preset.
 								Row {
 									spacing: 6
 
 									Repeater {
 										model: [
 											{ pos: "top",    icon: "vertical_align_top"    },
-											{ pos: "bottom", icon: "vertical_align_bottom" }
+											{ pos: "bottom", icon: "vertical_align_bottom" },
+											{ pos: "left",   icon: "align_horizontal_left"  },
+											{ pos: "right",  icon: "align_horizontal_right" }
 										]
 
 											Rectangle {
@@ -1306,6 +1240,7 @@ FloatingWindow {
 															configAdapter.barPosition = parent.modelData.pos
 															// keep legacy barOnTop in sync
 															configAdapter.barOnTop = (parent.modelData.pos === "top")
+															configAdapter.barPreset = (parent.modelData.pos === "left" || parent.modelData.pos === "right") ? "vertical-compact" : "horizontal"
 															saveConfig()
 														}
 													}
@@ -1584,29 +1519,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Corner Size
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Corner Size"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.screenCornerSize : 25) + "px"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											id: cornerSizeSlider
-											sliderWidth: 180
-											from: 10
-											to: 40
-											stepSize: 1
-											value: configAdapter ? configAdapter.screenCornerSize : 25
-											onValueChanged: {
-												if (configAdapter && configAdapter.screenCornerSize !== value) {
-													configAdapter.screenCornerSize = value
-													saveConfig()
-												}
+										label: "Corner Size"
+										subtext: (configAdapter ? configAdapter.screenCornerSize : 25) + "px"
+										from: 10; to: 40; stepSize: 1
+										value: configAdapter ? configAdapter.screenCornerSize : 25
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.screenCornerSize !== v) {
+												configAdapter.screenCornerSize = v
+												saveConfig()
 											}
 										}
 									}
@@ -1660,35 +1582,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Temperature
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Color Temperature"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-											Text {
-												text: {
-													var t = configAdapter ? configAdapter.nightLightTemperature : 0.5
-													var k = Math.round(6500 - t * 4700)
-													return k + "K"
-												}
-												font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
-											}
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 0.0
-											to: 1.0
-											stepSize: 0.05
-											value: configAdapter ? configAdapter.nightLightTemperature : 0.6
-											onValueChanged: {
-												if (configAdapter && Math.abs(configAdapter.nightLightTemperature - value) > 0.01) {
-													configAdapter.nightLightTemperature = value
-													saveConfig()
-												}
+										label: "Color Temperature"
+										subtext: Math.round(6500 - (configAdapter ? configAdapter.nightLightTemperature : 0.5) * 4700) + "K"
+										from: 0.0; to: 1.0; stepSize: 0.05
+										value: configAdapter ? configAdapter.nightLightTemperature : 0.6
+										onChanged: function(v) {
+											if (configAdapter && Math.abs(configAdapter.nightLightTemperature - v) > 0.01) {
+												configAdapter.nightLightTemperature = v
+												saveConfig()
 											}
 										}
 									}
@@ -1696,28 +1599,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Strength
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Strength"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-											Text { text: Math.round((configAdapter ? configAdapter.nightLightStrength : 0.45) * 100) + "% opacity"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 0.1
-											to: 0.8
-											stepSize: 0.05
-											value: configAdapter ? configAdapter.nightLightStrength : 0.45
-											onValueChanged: {
-												if (configAdapter && Math.abs(configAdapter.nightLightStrength - value) > 0.01) {
-													configAdapter.nightLightStrength = value
-													saveConfig()
-												}
+										label: "Strength"
+										subtext: Math.round((configAdapter ? configAdapter.nightLightStrength : 0.45) * 100) + "% opacity"
+										from: 0.1; to: 0.8; stepSize: 0.05
+										value: configAdapter ? configAdapter.nightLightStrength : 0.45
+										onChanged: function(v) {
+											if (configAdapter && Math.abs(configAdapter.nightLightStrength - v) > 0.01) {
+												configAdapter.nightLightStrength = v
+												saveConfig()
 											}
 										}
 									}
@@ -1860,142 +1751,58 @@ FloatingWindow {
 									}
 
 									// Width
-									RowLayout {
+									SettingsSliderInline {
 										Layout.fillWidth: true
-										spacing: 15
-
-										Text {
-											text: "Width"
-											font.pixelSize: 13
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 100
-										}
-
-										StyledSlider {
-											Layout.fillWidth: true
-											from: 300
-											to: 500
-											stepSize: 10
-											value: configAdapter ? configAdapter.launcherWidth : 400
-											onMoved: newValue => {
-												configAdapter.launcherWidth = newValue
-												configAdapter.launcherPreset = "custom"
-												saveConfig()
-											}
-										}
-
-										Text {
-											text: (configAdapter ? configAdapter.launcherWidth : 400) + "px"
-											font.pixelSize: 12
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 45
+										label: "Width"
+										from: 300; to: 500; stepSize: 10
+										value: configAdapter ? configAdapter.launcherWidth : 400
+										valueText: (configAdapter ? configAdapter.launcherWidth : 400) + "px"
+										onMoved: function(v) {
+											configAdapter.launcherWidth = v
+											configAdapter.launcherPreset = "custom"
+											saveConfig()
 										}
 									}
 
 									// Item Height
-									RowLayout {
+									SettingsSliderInline {
 										Layout.fillWidth: true
-										spacing: 15
-
-										Text {
-											text: "Item Height"
-											font.pixelSize: 13
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 100
-										}
-
-										StyledSlider {
-											Layout.fillWidth: true
-											from: 40
-											to: 80
-											stepSize: 5
-											value: configAdapter ? configAdapter.launcherItemHeight : 55
-											onMoved: newValue => {
-												configAdapter.launcherItemHeight = newValue
-												configAdapter.launcherPreset = "custom"
-												saveConfig()
-											}
-										}
-
-										Text {
-											text: (configAdapter ? configAdapter.launcherItemHeight : 55) + "px"
-											font.pixelSize: 12
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 45
+										label: "Item Height"
+										from: 40; to: 80; stepSize: 5
+										value: configAdapter ? configAdapter.launcherItemHeight : 55
+										valueText: (configAdapter ? configAdapter.launcherItemHeight : 55) + "px"
+										onMoved: function(v) {
+											configAdapter.launcherItemHeight = v
+											configAdapter.launcherPreset = "custom"
+											saveConfig()
 										}
 									}
 
 									// Corner Radius
-									RowLayout {
+									SettingsSliderInline {
 										Layout.fillWidth: true
-										spacing: 15
-
-										Text {
-											text: "Radius"
-											font.pixelSize: 13
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 100
-										}
-
-										StyledSlider {
-											Layout.fillWidth: true
-											from: 10
-											to: 40
-											stepSize: 5
-											value: configAdapter ? configAdapter.launcherRadius : 25
-											onMoved: newValue => {
-												configAdapter.launcherRadius = newValue
-												configAdapter.launcherPreset = "custom"
-												saveConfig()
-											}
-										}
-
-										Text {
-											text: (configAdapter ? configAdapter.launcherRadius : 25) + "px"
-											font.pixelSize: 12
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 45
+										label: "Radius"
+										from: 10; to: 40; stepSize: 5
+										value: configAdapter ? configAdapter.launcherRadius : 25
+										valueText: (configAdapter ? configAdapter.launcherRadius : 25) + "px"
+										onMoved: function(v) {
+											configAdapter.launcherRadius = v
+											configAdapter.launcherPreset = "custom"
+											saveConfig()
 										}
 									}
 
 									// Max Items
-									RowLayout {
+									SettingsSliderInline {
 										Layout.fillWidth: true
-										spacing: 15
-
-										Text {
-											text: "Max Items"
-											font.pixelSize: 13
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 100
-										}
-
-										StyledSlider {
-											Layout.fillWidth: true
-											from: 4
-											to: 15
-											stepSize: 1
-											value: configAdapter ? configAdapter.launcherMaxItems : 8
-											onMoved: newValue => {
-												configAdapter.launcherMaxItems = newValue
-												configAdapter.launcherPreset = "custom"
-												saveConfig()
-											}
-										}
-
-										Text {
-											text: configAdapter ? configAdapter.launcherMaxItems : 8
-											font.pixelSize: 12
-											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-											color: col.onSurfaceVariant
-											Layout.preferredWidth: 45
+										label: "Max Items"
+										from: 4; to: 15; stepSize: 1
+										value: configAdapter ? configAdapter.launcherMaxItems : 8
+										valueText: configAdapter ? configAdapter.launcherMaxItems : "8"
+										onMoved: function(v) {
+											configAdapter.launcherMaxItems = v
+											configAdapter.launcherPreset = "custom"
+											saveConfig()
 										}
 									}
 								}
@@ -2848,28 +2655,16 @@ FloatingWindow {
 									}
 
 									// Columns
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Columns"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.gridColumns : 16) + " columns"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 8
-											to: 24
-											stepSize: 1
-											value: configAdapter ? configAdapter.gridColumns : 16
-											onValueChanged: {
-												if (configAdapter && configAdapter.gridColumns !== value) {
-													configAdapter.gridColumns = value
-													saveConfig()
-												}
+										label: "Columns"
+										subtext: (configAdapter ? configAdapter.gridColumns : 16) + " columns"
+										from: 8; to: 24; stepSize: 1
+										value: configAdapter ? configAdapter.gridColumns : 16
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.gridColumns !== v) {
+												configAdapter.gridColumns = v
+												saveConfig()
 											}
 										}
 									}
@@ -2877,28 +2672,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Rows
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Rows"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.gridRows : 9) + " rows"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 4
-											to: 16
-											stepSize: 1
-											value: configAdapter ? configAdapter.gridRows : 9
-											onValueChanged: {
-												if (configAdapter && configAdapter.gridRows !== value) {
-													configAdapter.gridRows = value
-													saveConfig()
-												}
+										label: "Rows"
+										subtext: (configAdapter ? configAdapter.gridRows : 9) + " rows"
+										from: 4; to: 16; stepSize: 1
+										value: configAdapter ? configAdapter.gridRows : 9
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.gridRows !== v) {
+												configAdapter.gridRows = v
+												saveConfig()
 											}
 										}
 									}
@@ -2959,28 +2742,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Corner Radius
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Corner Radius"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.widgetRadius : 12) + "px"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 0
-											to: 30
-											stepSize: 1
-											value: configAdapter ? configAdapter.widgetRadius : 12
-											onValueChanged: {
-												if (configAdapter && configAdapter.widgetRadius !== value) {
-													configAdapter.widgetRadius = value
-													saveConfig()
-												}
+										label: "Corner Radius"
+										subtext: (configAdapter ? configAdapter.widgetRadius : 12) + "px"
+										from: 0; to: 30; stepSize: 1
+										value: configAdapter ? configAdapter.widgetRadius : 12
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.widgetRadius !== v) {
+												configAdapter.widgetRadius = v
+												saveConfig()
 											}
 										}
 									}
@@ -2988,28 +2759,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Border Width
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Border Width"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: (configAdapter ? configAdapter.widgetBorderWidth : 1) + "px"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 0
-											to: 4
-											stepSize: 1
-											value: configAdapter ? configAdapter.widgetBorderWidth : 1
-											onValueChanged: {
-												if (configAdapter && configAdapter.widgetBorderWidth !== value) {
-													configAdapter.widgetBorderWidth = value
-													saveConfig()
-												}
+										label: "Border Width"
+										subtext: (configAdapter ? configAdapter.widgetBorderWidth : 1) + "px"
+										from: 0; to: 4; stepSize: 1
+										value: configAdapter ? configAdapter.widgetBorderWidth : 1
+										onChanged: function(v) {
+											if (configAdapter && configAdapter.widgetBorderWidth !== v) {
+												configAdapter.widgetBorderWidth = v
+												saveConfig()
 											}
 										}
 									}
@@ -3017,28 +2776,16 @@ FloatingWindow {
 									Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 									// Widget Opacity
-									RowLayout {
+									SettingsSlider {
 										Layout.fillWidth: true
-										spacing: 15
-
-										ColumnLayout {
-											Layout.fillWidth: true
-											spacing: 2
-											Text { text: "Background Opacity"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-											Text { text: Math.round((configAdapter ? configAdapter.widgetOpacity : 0.85) * 100) + "%"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-										}
-
-										StyledSlider {
-											sliderWidth: 180
-											from: 0.1
-											to: 1.0
-											stepSize: 0.05
-											value: configAdapter ? configAdapter.widgetOpacity : 0.85
-											onValueChanged: {
-												if (configAdapter && Math.abs(configAdapter.widgetOpacity - value) > 0.01) {
-													configAdapter.widgetOpacity = value
-													saveConfig()
-												}
+										label: "Background Opacity"
+										subtext: Math.round((configAdapter ? configAdapter.widgetOpacity : 0.85) * 100) + "%"
+										from: 0.1; to: 1.0; stepSize: 0.05
+										value: configAdapter ? configAdapter.widgetOpacity : 0.85
+										onChanged: function(v) {
+											if (configAdapter && Math.abs(configAdapter.widgetOpacity - v) > 0.01) {
+												configAdapter.widgetOpacity = v
+												saveConfig()
 											}
 										}
 									}
@@ -3581,26 +3328,16 @@ FloatingWindow {
 								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 								// Wallpaper transition duration
-								RowLayout {
+								SettingsSlider {
 									Layout.fillWidth: true
-									spacing: 15
-									ColumnLayout {
-										Layout.fillWidth: true
-										spacing: 2
-										Text { text: "Wallpaper Transition"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-										Text { text: (configAdapter ? configAdapter.wallpaperTransitionDuration : 600) + "ms"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-									}
-									StyledSlider {
-										sliderWidth: 160
-										from: 0
-										to: 1500
-										stepSize: 50
-										value: configAdapter ? configAdapter.wallpaperTransitionDuration : 600
-										onValueChanged: {
-											if (configAdapter && configAdapter.wallpaperTransitionDuration !== value) {
-												configAdapter.wallpaperTransitionDuration = value
-												saveConfig()
-											}
+									label: "Wallpaper Transition"
+									subtext: (configAdapter ? configAdapter.wallpaperTransitionDuration : 600) + "ms"
+									from: 0; to: 1500; stepSize: 50
+									value: configAdapter ? configAdapter.wallpaperTransitionDuration : 600
+									onChanged: function(v) {
+										if (configAdapter && configAdapter.wallpaperTransitionDuration !== v) {
+											configAdapter.wallpaperTransitionDuration = v
+											saveConfig()
 										}
 									}
 								}
@@ -3654,33 +3391,17 @@ FloatingWindow {
 								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 								// Temperature
-								RowLayout {
+								SettingsSlider {
 									Layout.fillWidth: true
-									spacing: 15
 									opacity: configAdapter && configAdapter.nightLightEnabled ? 1.0 : 0.5
-									ColumnLayout {
-										Layout.fillWidth: true
-										spacing: 2
-										Text { text: "Color Temperature"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-										Text {
-											text: {
-												var t = configAdapter ? configAdapter.nightLightTemperature : 0.5
-												return Math.round(6500 - t * 4700) + "K"
-											}
-											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
-										}
-									}
-									StyledSlider {
-										sliderWidth: 160
-										from: 0.0
-										to: 1.0
-										stepSize: 0.05
-										value: configAdapter ? configAdapter.nightLightTemperature : 0.5
-										onMoved: newValue => {
-											if (configAdapter) {
-												configAdapter.nightLightTemperature = newValue
-												saveConfig()
-											}
+									label: "Color Temperature"
+									subtext: Math.round(6500 - (configAdapter ? configAdapter.nightLightTemperature : 0.5) * 4700) + "K"
+									from: 0.0; to: 1.0; stepSize: 0.05
+									value: configAdapter ? configAdapter.nightLightTemperature : 0.5
+									onMoved: function(v) {
+										if (configAdapter) {
+											configAdapter.nightLightTemperature = v
+											saveConfig()
 										}
 									}
 								}
@@ -3688,27 +3409,17 @@ FloatingWindow {
 								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
 								// Strength
-								RowLayout {
+								SettingsSlider {
 									Layout.fillWidth: true
-									spacing: 15
 									opacity: configAdapter && configAdapter.nightLightEnabled ? 1.0 : 0.5
-									ColumnLayout {
-										Layout.fillWidth: true
-										spacing: 2
-										Text { text: "Strength"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-										Text { text: Math.round((configAdapter ? configAdapter.nightLightStrength : 0.8) * 100) + "%"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8 }
-									}
-									StyledSlider {
-										sliderWidth: 160
-										from: 0.1
-										to: 1.0
-										stepSize: 0.05
-										value: configAdapter ? configAdapter.nightLightStrength : 0.8
-										onMoved: newValue => {
-											if (configAdapter) {
-												configAdapter.nightLightStrength = newValue
-												saveConfig()
-											}
+									label: "Strength"
+									subtext: Math.round((configAdapter ? configAdapter.nightLightStrength : 0.8) * 100) + "%"
+									from: 0.1; to: 1.0; stepSize: 0.05
+									value: configAdapter ? configAdapter.nightLightStrength : 0.8
+									onMoved: function(v) {
+										if (configAdapter) {
+											configAdapter.nightLightStrength = v
+											saveConfig()
 										}
 									}
 								}
@@ -3755,33 +3466,22 @@ FloatingWindow {
 
 								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
 
-								RowLayout {
+								SettingsSlider {
 									Layout.fillWidth: true
-									spacing: 15
 									opacity: configAdapter && configAdapter.idleEnabled ? 1.0 : 0.4
-									ColumnLayout {
-										Layout.fillWidth: true
-										spacing: 2
-										Text { text: "Idle Timeout"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-										Text {
-											text: {
-												var s = configAdapter ? configAdapter.idleTimeout : 300
-												if (s < 60) return s + "s"
-												var m = Math.floor(s / 60)
-												var r = s % 60
-												return r > 0 ? (m + "m " + r + "s") : (m + "m")
-											}
-											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
-										}
+									label: "Idle Timeout"
+									subtext: {
+										var s = configAdapter ? configAdapter.idleTimeout : 300
+										if (s < 60) return s + "s"
+										var m = Math.floor(s / 60)
+										var r = s % 60
+										return r > 0 ? (m + "m " + r + "s") : (m + "m")
 									}
-									StyledSlider {
-										sliderWidth: 160
-										from: 30; to: 1800; stepSize: 30
-										value: configAdapter ? configAdapter.idleTimeout : 300
-										enabled: configAdapter ? configAdapter.idleEnabled : true
-										onMoved: newValue => {
-											if (configAdapter) { configAdapter.idleTimeout = newValue; saveConfig() }
-										}
+									from: 30; to: 1800; stepSize: 30
+									value: configAdapter ? configAdapter.idleTimeout : 300
+									enabled: configAdapter ? configAdapter.idleEnabled : true
+									onMoved: function(v) {
+										if (configAdapter) { configAdapter.idleTimeout = v; saveConfig() }
 									}
 								}
 
@@ -3828,32 +3528,21 @@ FloatingWindow {
 									}
 								}
 
-								RowLayout {
+								SettingsSlider {
 									Layout.fillWidth: true
-									spacing: 15
 									opacity: configAdapter && configAdapter.idleEnabled && configAdapter.idleDpmsEnabled ? 1.0 : 0.4
-									ColumnLayout {
-										Layout.fillWidth: true
-										spacing: 2
-										Text { text: "Display Off Delay"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-										Text {
-											text: {
-												var s = configAdapter ? configAdapter.idleDpmsDelay : 300
-												var m = Math.floor(s / 60)
-												var r = s % 60
-												return "After lock + " + (r > 0 ? (m + "m " + r + "s") : (m + "m"))
-											}
-											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
-										}
+									label: "Display Off Delay"
+									subtext: {
+										var s = configAdapter ? configAdapter.idleDpmsDelay : 300
+										var m = Math.floor(s / 60)
+										var r = s % 60
+										return "After lock + " + (r > 0 ? (m + "m " + r + "s") : (m + "m"))
 									}
-									StyledSlider {
-										sliderWidth: 160
-										from: 30; to: 1800; stepSize: 30
-										value: configAdapter ? configAdapter.idleDpmsDelay : 300
-										enabled: configAdapter && configAdapter.idleEnabled && configAdapter.idleDpmsEnabled
-										onMoved: newValue => {
-											if (configAdapter) { configAdapter.idleDpmsDelay = newValue; saveConfig() }
-										}
+									from: 30; to: 1800; stepSize: 30
+									value: configAdapter ? configAdapter.idleDpmsDelay : 300
+									enabled: configAdapter && configAdapter.idleEnabled && configAdapter.idleDpmsEnabled
+									onMoved: function(v) {
+										if (configAdapter) { configAdapter.idleDpmsDelay = v; saveConfig() }
 									}
 								}
 
@@ -3879,37 +3568,445 @@ FloatingWindow {
 									}
 								}
 
-								RowLayout {
+								SettingsSlider {
 									Layout.fillWidth: true
-									spacing: 15
 									opacity: configAdapter && configAdapter.idleEnabled && configAdapter.idleSuspendEnabled ? 1.0 : 0.4
-									ColumnLayout {
-										Layout.fillWidth: true
-										spacing: 2
-										Text { text: "Suspend Delay"; font.pixelSize: 14; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 500; color: col.onSurface }
-										Text {
-											text: {
-												var s = configAdapter ? configAdapter.idleSuspendDelay : 600
-												var m = Math.floor(s / 60)
-												var r = s % 60
-												return "After lock + " + (r > 0 ? (m + "m " + r + "s") : (m + "m"))
-											}
-											font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.8
-										}
+									label: "Suspend Delay"
+									subtext: {
+										var s = configAdapter ? configAdapter.idleSuspendDelay : 600
+										var m = Math.floor(s / 60)
+										var r = s % 60
+										return "After lock + " + (r > 0 ? (m + "m " + r + "s") : (m + "m"))
 									}
-									StyledSlider {
-										sliderWidth: 160
-										from: 60; to: 3600; stepSize: 60
-										value: configAdapter ? configAdapter.idleSuspendDelay : 600
-										enabled: configAdapter && configAdapter.idleEnabled && configAdapter.idleSuspendEnabled
-										onMoved: newValue => {
-											if (configAdapter) { configAdapter.idleSuspendDelay = newValue; saveConfig() }
-										}
+									from: 60; to: 3600; stepSize: 60
+									value: configAdapter ? configAdapter.idleSuspendDelay : 600
+									enabled: configAdapter && configAdapter.idleEnabled && configAdapter.idleSuspendEnabled
+									onMoved: function(v) {
+										if (configAdapter) { configAdapter.idleSuspendDelay = v; saveConfig() }
 									}
 								}
 
 							}
 						}
+					}
+				}
+
+			// === Plugins Page ===
+				ScrollView {
+					clip: true
+					id: pluginsScroll
+
+					// Processes for remove. Reused per click.
+					Process {
+						id: pluginRemoveProc
+						onRunningChanged: if (!running) PluginRegistry.rescan()
+					}
+
+					ColumnLayout {
+						width: stackLayout.width - 50
+						spacing: 20
+
+						RowLayout {
+							Layout.fillWidth: true
+							Text {
+								text: "Plugins"
+								font.pixelSize: 26
+								font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+								font.weight: 700
+								color: col.onSurface
+								Layout.fillWidth: true
+							}
+							// Rescan button
+							Rectangle {
+								Layout.preferredHeight: 36
+								Layout.preferredWidth: rescanRow.width + 22
+								radius: 18
+								color: rescanMouse.containsMouse ? col.primaryContainer : col.surfaceContainer
+								Behavior on color { ColorAnimation { duration: 150 } }
+
+								RowLayout {
+									id: rescanRow
+									anchors.centerIn: parent
+									spacing: 6
+									MaterialSymbol { icon: "refresh"; iconSize: 18; color: col.onSurface }
+									Text {
+										text: "Rescan"
+										font.pixelSize: 12
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										font.weight: 700
+										color: col.onSurface
+									}
+								}
+								MouseArea {
+									id: rescanMouse
+									anchors.fill: parent
+									hoverEnabled: true
+									cursorShape: Qt.PointingHandCursor
+									onClicked: PluginRegistry.rescan()
+								}
+							}
+						}
+
+						Text {
+							text: PluginRegistry.pluginsDir
+							font.pixelSize: 11
+							font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+							color: col.onSurfaceVariant
+							opacity: 0.7
+							wrapMode: Text.WrapAnywhere
+							Layout.fillWidth: true
+						}
+
+						// Empty state
+						Rectangle {
+							visible: PluginRegistry.count === 0
+							Layout.fillWidth: true
+							Layout.preferredHeight: 140
+							radius: 16
+							color: col.surfaceContainer
+
+							ColumnLayout {
+								anchors.centerIn: parent
+								spacing: 8
+								MaterialSymbol {
+									icon: "extension_off"
+									iconSize: 40
+									color: col.onSurfaceVariant
+									opacity: 0.5
+									Layout.alignment: Qt.AlignHCenter
+								}
+								Text {
+									text: "No plugins installed"
+									font.pixelSize: 14
+									font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+									color: col.onSurfaceVariant
+									Layout.alignment: Qt.AlignHCenter
+								}
+								Text {
+									text: "Drop plugin folders into " + PluginRegistry.pluginsDir
+									font.pixelSize: 11
+									font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+									color: col.onSurfaceVariant
+									opacity: 0.6
+									Layout.alignment: Qt.AlignHCenter
+								}
+							}
+						}
+
+						// Plugin list
+						Repeater {
+							model: PluginRegistry
+
+							Rectangle {
+								id: pluginCard
+								required property int index
+								required property string id
+								required property string name
+								required property string version
+								required property string author
+								required property string description
+								required property string icon
+								required property string path
+								required property var provides
+								required property var providesKinds
+								required property bool valid
+								required property string error
+
+								property bool expanded: false
+								property bool confirmDelete: false
+								property bool disabled: {
+									if (!configAdapter || !configAdapter.disabledPlugins) return false
+									return configAdapter.disabledPlugins.indexOf(pluginCard.id) !== -1
+								}
+								property url settingsUrl: {
+									if (!provides || !provides.settings) return ""
+									if (provides.settings.componentUrl) return provides.settings.componentUrl
+									return ""
+								}
+
+								Layout.fillWidth: true
+								Layout.preferredHeight: cardBody.implicitHeight + 24
+								radius: 16
+								color: col.surfaceContainer
+								opacity: disabled ? 0.55 : 1.0
+								Behavior on opacity { NumberAnimation { duration: 150 } }
+								Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+								ColumnLayout {
+									id: cardBody
+									anchors.left: parent.left
+									anchors.right: parent.right
+									anchors.top: parent.top
+									anchors.margins: 12
+									spacing: 10
+
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 12
+
+										// Icon
+										Rectangle {
+											Layout.preferredWidth: 44
+											Layout.preferredHeight: 44
+											radius: 12
+											color: pluginCard.valid ? col.primaryContainer : col.errorContainer
+											MaterialSymbol {
+												anchors.centerIn: parent
+												icon: pluginCard.valid ? (pluginCard.icon || "extension") : "error"
+												iconSize: 24
+												color: pluginCard.valid ? col.onPrimaryContainer : col.onErrorContainer
+											}
+										}
+
+										ColumnLayout {
+											Layout.fillWidth: true
+											spacing: 3
+
+											RowLayout {
+												spacing: 8
+												Text {
+													text: pluginCard.name || pluginCard.id
+													font.pixelSize: 15
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													font.weight: 700
+													color: col.onSurface
+												}
+												Text {
+													visible: pluginCard.version !== ""
+													text: "v" + pluginCard.version
+													font.pixelSize: 11
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													color: col.onSurfaceVariant
+													opacity: 0.7
+												}
+												Rectangle {
+													visible: pluginCard.disabled
+													Layout.preferredHeight: 18
+													Layout.preferredWidth: disabledLbl.width + 10
+													radius: 6
+													color: col.surfaceContainerHighest
+													Text {
+														id: disabledLbl
+														anchors.centerIn: parent
+														text: "disabled"
+														font.pixelSize: 10
+														font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+														color: col.onSurfaceVariant
+													}
+												}
+											}
+
+											Text {
+												Layout.fillWidth: true
+												visible: pluginCard.valid && pluginCard.description !== ""
+												text: pluginCard.description
+												font.pixelSize: 12
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												color: col.onSurfaceVariant
+												wrapMode: Text.WordWrap
+												opacity: 0.85
+											}
+
+											Text {
+												visible: !pluginCard.valid
+												text: "Invalid: " + pluginCard.error
+												font.pixelSize: 11
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												color: col.error
+												wrapMode: Text.WordWrap
+												Layout.fillWidth: true
+											}
+
+											// Provides tags
+											Flow {
+												Layout.fillWidth: true
+												spacing: 4
+												visible: pluginCard.providesKinds && pluginCard.providesKinds.length > 0
+												Repeater {
+													model: pluginCard.providesKinds
+													Rectangle {
+														height: 18
+														width: tagText.width + 10
+														radius: 5
+														color: col.surfaceContainerHighest
+														Text {
+															id: tagText
+															anchors.centerIn: parent
+															text: modelData
+															font.pixelSize: 10
+															font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+															color: col.onSurfaceVariant
+														}
+													}
+												}
+											}
+										}
+
+										// Enable toggle
+										ToggleSwitch {
+											visible: pluginCard.valid
+											checked: !pluginCard.disabled
+											onToggled: (state) => {
+												if (!configAdapter) return
+												var list = (configAdapter.disabledPlugins || []).slice()
+												var i = list.indexOf(pluginCard.id)
+												if (state && i !== -1) list.splice(i, 1)
+												else if (!state && i === -1) list.push(pluginCard.id)
+												configAdapter.disabledPlugins = list
+												saveConfig()
+											}
+										}
+									}
+
+									// Action row
+									RowLayout {
+										Layout.fillWidth: true
+										spacing: 6
+
+										// Settings button (only if plugin has settings)
+										Rectangle {
+											visible: pluginCard.valid && pluginCard.settingsUrl.toString() !== ""
+											Layout.preferredHeight: 30
+											Layout.preferredWidth: settingsRow.width + 18
+											radius: 10
+											color: pluginCard.expanded ? col.primaryContainer : col.surfaceContainerHigh
+											Behavior on color { ColorAnimation { duration: 150 } }
+
+											RowLayout {
+												id: settingsRow
+												anchors.centerIn: parent
+												spacing: 5
+												MaterialSymbol {
+													icon: pluginCard.expanded ? "expand_less" : "tune"
+													iconSize: 14
+													color: pluginCard.expanded ? col.onPrimaryContainer : col.onSurface
+												}
+												Text {
+													text: pluginCard.expanded ? "Close" : "Settings"
+													font.pixelSize: 11
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													font.weight: 700
+													color: pluginCard.expanded ? col.onPrimaryContainer : col.onSurface
+												}
+											}
+											MouseArea {
+												anchors.fill: parent
+												cursorShape: Qt.PointingHandCursor
+												onClicked: pluginCard.expanded = !pluginCard.expanded
+											}
+										}
+
+										// Open folder
+										Rectangle {
+											Layout.preferredHeight: 30
+											Layout.preferredWidth: openRow.width + 18
+											radius: 10
+											color: col.surfaceContainerHigh
+
+											RowLayout {
+												id: openRow
+												anchors.centerIn: parent
+												spacing: 5
+												MaterialSymbol { icon: "folder_open"; iconSize: 14; color: col.onSurface }
+												Text {
+													text: "Folder"
+													font.pixelSize: 11
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													font.weight: 700
+													color: col.onSurface
+												}
+											}
+											MouseArea {
+												anchors.fill: parent
+												cursorShape: Qt.PointingHandCursor
+												onClicked: {
+													openUrlProcess.command = ["xdg-open", pluginCard.path]
+													openUrlProcess.running = true
+												}
+											}
+										}
+
+										Item { Layout.fillWidth: true }
+
+										// Remove (two-step confirmation)
+										Rectangle {
+											Layout.preferredHeight: 30
+											Layout.preferredWidth: rmRow.width + 18
+											radius: 10
+											color: pluginCard.confirmDelete
+												? col.error
+												: (rmMouse.containsMouse ? col.errorContainer : col.surfaceContainerHigh)
+											Behavior on color { ColorAnimation { duration: 150 } }
+
+											RowLayout {
+												id: rmRow
+												anchors.centerIn: parent
+												spacing: 5
+												MaterialSymbol {
+													icon: pluginCard.confirmDelete ? "warning" : "delete"
+													iconSize: 14
+													color: pluginCard.confirmDelete
+														? col.onError
+														: (rmMouse.containsMouse ? col.onErrorContainer : col.onSurface)
+												}
+												Text {
+													text: pluginCard.confirmDelete ? "Click to confirm" : "Remove"
+													font.pixelSize: 11
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													font.weight: 700
+													color: pluginCard.confirmDelete
+														? col.onError
+														: (rmMouse.containsMouse ? col.onErrorContainer : col.onSurface)
+												}
+											}
+											MouseArea {
+												id: rmMouse
+												anchors.fill: parent
+												hoverEnabled: true
+												cursorShape: Qt.PointingHandCursor
+												onClicked: {
+													if (!pluginCard.confirmDelete) {
+														pluginCard.confirmDelete = true
+														confirmResetTimer.restart()
+													} else {
+														// Safety: only delete inside the configured plugins dir.
+														var dir = PluginRegistry.pluginsDir
+														if (pluginCard.path.indexOf(dir) === 0 && pluginCard.path !== dir) {
+															pluginRemoveProc.command = ["rm", "-rf", "--", pluginCard.path]
+															pluginRemoveProc.running = true
+														}
+														pluginCard.confirmDelete = false
+													}
+												}
+											}
+											Timer {
+												id: confirmResetTimer
+												interval: 3000
+												onTriggered: pluginCard.confirmDelete = false
+											}
+										}
+									}
+
+									// Embedded per-plugin settings page
+									Loader {
+										Layout.fillWidth: true
+										Layout.preferredHeight: pluginCard.expanded && status === Loader.Ready ? Math.max(150, implicitHeight) : 0
+										visible: pluginCard.expanded
+										clip: true
+										active: pluginCard.expanded
+										source: pluginCard.expanded ? pluginCard.settingsUrl : ""
+										onLoaded: {
+											if (item && "plugin" in item) {
+												item.plugin = PluginRegistry.get(pluginCard.id)
+											}
+										}
+										Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+									}
+								}
+							}
+						}
+
+						Item { Layout.preferredHeight: 20 }
 					}
 				}
 

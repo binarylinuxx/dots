@@ -1,0 +1,102 @@
+# qs.PluginManager
+
+Tiny C++ QML module. Only job: parse `plugin.json` manifests from a
+plugins directory and expose them to QML. Everything else (loading
+components, reading/writing per-plugin config, watching files) stays
+in QML/Quickshell.
+
+## Build
+
+```sh
+./build.sh
+```
+
+Then launch Quickshell with:
+
+```sh
+QML_IMPORT_PATH=$PWD/plugin_manager/build/qml quickshell -p shell.qml
+```
+
+## Use from QML
+
+```qml
+import qs.PluginManager
+
+// Singleton. Defaults to $XDG_CONFIG_HOME/quickshell/plugins.
+Component.onCompleted: {
+    console.log(PluginRegistry.count)
+
+    const bars = PluginRegistry.byKind("bar")
+    // [{ id, name, icon, kindData: { component, componentUrl, ... }, ... }]
+
+    const plugin = PluginRegistry.get("hello")
+}
+```
+
+Use as a model:
+
+```qml
+Repeater {
+    model: PluginRegistry
+    delegate: Loader {
+        source: model.provides.bar ? model.provides.bar.componentUrl : ""
+    }
+}
+```
+
+Or filtered:
+
+```qml
+Repeater {
+    model: PluginRegistry.byKind("bar")  // returns array
+    delegate: Loader { source: modelData.kindData.componentUrl }
+}
+```
+
+## Manifest format
+
+`plugins/<id>/plugin.json`:
+
+```json
+{
+  "id": "hello",
+  "name": "Hello World",
+  "version": "1.0",
+  "author": "blx",
+  "description": "...",
+  "icon": "waving_hand",
+  "provides": {
+    "bar":        { "component": "BarItem.qml", "position": "right", "order": 10 },
+    "background": "Widget.qml",
+    "settings":   "SettingsPage.qml"
+  },
+  "config": {
+    "schema": [
+      { "key": "refreshSec", "type": "int", "default": 60, "min": 5 }
+    ]
+  }
+}
+```
+
+`component` (string shorthand) is equivalent to `{ "component": "..." }`.
+Every component path is resolved to an absolute `componentUrl` (a
+`file://` URL) alongside the original field.
+
+## API
+
+| Member                         | Notes |
+|--------------------------------|-------|
+| `pluginsDir` (string, rw)      | Setting this triggers a rescan |
+| `count` (int, ro)              | Number of parsed manifests |
+| `rescan()`                     | Reparse everything |
+| `get(id) -> map`               | One plugin as a map |
+| `byKind(kind) -> list<map>`    | All plugins providing `kind`, with `kindData` injected |
+| Model roles                    | `id, name, version, author, description, icon, path, provides, providesKinds, configSchema, valid, error` |
+
+## What this does NOT do
+
+- No dlopen of .so plugins. QML-only plugins.
+- No file watching. Call `PluginRegistry.rescan()` from QML on demand.
+- No config read/write. Each plugin uses its own `FileView { path: "config.json" }`.
+- No component loading. Use `Loader { source: componentUrl }` in QML.
+- No validation of `provides` kinds. Any key is accepted; the host decides what it consumes.

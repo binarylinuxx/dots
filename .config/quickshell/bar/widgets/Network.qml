@@ -54,10 +54,9 @@ Item {
                         return "network_wifi_1_bar"
                     }
                 } else {
-                    return "ethernet"
+                    return "lan"
                 }
             }
         }
     }
 }
-

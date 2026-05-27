@@ -84,9 +84,14 @@ check_osc() {
     command -v osc &>/dev/null || die "osc not found — install it with: doas zypper install osc"
 
     info "Verifying OBS authentication..."
-    osc whois &>/dev/null || die "Not logged in to OBS. Run: osc whois"
+    # Check credentials exist locally before making a network call
+    local oscrc="${XDG_CONFIG_HOME:-$HOME/.config}/osc/oscrc"
+    [[ -f "$oscrc" ]] || oscrc="$HOME/.oscrc"
+    [[ -f "$oscrc" ]] || die "No osc credentials found. Run: osc whois"
+
     local user
-    user=$(osc whois 2>/dev/null | head -1)
+    user=$(timeout 8 osc whois 2>/dev/null | head -1) \
+        || die "OBS auth check timed out or failed. Check credentials: osc whois"
     success "Logged in as: $user"
 }
 
@@ -135,12 +140,38 @@ publish_package() {
         cp "$f" "$obs_pkg_dir/$fname"
     done
 
+    # Fetch source tarballs declared in a _fetch file (format: url filename)
+    if [[ -f "$pkg_dir/_fetch" ]]; then
+        while IFS=' ' read -r url dest || [[ -n "$url" ]]; do
+            [[ -z "$url" || "$url" == \#* ]] && continue
+            if [[ ! -f "$obs_pkg_dir/$dest" ]]; then
+                info "Downloading source: $dest"
+                curl -sSfL "$url" -o "$obs_pkg_dir/$dest" \
+                    || { error "Failed to download $url"; return 1; }
+            else
+                info "Source already present: $dest"
+            fi
+        done < "$pkg_dir/_fetch"
+    fi
+
+    # Skip if nothing actually changed
+    local has_changes
+    has_changes=$(cd "$obs_pkg_dir" && osc diff 2>/dev/null)
+    local new_files
+    new_files=$(cd "$obs_pkg_dir" && osc status 2>/dev/null | grep -E '^[?A]' || true)
+
+    if [[ -z "$has_changes" && -z "$new_files" ]]; then
+        info "No changes in $pkg_name — skipping"
+        return 0
+    fi
+
     confirm "Commit $pkg_name to OBS?" || { warning "Skipping $pkg_name"; return 0; }
 
+    local commit_msg="update $(date '+%Y-%m-%d')"
     (
         cd "$obs_pkg_dir"
         osc addremove 2>/dev/null || true
-        osc commit -m "blxshell 2.5.1: initial openSUSE Tumbleweed package" 2>&1
+        osc commit -m "$commit_msg" 2>&1
     ) || {
         error "Failed to commit $pkg_name"
         return 1

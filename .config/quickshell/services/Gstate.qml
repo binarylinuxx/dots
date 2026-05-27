@@ -5,6 +5,8 @@ QtObject {
     property bool appsOpen: false
     property bool settingsOpen: false
     property bool sidebarOpen: false
+    property bool screenshotOpen: false
+    property bool powerMenuOpen: false
     property bool dndEnabled: false
     property bool nightLightEnabled: false
     property bool weatherDetailOpen: false

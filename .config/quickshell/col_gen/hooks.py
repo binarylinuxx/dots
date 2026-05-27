@@ -12,9 +12,10 @@ HOOKS = [
     ("hyprland", "hyprctl reload", "hyprctl"),
     ("ghostty", "pkill -SIGUSR2 ghostty", "ghostty"),
     (
-        "gtk",
-        'gsettings set org.gnome.desktop.interface gtk-theme ""; gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-{mode}',
-        "gsettings",
+            "gtk",
+            'gsettings set org.gnome.desktop.interface color-scheme "prefer-{mode}"; '
+            'gsettings set org.gnome.desktop.interface gtk-theme "adw-gtk3-{mode}"',
+            "gsettings",
     ),
     ("waybar", "pkill -SIGUSR2 waybar", "waybar"),
 ]

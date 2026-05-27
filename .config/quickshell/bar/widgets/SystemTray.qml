@@ -3,9 +3,15 @@ import Quickshell
 import qs.services
 
 Item {
+	id: root
 	anchors.fill: parent
 
+	// Width of the tray pill + its right margin. Lets other widgets
+	// anchor to the left of the tray without hardcoding pixels.
+	readonly property int contentWidth: trayPill.width + trayPill.anchors.rightMargin
+
 	Rectangle {
+		id: trayPill
 		anchors.right: parent.right
 		anchors.rightMargin: 1
 		anchors.verticalCenter: parent.verticalCenter

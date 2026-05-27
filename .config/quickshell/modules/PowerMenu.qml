@@ -3,10 +3,11 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import qs.services
 
 PanelWindow {
 	id: powerMenu
-	property bool showing: false
+	readonly property bool showing: Gstate.powerMenuOpen
 	property int selectedIndex: 0
 	property string fontFamily: cfg ? cfg.fontFamily : "Rubik"
 
@@ -31,7 +32,7 @@ PanelWindow {
 		focus: true
 		Keys.onPressed: event => {
 			if (event.key === Qt.Key_Escape) {
-				powerMenu.showing = false
+				Gstate.powerMenuOpen = false
 			} else if (event.key === Qt.Key_Left) {
 				selectedIndex = (selectedIndex - 1 + buttonModel.length) % buttonModel.length
 			} else if (event.key === Qt.Key_Right) {
@@ -50,7 +51,7 @@ PanelWindow {
 
 	// Button definitions
 	property var buttonModel: [
-		{ icon: "lock",          label: "Lock",      key: Qt.Key_L, hint: "L", command: "qs ipc call lockscreen lock" },
+		{ icon: "lock",          label: "Lock",      key: Qt.Key_L, hint: "L", command: "blxshell lock" },
 		{ icon: "logout",        label: "Logout",    key: Qt.Key_E, hint: "E", command: "loginctl terminate-user $USER" },
 		{ icon: "bedtime",       label: "Suspend",   key: Qt.Key_U, hint: "U", command: "systemctl suspend" },
 		{ icon: "power_settings_new", label: "Shutdown", key: Qt.Key_S, hint: "S", command: "systemctl poweroff" },
@@ -60,7 +61,7 @@ PanelWindow {
 	function runCommand(cmd: string): void {
 		execProcess.command = ["sh", "-c", cmd];
 		execProcess.startDetached();
-		powerMenu.showing = false;
+		Gstate.powerMenuOpen = false;
 	}
 
 	Process {
@@ -122,7 +123,7 @@ PanelWindow {
 						anchors.horizontalCenter: parent.horizontalCenter
 						text: modelData.icon
 						font.family: "Material Symbols Rounded"
-						font.pixelSize: 40
+						font.pixelSize: 50
 						color: isActive
 							? (col.onPrimaryContainer || "#c79fd7")
 							: (col.onSurfaceVariant || "#cec3ce")

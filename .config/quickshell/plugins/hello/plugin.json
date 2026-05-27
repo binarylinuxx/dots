@@ -1,0 +1,20 @@
+{
+  "id": "hello",
+  "name": "Hello World",
+  "version": "1.0",
+  "author": "blx",
+  "description": "Reference plugin demonstrating the manifest format.",
+  "icon": "waving_hand",
+  "provides": {
+    "bar": { "component": "BarItem.qml", "position": "right", "order": 10 },
+    "background": "Widget.qml",
+    "settings": "SettingsPage.qml"
+  },
+  "config": {
+    "schema": [
+      { "key": "greeting",   "type": "string", "default": "Hello"  },
+      { "key": "showIcon",   "type": "bool",   "default": true     },
+      { "key": "refreshSec", "type": "int",    "default": 60, "min": 5, "max": 3600 }
+    ]
+  }
+}

@@ -10,7 +10,7 @@ Singleton {
     // List of reminder objects: { id, title, date (YYYY-MM-DD), time (HH:MM), fired }
     property var reminders: []
 
-    readonly property string filePath: "/home/blx/.config/quickshell/reminders.json"
+    readonly property string filePath: Quickshell.shellDir + "/reminders.json"
 
     // ── Load ──
     FileView {

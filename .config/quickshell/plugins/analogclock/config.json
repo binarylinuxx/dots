@@ -1,0 +1,10 @@
+{
+    "clockSize": 280,
+    "innerRatio": 0.84,
+    "innerRounding": 0.47,
+    "morphWithTime": false,
+    "outerRounding": 0.45,
+    "showSeconds": true,
+    "showTicks": true,
+    "sides": 12
+}

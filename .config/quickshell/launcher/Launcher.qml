@@ -294,7 +294,7 @@ PanelWindow {
 	property string emojiRawData: ""
 	Process {
 		id: loadEmojisProcess
-		command: ["jq", "-c", ".", Quickshell.env("HOME") + "/.config/quickshell/launcher/modes/emojis.json"]
+		command: ["jq", "-c", ".", Quickshell.shellDir + "/launcher/modes/emojis.json"]
 		stdout: SplitParser {
 			onRead: data => {
 				root.emojiRawData = data
@@ -1663,6 +1663,7 @@ PanelWindow {
 								anchors.centerIn: parent
 								text: modelData.emoji
 								font.pixelSize: 22
+								font.family: "Noto Color Emoji"
 							}
 						}
 

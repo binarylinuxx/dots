@@ -9,6 +9,7 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import qs.widgets
 import qs.services
+import PluginManager
 
 Scope {
     id: sidebarRoot
@@ -208,25 +209,24 @@ Scope {
                             command: []
                         }
 
-                        Grid {
-                            id: tilesGrid
-                            anchors.top: parent.top
-                            anchors.topMargin: 0
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.leftMargin: 16
-                            anchors.rightMargin: 16
-                            columns: 2
-                            columnSpacing: 8
-                            rowSpacing: 8
+                    Flow {
+                        id: tilesGrid
+                        anchors.top: parent.top
+                        anchors.topMargin: 0
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
+                        spacing: 8
 
                             // ── Network tile ──
                             Rectangle {
                                 id: networkTile
                                 property bool connected: NetworkManager.primaryConnectionType !== "none"
                                     && NetworkManager.primaryConnectionType !== "unknown"
+                                property int tileSpan: 1
 
-                                width: (tilesGrid.width - 8) / 2
+                                width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
                                 height: 72
                                 radius: 20
                                 color: connected ? col.primaryContainer : col.surfaceContainer
@@ -331,7 +331,8 @@ Scope {
                             Rectangle {
                                 id: nightLightTile
                                 property bool active: Gstate.nightLightEnabled
-                                width: (tilesGrid.width - 8) / 2
+                                property int tileSpan: 1
+                                width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
                                 height: 72
                                 radius: 20
                                 color: active ? col.primaryContainer : col.surfaceContainer
@@ -394,7 +395,8 @@ Scope {
                             // ── Do Not Disturb tile ──
                             Rectangle {
                                 id: dndTile
-                                width: (tilesGrid.width - 8) / 2
+                                property int tileSpan: 1
+                                width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
                                 height: 72
                                 radius: 20
                                 color: NotificationService.dndEnabled ? col.tertiaryContainer : col.surfaceContainer
@@ -462,7 +464,8 @@ Scope {
                             Rectangle {
                                 id: themeModeTile
                                 property bool darkMode: (cfg ? cfg.matugenMode : "dark") === "dark"
-                                width: (tilesGrid.width - 8) / 2
+                                property int tileSpan: 1
+                                width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
                                 height: 72
                                 radius: 20
                                 color: darkMode ? col.secondaryContainer : col.primaryContainer
@@ -1035,96 +1038,83 @@ Scope {
                             width: parent.width - 32
                         }
 
-                        // ── Output device selector ──
+                        // ── Output + Volume + Mic card ──
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: parent.width - 32
-                            height: sinkDropdownRow.implicitHeight + 24
                             radius: 20
                             color: col.surfaceContainer
+                            height: deviceMicColumn.implicitHeight + 24
 
-                            RowLayout {
-                                id: sinkDropdownRow
+                            ColumnLayout {
+                                id: deviceMicColumn
                                 anchors.fill: parent
-                                anchors.leftMargin: 16
-                                anchors.rightMargin: 16
-                                spacing: 10
+                                anchors.margins: 16
+                                spacing: 14
 
-                                MaterialSymbol {
-                                    icon: "speaker"
-                                    iconSize: 18
-                                    color: col.primary
-                                }
+                                // Output device row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
 
-                                Text {
-                                    text: "Output"
-                                    font.family: cfg ? cfg.fontFamily : "Rubik"
-                                    font.pixelSize: 13
-                                    color: col.onSurfaceVariant
-                                }
+                                    MaterialSymbol {
+                                        icon: "speaker"
+                                        iconSize: 16
+                                        color: col.onSurfaceVariant
+                                    }
 
-                                Item { Layout.fillWidth: true }
+                                    Text {
+                                        text: "Output"
+                                        font.family: cfg ? cfg.fontFamily : "Rubik"
+                                        font.pixelSize: 12
+                                        color: col.onSurfaceVariant
+                                    }
 
-                                StyledDropdown {
-                                    id: sinkDropdown
-                                    property var sinkNames: []
-                                    implicitWidth: 180
-                                    implicitHeight: 36
-                                    placeholder: "Loading..."
-                                    popupParent: panel
+                                    Item { Layout.fillWidth: true }
 
-                                    function syncDefaultSink() {
-                                        if (sinkNames.length === 0)
-                                            return
-                                        var defName = Pipewire.defaultAudioSink
-                                            ? (Pipewire.defaultAudioSink.properties["node.name"] ?? "") : ""
-                                        for (var i = 0; i < sinkNames.length; i++) {
-                                            if (sinkNames[i] === defName) {
-                                                currentIndex = i
-                                                return
+                                    StyledDropdown {
+                                        id: sinkDropdown
+                                        property var sinkNames: []
+                                        implicitWidth: 160
+                                        implicitHeight: 32
+                                        placeholder: "Loading..."
+                                        popupParent: panel
+
+                                        function syncDefaultSink() {
+                                            if (sinkNames.length === 0) return
+                                            var defName = Pipewire.defaultAudioSink
+                                                ? (Pipewire.defaultAudioSink.properties["node.name"] ?? "") : ""
+                                            for (var i = 0; i < sinkNames.length; i++) {
+                                                if (sinkNames[i] === defName) { currentIndex = i; return }
+                                            }
+                                        }
+
+                                        onModelChanged: syncDefaultSink()
+                                        onActivated: index => {
+                                            if (index < sinkNames.length) {
+                                                setDefaultSinkProc.command = ["pactl", "set-default-sink", sinkNames[index]]
+                                                setDefaultSinkProc.running = true
                                             }
                                         }
                                     }
-
-                                    // Pre-select the current default sink on model load
-                                    onModelChanged: syncDefaultSink()
-
-                                    onActivated: index => {
-                                        if (index < sinkNames.length) {
-                                            setDefaultSinkProc.command = ["pactl", "set-default-sink", sinkNames[index]]
-                                            setDefaultSinkProc.running = true
-                                        }
-                                    }
                                 }
-                            }
-                        }
 
-                        // Volume card
-                        Rectangle {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            width: parent.width - 32
-                            height: 72
-                            radius: 20
-                            color: col.surfaceContainer
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 18
-                                anchors.rightMargin: 18
-                                spacing: 14
-
-                                // Mute toggle
+                                // Divider
                                 Rectangle {
-                                    width: 40
-                                    height: 40
-                                    radius: 20
-                                    color: volIcon.muted ? col.errorContainer : col.secondaryContainer
-                                    Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: col.outlineVariant
+                                    opacity: 0.5
+                                }
+
+                                // Volume row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
 
                                     MaterialSymbol {
                                         id: volIcon
-                                        anchors.centerIn: parent
-                                        iconSize: 20
+                                        iconSize: 18
                                         fill: 1
                                         property real vol: Pipewire.defaultAudioSink?.audio?.volume ?? 0
                                         property bool muted: Pipewire.defaultAudioSink?.audio?.muted ?? false
@@ -1135,7 +1125,7 @@ Scope {
                                             function onMutedChanged() { volIcon.muted = Pipewire.defaultAudioSink?.audio?.muted ?? false }
                                         }
 
-                                        color: volIcon.muted ? col.onErrorContainer : col.onSecondaryContainer
+                                        color: volIcon.muted ? col.error : col.onSurfaceVariant
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         icon: {
                                             if (muted || vol === 0) return "volume_off"
@@ -1146,6 +1136,7 @@ Scope {
 
                                         MouseArea {
                                             anchors.fill: parent
+                                            anchors.margins: -6
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (Pipewire.defaultAudioSink?.audio)
@@ -1153,48 +1144,38 @@ Scope {
                                             }
                                         }
                                     }
-                                }
 
-                                StyledSlider {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
-                                    sliderHeight: 36
-                                    radius: 18
-                                    value: Pipewire.defaultAudioSink?.audio?.volume ?? 0
-                                    from: 0.0; to: 1.0; stepSize: 0.01
-                                    onMoved: function(v) {
-                                        if (Pipewire.defaultAudioSink?.audio)
-                                            Pipewire.defaultAudioSink.audio.volume = v
+                                    StyledSlider {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        sliderHeight: 36
+                                        radius: 10
+                                        value: Pipewire.defaultAudioSink?.audio?.volume ?? 0
+                                        from: 0.0; to: 1.0; stepSize: 0.01
+                                        onMoved: function(v) {
+                                            if (Pipewire.defaultAudioSink?.audio)
+                                                Pipewire.defaultAudioSink.audio.volume = v
+                                        }
+                                    }
+
+                                    Text {
+                                        text: Math.round((Pipewire.defaultAudioSink?.audio?.volume ?? 0) * 100) + "%"
+                                        font.family: cfg ? cfg.fontFamily : "Rubik"
+                                        font.pixelSize: 11
+                                        color: col.onSurfaceVariant
+                                        Layout.minimumWidth: 32
+                                        horizontalAlignment: Text.AlignRight
                                     }
                                 }
-                            }
-                        }
 
-                        // Mic card
-                        Rectangle {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            width: parent.width - 32
-                            height: 72
-                            radius: 20
-                            color: col.surfaceContainer
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 18
-                                anchors.rightMargin: 18
-                                spacing: 14
-
-                                Rectangle {
-                                    width: 40
-                                    height: 40
-                                    radius: 20
-                                    color: micIcon.micMuted ? col.errorContainer : col.secondaryContainer
-                                    Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                                // Mic row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
 
                                     MaterialSymbol {
                                         id: micIcon
-                                        anchors.centerIn: parent
-                                        iconSize: 20
+                                        iconSize: 18
                                         fill: 1
                                         property bool micMuted: Pipewire.defaultAudioSource?.audio?.muted ?? false
 
@@ -1203,12 +1184,13 @@ Scope {
                                             function onMutedChanged() { micIcon.micMuted = Pipewire.defaultAudioSource?.audio?.muted ?? false }
                                         }
 
-                                        color: micIcon.micMuted ? col.onErrorContainer : col.onSecondaryContainer
+                                        color: micIcon.micMuted ? col.error : col.onSurfaceVariant
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         icon: micMuted ? "mic_off" : "mic"
 
                                         MouseArea {
                                             anchors.fill: parent
+                                            anchors.margins: -6
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (Pipewire.defaultAudioSource?.audio)
@@ -1216,18 +1198,27 @@ Scope {
                                             }
                                         }
                                     }
-                                }
 
-                                StyledSlider {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
-                                    sliderHeight: 36
-                                    radius: 18
-                                    value: Pipewire.defaultAudioSource?.audio?.volume ?? 0
-                                    from: 0.0; to: 1.0; stepSize: 0.01
-                                    onMoved: function(v) {
-                                        if (Pipewire.defaultAudioSource?.audio)
-                                            Pipewire.defaultAudioSource.audio.volume = v
+                                    StyledSlider {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        sliderHeight: 36
+                                        radius: 10
+                                        value: Pipewire.defaultAudioSource?.audio?.volume ?? 0
+                                        from: 0.0; to: 1.0; stepSize: 0.01
+                                        onMoved: function(v) {
+                                            if (Pipewire.defaultAudioSource?.audio)
+                                                Pipewire.defaultAudioSource.audio.volume = v
+                                        }
+                                    }
+
+                                    Text {
+                                        text: Math.round((Pipewire.defaultAudioSource?.audio?.volume ?? 0) * 100) + "%"
+                                        font.family: cfg ? cfg.fontFamily : "Rubik"
+                                        font.pixelSize: 11
+                                        color: col.onSurfaceVariant
+                                        Layout.minimumWidth: 32
+                                        horizontalAlignment: Text.AlignRight
                                     }
                                 }
                             }
@@ -1367,8 +1358,8 @@ Scope {
                                                                 Layout.fillWidth: true
                                                                 Layout.alignment: Qt.AlignVCenter
                                                                 sliderWidth: streamSlider.width
-                                                                sliderHeight: 28
-                                                                radius: 14
+                                                                sliderHeight: 32
+                                                                radius: 8
                                                                 value: srcNode && srcNode.audio ? srcNode.audio.volume : 0
                                                                 from: 0.0; to: 1.0; stepSize: 0.01
                                                                 onMoved: function(v) {
@@ -1856,4 +1847,3 @@ Scope {
 
     }
 }
-

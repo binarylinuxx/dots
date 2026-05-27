@@ -52,7 +52,7 @@ Item {
 					Behavior on color { ColorAnimation { duration: 200 } }
 					MaterialSymbol {
 						anchors.centerIn: parent
-						icon: isEthernet ? "lan" : (isWifi ? "wifi" : "signal_wifi_off")
+						icon: isEthernet ? "settings_ethernet" : (isWifi ? "wifi" : "signal_wifi_off")
 						iconSize: 22
 						color: isConnected ? col.onPrimary : col.onSurfaceVariant
 					}

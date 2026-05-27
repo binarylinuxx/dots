@@ -9,12 +9,6 @@ Item {
 	width: buttonsRow.width
 	property int moduleRadius: cfg ? Math.max(8, Math.round(cfg.barRadius * 0.7)) : 14
 
-	// Screenshot process
-	Process {
-		id: screenshotProcess
-		running: false
-	}
-
 	// Color picker process
 	Process {
 		id: colorPickerProcess
@@ -70,22 +64,7 @@ Item {
 					hoverEnabled: true
 					onEntered: screenshotHover.opacity = 0.3
 					onExited: screenshotHover.opacity = 0
-					onClicked: {
-						screenshotProcess.command = ["sh", "-c", 
-							"if command -v grimblast >/dev/null 2>&1; then " +
-							"grimblast --notify copy area; " +
-							"elif command -v grim >/dev/null 2>&1 && command -v slurp >/dev/null 2>&1; then " +
-							"grim -g \"$(slurp)\" - | wl-copy; " +
-							"elif command -v flameshot >/dev/null 2>&1; then " +
-							"flameshot gui; " +
-							"elif command -v spectacle >/dev/null 2>&1; then " +
-							"spectacle -r; " +
-							"else " +
-							"notify-send 'Screenshot' 'No screenshot tool found'; " +
-							"fi"
-						]
-						screenshotProcess.running = true
-					}
+					onClicked: Gstate.screenshotOpen = !Gstate.screenshotOpen
 				}
 			}
 			

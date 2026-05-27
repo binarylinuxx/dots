@@ -24,6 +24,8 @@ Dynamic Material You color theming generated from your wallpaper using <a href="
 ---
 
 ## Install
+blxshell has moved to a CLI-based runtime layout. The installer now places the shell in `~/.local/blxshell` and installs the `blxshell` command to `~/.local/bin/blxshell`.
+
 *local install:*
 ```
 git clone https://github.com/binarylinuxx/dots
@@ -37,6 +39,10 @@ curl -fsSL https://bshell.zapzig.org/get_remote | bash
 
 # Note
 currently bad support for portable devices and wifi stuff because I'm as main maintainer using A PC and work still in progress anything will work properly expect battery module 
+
+for better integration of mediaplayer with browsers you would like to install this extensions(either stable working are not granted):
+- Chrome/Chromium: https://chromewebstore.google.com/detail/plasma-integration/cimiefiiaegbelhefglklhhakcgmhkai?hl=en&pli=1
+- Firefox: https://addons.mozilla.org/en-US/firefox/addon/plasma-integration/
 
 ## Shell Components
 
@@ -73,25 +79,30 @@ currently bad support for portable devices and wifi stuff because I'm as main ma
 
 ## IPC Control
 
-The shell exposes IPC handlers for external control via `qs ipc`. Bind these to Hyprland keybinds or call from terminal.
+Use the `blxshell` CLI for normal control. It wraps the correct Quickshell path and runtime environment.
 
 ```bash
-# Lockscreen
-qs ipc call lockscreen lock
-qs ipc call lockscreen unlock
-qs ipc call lockscreen isLocked
+blxshell start
+blxshell reload
+blxshell restart
+blxshell log
+blxshell theme /path/to/wallpaper.png
+blxshell lock
+blxshell powermenu
+```
 
-# Power Menu
+The shell still exposes lower-level IPC handlers through `qs ipc` when you need direct debugging.
+
+```bash
+qs ipc call lockscreen lock
 qs ipc call -- powermenu toggle
-qs ipc call -- powermenu show
-qs ipc call -- powermenu hide
 ```
 
 Hyprland keybind examples:
 
 ```ini
-bind = SUPER, L, exec, qs ipc call lockscreen lock
-bind = SUPER, Escape, exec, qs ipc call -- powermenu toggle
+bind = SUPER, L, exec, blxshell lock
+bind = SUPER, Escape, exec, blxshell powermenu
 ```
 
 ## Keybinds You Must Know
@@ -134,7 +145,7 @@ bind = SUPER, Escape, exec, qs ipc call -- powermenu toggle
 
 ## Installation
 
-Arch Linux only. The install script handles all dependencies via custom metapackages.
+Arch-based systems and openSUSE Tumbleweed are handled by the install script. Unsupported systems can still install the dotfiles, but package setup is skipped.
 
 ```bash
 # One-liner (remote)
@@ -149,8 +160,10 @@ cd dots
 The installer will:
 
 1. Install `yay` if not present
-2. Build and install metapackages (`blxshell-shell`, `blxshell-audio`, `blxshell-hyprland`, fonts)
-3. Optionally backup and replace `~/.config`
+2. Build/install Arch metapackages or install openSUSE packages from the blxshell OBS repo
+3. Install the blxshell runtime to `~/.local/blxshell`
+4. Install the `blxshell` CLI to `~/.local/bin/blxshell`
+5. Optionally backup and replace `~/.config`
 
 ## Configuration
 

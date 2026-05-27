@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# blxshell — CLI wrapper for the blxshell quickshell config
+# Install: ln -sf ~/.local/blxshell/blxshell ~/.local/bin/blxshell
+
+BLXSHELL_PATH="${BLXSHELL_PATH:-$HOME/.local/blxshell}"
+export BLXSHELL_PATH
+
+QML_IMPORT_PATH="$BLXSHELL_PATH/qml"
+export QML_IMPORT_PATH
+
+# Plugin manager .so lives alongside its QML plugin — expose it to the linker
+LD_LIBRARY_PATH="$BLXSHELL_PATH/qml/PluginManager${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH
+
+_usage() {
+    cat <<EOF
+Usage: blxshell <command> [args]
+
+Commands:
+  start           Launch quickshell with this config
+  log             Attach to running instance log (hot-reload output)
+  reload          Trigger a soft reload of the running instance
+  theme <image>   Generate and apply a color theme from a wallpaper image
+  help            Show this message
+  lock			  lock screen
+  powermenu       call powermenu
+
+Environment:
+  BLXSHELL_PATH   Override shell root (default: ~/.local/blxshell)
+EOF
+}
+
+case "${1:-}" in
+    start)
+        exec qs -p "$BLXSHELL_PATH/shell.qml"
+        ;;
+    log)
+        exec qs -p "$BLXSHELL_PATH/shell.qml" log
+        ;;
+    reload)
+        exec qs -p "$BLXSHELL_PATH/shell.qml" ipc call shell reload
+        ;;
+    restart)
+        pkill -x qs 2>/dev/null; sleep 0.3
+        exec qs -p "$BLXSHELL_PATH/shell.qml"
+        ;;
+    theme)
+        if [[ -z "${2:-}" ]]; then
+            echo "Usage: blxshell theme <image_path>" >&2
+            exit 1
+        fi
+        exec uv run --project "$BLXSHELL_PATH/col_gen" \
+            "$BLXSHELL_PATH/col_gen/main.py" "$2"
+        ;;
+    lock)
+    	exec qs -p "$BLXSHELL_PATH/shell.qml" ipc call lockscreen lock
+    	;;
+    powermenu)
+    	exec qs -p "$BLXSHELL_PATH/shell.qml" ipc call -- powermenu toggle
+    	;;
+    help|--help|-h)
+        _usage
+        ;;
+    "")
+        _usage
+        exit 1
+        ;;
+    *)
+        # Pass-through to qs directly
+        exec qs "$@"
+        ;;
+esac

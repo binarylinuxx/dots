@@ -8,16 +8,17 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, BaseLoader
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+SHELL_ROOT = Path(os.environ.get("BLXSHELL_PATH", Path(__file__).parent.parent))
 
 # Template output mappings (template_name -> output_path)
-# Paths use ~ for home dir, expanded at runtime
+# Paths use ~ for home dir or $BLXSHELL_PATH for shell files
 TEMPLATE_OUTPUTS = {
     "qs_json.js": [
-        "~/.config/quickshell/Colors.json",
-        "~/.config/quickshell/lockscreen/Colors.json",
-        "~/.config/quickshell/menu/Colors.json",
+        str(SHELL_ROOT / "Colors.json"),
+        str(SHELL_ROOT / "lockscreen/Colors.json"),
+        str(SHELL_ROOT / "menu/Colors.json"),
     ],
-    "hypr-colrs.conf": ["~/.config/hypr/colors.conf"],
+    "hypr-colors.lua": ["~/.config/hypr/colors.lua"],
     "ghostty": ["~/.config/ghostty/themes/Matugen.conf"],
     "gtk.css": [
         "~/.config/gtk-3.0/colors.css",

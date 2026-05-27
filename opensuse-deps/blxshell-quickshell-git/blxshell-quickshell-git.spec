@@ -13,11 +13,11 @@
 # MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 #
 
-%define _commit 4b77936
+%define _commit 4b4fca3
 
 Name:           blxshell-quickshell-git
-Version:        0.1.0~git.4b77936
-Release:        13
+Version:        0.1.0~git.4b4fca3
+Release:        1
 Summary:        Quickshell pinned commit build for blxshell
 License:        LGPL-3.0-only
 URL:            https://github.com/quickshell-mirror/quickshell
@@ -25,7 +25,7 @@ URL:            https://github.com/quickshell-mirror/quickshell
 Conflicts:      quickshell
 Provides:       quickshell = %{version}
 
-Source0:        quickshell-4b77936.tar.gz
+Source0:        quickshell-4b4fca3.tar.gz
 
 BuildRequires:  cmake
 BuildRequires:  ninja
@@ -76,7 +76,7 @@ Requires:       Mesa
 # google-breakpad: bundled via cmake FetchContent — no system package needed
 
 %description
-Quickshell built from a pinned git commit (db1777c) for blxshell compatibility.
+Quickshell built from a pinned git commit (4b4fca3) for blxshell compatibility.
 
 Quickshell is a flexible, QtQuick-based desktop shell toolkit for Wayland.
 This package pins a specific upstream commit to ensure compatibility with
@@ -85,7 +85,7 @@ blxshell's QML components, as the upstream release may lag behind.
 Conflicts with any other quickshell package.
 
 %prep
-%autosetup -n quickshell-4b77936-4b77936
+%autosetup -n quickshell-4b4fca3224ab977dc515ac0bb78d00b3dfa71e00
 
 %build
 cmake -GNinja -B build \
@@ -119,6 +119,10 @@ patchelf --remove-rpath %{buildroot}%{_bindir}/quickshell
 %{_datadir}/icons/hicolor/scalable/apps/org.quickshell.svg
 
 %changelog
+* Thu May 22 2026 Nir Rudov <nrw58886@gmail.com> - 0.1.0~git.4b4fca3-1
+- Update pinned commit to 4b4fca3 (docs: document private ABI usage)
+* Mon Apr 06 2026 Nir Rudov <nrw58886@gmail.com> - 0.1.0~git.7c5a6c4-1
+- Update pinned commit to 7c5a6c4
 * Fri Mar 13 2026 Nir Rudov <nrw58886@gmail.com> - 0.1.0~git.4b77936-13
 - Strip embedded RPATH from quickshell binary with patchelf to pass rpmlint
 * Fri Mar 13 2026 Nir Rudov <nrw58886@gmail.com> - 0.1.0~git.4b77936-12

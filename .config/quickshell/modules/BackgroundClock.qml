@@ -3,6 +3,8 @@ import Quickshell.Wayland
 import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
+import PluginManager
 import qs.widgets
 import qs.services
 
@@ -19,6 +21,7 @@ PanelWindow {
 
     // Export edit mode state for external control
     property bool editMode: false
+    property bool showWidgetPicker: false
 
     // Grid configuration (read from config)
     property int gridColumns: cfg ? cfg.gridColumns : 16
@@ -863,11 +866,31 @@ PanelWindow {
                     }
                 }
 
-                // ── Generic / custom widget content ──
+                // ── Plugin background widget ──
+                Loader {
+                    anchors.fill: parent
+                    anchors.margins: pad
+                    readonly property string pluginId: modelData.type.indexOf("plugin:") === 0
+                        ? modelData.type.slice(7) : ""
+                    active: pluginId !== ""
+                    visible: active
+                    source: {
+                        if (!pluginId) return ""
+                        var _rescan = PluginRegistry.count  // reactive: re-evaluates after rescan
+                        var p = PluginRegistry.get(pluginId)
+                        return (p && p.provides && p.provides.background)
+                            ? p.provides.background.componentUrl : ""
+                    }
+                    onLoaded: if (item && "plugin" in item) item.plugin = PluginRegistry.get(pluginId)
+                }
+
+                // ── Generic / custom widget content (fallback) ──
                 Column {
                     anchors.centerIn: parent
                     spacing: hU * 0.4
-                    visible: modelData.type !== "clock" && modelData.type !== "weather"
+                    visible: modelData.type !== "clock"
+                        && modelData.type !== "weather"
+                        && modelData.type.indexOf("plugin:") !== 0
 
                     MaterialSymbol {
                         icon: "widgets"
@@ -1056,10 +1079,204 @@ PanelWindow {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                var newW = { id: "w" + Date.now(), type: "custom", gridX: 6, gridY: 3, gridWidth: 4, gridHeight: 3, title: "New Widget" }
-                widgets.push(newW)
-                widgetRepeater.model = widgets
+            onClicked: showWidgetPicker = true
+        }
+    }
+
+    // ── Widget Picker Popup ────────────────────────────────────────────────
+    // Dim backdrop
+    Rectangle {
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.55)
+        z: 200
+        visible: showWidgetPicker
+        opacity: showWidgetPicker ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+        MouseArea { anchors.fill: parent; onClicked: showWidgetPicker = false }
+    }
+
+    // Picker card
+    Rectangle {
+        id: pickerCard
+        anchors.centerIn: parent
+        width: Math.min(parent.width * 0.72, 720)
+        height: Math.min(parent.height * 0.78, 560)
+        radius: 28
+        color: col?.surfaceContainer || "#1e1f25"
+        z: 201
+        visible: showWidgetPicker
+        opacity: showWidgetPicker ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+
+        // Stop backdrop click from bleeding through
+        MouseArea { anchors.fill: parent }
+
+        // Header
+        Rectangle {
+            id: pickerHeader
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 60
+            radius: 28
+            color: "transparent"
+
+            Row {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 24
+                spacing: 10
+                MaterialSymbol { icon: "widgets"; iconSize: 22; color: col?.primary; anchors.verticalCenter: parent.verticalCenter }
+                Text {
+                    text: "Add Widget"
+                    font.pixelSize: 18; font.weight: Font.Bold; font.family: fontFamily
+                    color: col?.onSurface
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.rightMargin: 16
+                width: 32; height: 32; radius: 16
+                color: closePMouse.containsMouse ? col?.surfaceContainerHigh : "transparent"
+                Behavior on color { ColorAnimation { duration: 120 } }
+                MaterialSymbol { icon: "close"; iconSize: 18; color: col?.onSurfaceVariant; anchors.centerIn: parent }
+                MouseArea { id: closePMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: showWidgetPicker = false }
+            }
+
+            // Divider
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.leftMargin: 24; anchors.rightMargin: 24
+                height: 1; color: col?.outlineVariant; opacity: 0.4
+            }
+        }
+
+        // Scrollable grid of widget cards
+        ScrollView {
+            anchors.top: pickerHeader.bottom
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.margins: 20
+            clip: true
+
+            Flow {
+                width: parent.width
+                spacing: 12
+
+                // Built-in widget types
+                property var builtins: [
+                    { type: "clock",   name: "Digital Clock", icon: "schedule",         desc: "Date and time" },
+                    { type: "weather", name: "Weather",        icon: "partly_cloudy_day", desc: "Current conditions" }
+                ]
+
+                // Emit both builtins and plugin background widgets
+                Component.onCompleted: rebuildModel()
+                Connections { target: PluginRegistry; function onRescanned() { parent.rebuildModel() } }
+
+                property var allItems: []
+
+                function rebuildModel() {
+                    var items = builtins.slice()
+                    var pluginBg = PluginRegistry.byKind("background")
+                    for (var i = 0; i < pluginBg.length; i++) {
+                        var p = pluginBg[i]
+                        items.push({
+                            type: "plugin:" + p.id,
+                            name: p.name,
+                            icon: p.icon || "extension",
+                            desc: p.description || ""
+                        })
+                    }
+                    allItems = items
+                }
+
+                Repeater {
+                    model: parent.allItems
+
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+
+                        property bool alreadyAdded: widgets.some(w => w.type === modelData.type)
+
+                        width: (parent.width - 12) / 2
+                        height: 80
+                        radius: 18
+                        color: alreadyAdded
+                            ? (col?.surfaceContainerLow || "#16171d")
+                            : (cardMouse.containsMouse ? (col?.secondaryContainer || "#3a3e52") : (col?.surfaceContainerHigh || "#2a2b33"))
+                        Behavior on color { ColorAnimation { duration: 130 } }
+                        opacity: alreadyAdded ? 0.5 : 1.0
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 16; anchors.rightMargin: 12
+                            spacing: 14
+
+                            Rectangle {
+                                width: 44; height: 44; radius: 14
+                                color: alreadyAdded ? (col?.surfaceContainerHighest || "#36373f") : (col?.primaryContainer || "#2b4678")
+                                Behavior on color { ColorAnimation { duration: 130 } }
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    icon: modelData.icon
+                                    iconSize: 22
+                                    color: alreadyAdded ? (col?.onSurfaceVariant || "#c4c6d0") : (col?.onPrimaryContainer || "#d6e3ff")
+                                }
+                            }
+
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 3
+                                Text {
+                                    width: parent.width
+                                    text: modelData.name
+                                    font.pixelSize: 14; font.weight: Font.SemiBold; font.family: fontFamily
+                                    color: col?.onSurface || "#e2e2e9"
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: alreadyAdded ? "Already added" : modelData.desc
+                                    font.pixelSize: 11; font.family: fontFamily
+                                    color: col?.onSurfaceVariant || "#c4c6d0"
+                                    opacity: 0.75
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            MaterialSymbol {
+                                icon: alreadyAdded ? "check" : "add_circle"
+                                iconSize: 22
+                                color: alreadyAdded ? (col?.onSurfaceVariant || "#c4c6d0") : (col?.primary || "#adc6ff")
+                            }
+                        }
+
+                        MouseArea {
+                            id: cardMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: alreadyAdded ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            enabled: !alreadyAdded
+                            onClicked: {
+                                var newW = {
+                                    id: "w" + Date.now(),
+                                    type: modelData.type,
+                                    gridX: 4, gridY: 3,
+                                    gridWidth: 4, gridHeight: 3,
+                                    title: modelData.name
+                                }
+                                widgets.push(newW)
+                                widgetRepeater.model = widgets
+                                showWidgetPicker = false
+                            }
+                        }
+                    }
+                }
             }
         }
     }

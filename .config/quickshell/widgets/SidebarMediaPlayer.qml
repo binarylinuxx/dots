@@ -1,10 +1,10 @@
 import qs.services
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
-import Quickshell.Services.Mpris
 import qs.widgets
 
 Item {
@@ -16,7 +16,7 @@ Item {
 
     Process {
         id: cavaProcess
-        command: ["cava", "-p", "/home/blx/.config/quickshell/cava_media.conf"]
+        command: ["cava", "-p", Quickshell.shellDir + "/cava_media.conf"]
         running: true
         stdout: SplitParser {
             onRead: data => {
@@ -35,45 +35,30 @@ Item {
     }
 
     property bool seeking: false
-    readonly property bool canSeekTrack: activePlayer
-        && activePlayer.canSeek
-        && activePlayer.positionSupported
-        && activePlayer.lengthSupported
-        && activePlayer.length > 0
 
-    readonly property var activePlayer: {
-        const players = Mpris.players && Mpris.players.values ? Mpris.players.values : []
-        if (!players || players.length === 0) return null
-        for (let i = 0; i < players.length; ++i)
-            if (players[i] && players[i].isPlaying) return players[i]
-        return players[0]
-    }
-
-    readonly property string artUrl: activePlayer ? (activePlayer.trackArtUrl || "") : ""
-    readonly property bool hasArt: artUrl !== ""
+    readonly property var activePlayer: MprisService.activePlayer
+    readonly property real effectiveLength: MprisService.effectiveLength
+    readonly property real effectivePosition: MprisService.effectivePosition
+    readonly property bool hasProgressTrack: MprisService.hasProgressTrack
+    readonly property string realArtUrl: MprisService.realArtUrl
+    readonly property string artUrl: MprisService.artUrl
+    readonly property bool hasArt: MprisService.hasArt
+    readonly property var activeTrack: MprisService.activeTrack
 
     function formatTime(seconds) {
         const s = Math.max(0, Math.floor(seconds || 0))
-        const m = Math.floor(s / 60)
+        const h = Math.floor(s / 3600)
+        const m = Math.floor((s % 3600) / 60)
         const r = s % 60
+        if (h > 0)
+            return h + ":" + (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r
         return m + ":" + (r < 10 ? "0" : "") + r
-    }
-
-    // ── Position refresh timer ──
-    Timer {
-        interval: 1000
-        repeat: true
-        running: root.activePlayer && root.activePlayer.isPlaying && root.canSeekTrack && !root.seeking
-        onTriggered: {
-            if (root.activePlayer && root.activePlayer.positionChanged)
-                root.activePlayer.positionChanged()
-        }
     }
 
     // ── Dominant color extraction ──
     ColorQuantizer {
         id: quantizer
-        source: root.artUrl
+        source: root.realArtUrl
         depth: 2      // 4 colors — fast, enough for dominant
         rescaleSize: 48
         onColorsChanged: {
@@ -114,10 +99,11 @@ Item {
         Image {
             id: artBg
             anchors.fill: parent
-            source: root.artUrl
+            source: root.realArtUrl
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            visible: root.hasArt
+            cache: false
+            visible: false
             opacity: 0
 
             onStatusChanged: if (status === Image.Ready) artFadeIn.start()
@@ -131,6 +117,18 @@ Item {
                 duration: 700
                 easing.type: Easing.OutCubic
             }
+        }
+
+        MultiEffect {
+            anchors.fill: parent
+            source: artBg
+            visible: root.hasArt
+            opacity: artBg.opacity
+            blurEnabled: true
+            blur: 0.72
+            brightness: -0.08
+            saturation: 1.18
+            autoPaddingEnabled: false
         }
 
         // Gradient scrim for readability
@@ -207,8 +205,9 @@ Item {
                     anchors.fill: parent
                     fillMode: Image.PreserveAspectCrop
                     source: root.artUrl
-                    visible: root.hasArt
+                    visible: root.artUrl !== ""
                     asynchronous: true
+                    cache: false
                 }
 
                 MaterialSymbol {
@@ -216,7 +215,7 @@ Item {
                     icon: "music_note"
                     iconSize: 24
                     color: col.onSurfaceVariant
-                    visible: !root.hasArt
+                    visible: root.artUrl === ""
                 }
             }
 
@@ -234,7 +233,7 @@ Item {
                     clip: true
 
                     readonly property string fullText: root.activePlayer
-                        ? (root.activePlayer.trackTitle || "Unknown title")
+                        ? (root.activeTrack.title || "Unknown title")
                         : "No media player"
                     readonly property bool overflows: titleMain.implicitWidth > marqueeItem.width
 
@@ -269,7 +268,7 @@ Item {
 
                     SequentialAnimation {
                         id: marqueeAnim
-                        running: marqueeItem.overflows && root.activePlayer && root.activePlayer.isPlaying
+                        running: marqueeItem.overflows && MprisService.isPlaying
                         loops: Animation.Infinite
 
                         PauseAnimation { duration: 1400 }
@@ -288,7 +287,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: root.activePlayer
-                        ? (root.activePlayer.trackArtist || root.activePlayer.identity || "Unknown")
+                        ? (root.activeTrack.artist || root.activePlayer.identity || "Unknown")
                         : "Start playback in any MPRIS app"
                     font.family: cfg ? cfg.fontFamily : "Rubik"
                     font.pixelSize: 12
@@ -303,7 +302,7 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 2
-                    visible: root.canSeekTrack
+                    visible: root.hasProgressTrack
 
                     Item {
                         id: waveSlider
@@ -312,8 +311,8 @@ Item {
                         property real trackInset: 10
                         readonly property real usableWidth: Math.max(1, width - trackInset * 2)
                         property real internalProgress: {
-                            if (!root.canSeekTrack || !root.activePlayer || root.activePlayer.length <= 0) return 0
-                            return Math.max(0, Math.min(1, root.activePlayer.position / root.activePlayer.length))
+                            if (!root.hasProgressTrack || !root.activePlayer || root.effectiveLength <= 0) return 0
+                            return Math.max(0, Math.min(1, root.effectivePosition / root.effectiveLength))
                         }
                         property real progress: seekArea.pressed ? seekArea.dragProgress : internalProgress
                         property real phase: 0
@@ -322,8 +321,6 @@ Item {
                             const localX = Math.max(0, Math.min(usableWidth, xPos - trackInset))
                             const p = Math.max(0, Math.min(1, localX / usableWidth))
                             seekArea.dragProgress = p
-                            if (root.activePlayer && root.canSeekTrack)
-                                root.activePlayer.position = Math.floor((root.activePlayer.length || 0) * p)
                         }
 
                         Timer {
@@ -397,13 +394,22 @@ Item {
                         MouseArea {
                             id: seekArea
                             anchors.fill: parent
-                            enabled: root.canSeekTrack
+                            enabled: root.hasProgressTrack
                             hoverEnabled: true
                             cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                             property real dragProgress: 0
-                            onPressed: { root.seeking = true; waveSlider.setFromX(mouse.x) }
-                            onPositionChanged: if (pressed) waveSlider.setFromX(mouse.x)
-                            onReleased: root.seeking = false
+                            onPressed: mouse => {
+                                root.seeking = true
+                                waveSlider.setFromX(mouse.x)
+                            }
+                            onPositionChanged: mouse => {
+                                if (pressed)
+                                    waveSlider.setFromX(mouse.x)
+                            }
+                            onReleased: {
+                                MprisService.seekToProgress(dragProgress)
+                                root.seeking = false
+                            }
                             onCanceled: root.seeking = false
                         }
                     }
@@ -411,7 +417,7 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
-                            text: root.formatTime(root.activePlayer ? root.activePlayer.position : 0)
+                            text: root.formatTime(root.effectivePosition)
                             font.family: cfg ? cfg.fontFamily : "Rubik"
                             font.pixelSize: 10
                             color: root.hasArt ? root.subTextColor : col.onSurfaceVariant
@@ -419,7 +425,7 @@ Item {
                         }
                         Item { Layout.fillWidth: true }
                         Text {
-                            text: root.formatTime(root.activePlayer ? root.activePlayer.length : 0)
+                            text: root.formatTime(root.effectiveLength)
                             font.family: cfg ? cfg.fontFamily : "Rubik"
                             font.pixelSize: 10
                             color: root.hasArt ? root.subTextColor : col.onSurfaceVariant
@@ -429,60 +435,103 @@ Item {
                 }
 
                 // ── Playback controls ──
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
+                Rectangle {
+                    Layout.alignment: Qt.AlignLeft
+                    Layout.preferredWidth: controlsRow.implicitWidth + 12
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: root.hasArt
+                        ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.10)
+                        : col.surfaceContainerHigh
+                    border.width: 1
+                    border.color: root.hasArt
+                        ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.14)
+                        : col.outlineVariant
 
-                    Rectangle {
-                        Layout.preferredWidth: 30; Layout.preferredHeight: 30; radius: 15
-                        color: prevHover.containsMouse ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.18) : "transparent"
-                        visible: root.activePlayer && root.activePlayer.canGoPrevious
-                        MaterialSymbol {
-                            anchors.centerIn: parent; icon: "skip_previous"; iconSize: 18
-                            color: root.hasArt ? root.textColor : col.onSurfaceVariant
+                    RowLayout {
+                        id: controlsRow
+                        anchors.fill: parent
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        spacing: 8
+
+                        Rectangle {
+                            Layout.preferredWidth: 34
+                            Layout.preferredHeight: 34
+                            radius: 17
+                            color: prevHover.containsMouse
+                                ? (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.24) : col.secondaryContainer)
+                                : (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.14) : col.surfaceContainerHighest)
+                            visible: MprisService.canGoPrevious
                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                icon: "skip_previous"
+                                iconSize: 19
+                                color: root.hasArt ? root.textColor : col.onSecondaryContainer
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                            }
+                            MouseArea {
+                                id: prevHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: MprisService.previous()
+                            }
                         }
-                        MouseArea {
-                            id: prevHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (root.activePlayer && root.activePlayer.canGoPrevious) root.activePlayer.previous()
+
+                        Rectangle {
+                            Layout.preferredWidth: 38
+                            Layout.preferredHeight: 38
+                            radius: 19
+                            color: playHover.containsMouse
+                                ? (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.92) : col.primary)
+                                : (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.82) : col.primaryContainer)
+                            visible: MprisService.canTogglePlaying
+                            scale: playHover.containsMouse ? 1.04 : 1.0
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                icon: root.activePlayer && root.activePlayer.isPlaying ? "pause" : "play_arrow"
+                                iconSize: 22
+                                color: root.hasArt ? dominantColor.color : col.onPrimaryContainer
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                            }
+                            MouseArea {
+                                id: playHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: MprisService.togglePlaying()
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: 34
+                            Layout.preferredHeight: 34
+                            radius: 17
+                            color: nextHover.containsMouse
+                                ? (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.24) : col.secondaryContainer)
+                                : (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.14) : col.surfaceContainerHighest)
+                            visible: MprisService.canGoNext
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                icon: "skip_next"
+                                iconSize: 19
+                                color: root.hasArt ? root.textColor : col.onSecondaryContainer
+                                Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                            }
+                            MouseArea {
+                                id: nextHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: MprisService.next()
+                            }
                         }
                     }
-
-                    Rectangle {
-                        Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: 18
-                        color: playHover.containsMouse
-                            ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.28)
-                            : Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.15)
-                        visible: root.activePlayer && root.activePlayer.canTogglePlaying
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            icon: root.activePlayer && root.activePlayer.isPlaying ? "pause" : "play_arrow"
-                            iconSize: 20
-                            color: root.hasArt ? root.textColor : col.onSurface
-                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
-                        }
-                        MouseArea {
-                            id: playHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (root.activePlayer && root.activePlayer.canTogglePlaying) root.activePlayer.togglePlaying()
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.preferredWidth: 30; Layout.preferredHeight: 30; radius: 15
-                        color: nextHover.containsMouse ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.18) : "transparent"
-                        visible: root.activePlayer && root.activePlayer.canGoNext
-                        MaterialSymbol {
-                            anchors.centerIn: parent; icon: "skip_next"; iconSize: 18
-                            color: root.hasArt ? root.textColor : col.onSurfaceVariant
-                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
-                        }
-                        MouseArea {
-                            id: nextHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (root.activePlayer && root.activePlayer.canGoNext) root.activePlayer.next()
-                        }
-                    }
-
-                    Item { Layout.fillWidth: true }
                 }
             }
         }

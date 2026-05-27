@@ -22,7 +22,7 @@ QML_IMPORT_PATH=$PWD/plugin_manager/build/qml quickshell -p shell.qml
 ```qml
 import qs.PluginManager
 
-// Singleton. Defaults to $XDG_CONFIG_HOME/quickshell/plugins.
+// Singleton. Defaults to BLXSHELL_PLUGIN_DIRS, then user data/runtime plugin dirs.
 Component.onCompleted: {
     console.log(PluginRegistry.count)
 
@@ -86,7 +86,8 @@ Every component path is resolved to an absolute `componentUrl` (a
 
 | Member                         | Notes |
 |--------------------------------|-------|
-| `pluginsDir` (string, rw)      | Setting this triggers a rescan |
+| `pluginsDir` (string, rw)      | Colon-separated plugin dirs; setting this triggers a rescan |
+| `pluginDirs` (list<string>, rw) | Plugin directories scanned in order |
 | `count` (int, ro)              | Number of parsed manifests |
 | `rescan()`                     | Reparse everything |
 | `get(id) -> map`               | One plugin as a map |

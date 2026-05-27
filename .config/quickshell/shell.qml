@@ -16,9 +16,6 @@ ShellRoot {
 	id: shellRoot
 	property bool nightLightSyncReady: false
 
-	Component.onCompleted: {
-		PluginRegistry.pluginsDir = Quickshell.shellDir + "/plugins"
-	}
 	// Config file for settings
 	FileView {
 		id: configWatcher

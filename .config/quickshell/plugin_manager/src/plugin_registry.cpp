@@ -9,16 +9,47 @@
 #include <QStandardPaths>
 
 PluginRegistry::PluginRegistry(QObject* parent) : QAbstractListModel(parent) {
-	// Default: <config dir>/quickshell/plugins
-	const QString base = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-	m_pluginsDir = QDir(base).filePath(QStringLiteral("quickshell/plugins"));
+	const QByteArray envDirs = qgetenv("BLXSHELL_PLUGIN_DIRS");
+	if (!envDirs.isEmpty()) {
+		const QStringList rawDirs = QString::fromLocal8Bit(envDirs).split(QLatin1Char(':'), Qt::SkipEmptyParts);
+		for (const QString& dir : rawDirs) {
+			m_pluginDirs.append(QDir::cleanPath(dir));
+		}
+	}
+
+	if (m_pluginDirs.isEmpty()) {
+		const QString dataHome = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+		if (!dataHome.isEmpty()) {
+			m_pluginDirs.append(QDir(dataHome).filePath(QStringLiteral("blxshell/plugins")));
+		}
+
+		const QString blxshellPath = QString::fromLocal8Bit(qgetenv("BLXSHELL_PATH"));
+		if (!blxshellPath.isEmpty()) {
+			m_pluginDirs.append(QDir(blxshellPath).filePath(QStringLiteral("plugins")));
+		}
+	}
+
+	m_pluginDirs.removeDuplicates();
+	m_pluginsDir = m_pluginDirs.join(QLatin1Char(':'));
 	rescan();
 }
 
 void PluginRegistry::setPluginsDir(const QString& dir) {
-	if (m_pluginsDir == dir) return;
-	m_pluginsDir = dir;
+	setPluginDirs(dir.split(QLatin1Char(':'), Qt::SkipEmptyParts));
+}
+
+void PluginRegistry::setPluginDirs(const QStringList& dirs) {
+	QStringList cleaned;
+	for (const QString& dir : dirs) {
+		if (!dir.isEmpty()) cleaned.append(QDir::cleanPath(dir));
+	}
+	cleaned.removeDuplicates();
+
+	if (m_pluginDirs == cleaned) return;
+	m_pluginDirs = cleaned;
+	m_pluginsDir = m_pluginDirs.join(QLatin1Char(':'));
 	emit pluginsDirChanged();
+	emit pluginDirsChanged();
 	rescan();
 }
 
@@ -154,8 +185,10 @@ void PluginRegistry::rescan() {
 	beginResetModel();
 	m_plugins.clear();
 
-	QDir root(m_pluginsDir);
-	if (root.exists()) {
+	for (const QString& dir : m_pluginDirs) {
+		QDir root(dir);
+		if (!root.exists()) continue;
+
 		const QStringList dirs = root.entryList(
 			QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
 		for (const QString& sub : dirs) {

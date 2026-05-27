@@ -22,6 +22,7 @@ FloatingWindow {
 	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "Advanced", "Performance", "Plugins", "About"]
 	// Icons per-page, matches pageNames order.
 	property var pageIcons: ["palette", "wallpaper", "view_sidebar", "rocket_launch", "schedule", "science", "speed", "extension", "info"]
+	readonly property string writablePluginDir: Quickshell.env("HOME") + "/.local/share/blxshell/plugins"
 	property int darkModeIndex: 0
 	property int colorSchemeIndex: 7
 	property int workspaceCount: 10
@@ -3648,7 +3649,7 @@ FloatingWindow {
 						}
 
 						Text {
-							text: PluginRegistry.pluginsDir
+							text: PluginRegistry.pluginDirs.join(":")
 							font.pixelSize: 11
 							font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
 							color: col.onSurfaceVariant
@@ -3683,7 +3684,7 @@ FloatingWindow {
 									Layout.alignment: Qt.AlignHCenter
 								}
 								Text {
-									text: "Drop plugin folders into " + PluginRegistry.pluginsDir
+									text: "Drop plugin folders into " + root.writablePluginDir
 									font.pixelSize: 11
 									font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
 									color: col.onSurfaceVariant
@@ -3969,9 +3970,9 @@ FloatingWindow {
 														pluginCard.confirmDelete = true
 														confirmResetTimer.restart()
 													} else {
-														// Safety: only delete inside the configured plugins dir.
-														var dir = PluginRegistry.pluginsDir
-														if (pluginCard.path.indexOf(dir) === 0 && pluginCard.path !== dir) {
+												// Safety: only delete manually installed user plugins, never Nix/store plugins.
+												var dir = root.writablePluginDir
+												if (pluginCard.path.indexOf(dir + "/") === 0) {
 															pluginRemoveProc.command = ["rm", "-rf", "--", pluginCard.path]
 															pluginRemoveProc.running = true
 														}

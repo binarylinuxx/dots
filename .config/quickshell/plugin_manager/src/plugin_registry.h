@@ -29,6 +29,7 @@ class PluginRegistry : public QAbstractListModel {
 	QML_SINGLETON
 
 	Q_PROPERTY(QString pluginsDir READ pluginsDir WRITE setPluginsDir NOTIFY pluginsDirChanged)
+	Q_PROPERTY(QStringList pluginDirs READ pluginDirs WRITE setPluginDirs NOTIFY pluginDirsChanged)
 	Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:
@@ -51,6 +52,8 @@ public:
 
 	QString pluginsDir() const { return m_pluginsDir; }
 	void setPluginsDir(const QString& dir);
+	QStringList pluginDirs() const { return m_pluginDirs; }
+	void setPluginDirs(const QStringList& dirs);
 
 	int rowCount(const QModelIndex& parent = QModelIndex()) const override;
 	QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
@@ -63,6 +66,7 @@ public:
 
 signals:
 	void pluginsDirChanged();
+	void pluginDirsChanged();
 	void countChanged();
 	void rescanned();
 
@@ -70,5 +74,6 @@ private:
 	PluginEntry parseManifest(const QString& manifestPath) const;
 
 	QString m_pluginsDir;
+	QStringList m_pluginDirs;
 	QVector<PluginEntry> m_plugins;
 };

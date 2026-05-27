@@ -136,6 +136,7 @@ in {
           runHook preInstall
           makeWrapper ${blxshell-unwrapped}/bin/blxshell-unwrapped "$out/bin/blxshell" \
             --set BLXSHELL_PATH ${blxshell-runtime}/share/blxshell \
+            --set-default BLXSHELL_PLUGIN_DIRS "\$HOME/.local/share/blxshell/plugins" \
             --set QML_IMPORT_PATH ${blxshell-runtime}/share/blxshell/qml \
             --set LD_LIBRARY_PATH ${blxshell-runtime}/share/blxshell/qml/PluginManager \
             --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git pkgs.uv pkgs.procps ]}

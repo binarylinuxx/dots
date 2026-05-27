@@ -59,6 +59,7 @@ autocommit
 
 # Quickshell generated
 .config/quickshell/Colors.json
+.config/quickshell/plugins/
 
 # GTK generated
 .config/gtk-3.0/colors.css

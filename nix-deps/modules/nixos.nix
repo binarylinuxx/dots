@@ -58,7 +58,6 @@ in {
     ];
 
     environment.systemPackages = [ cfg.package ];
-    programs.hyprland.enable = lib.mkDefault true;
     security.polkit.enable = lib.mkDefault true;
   };
 }

@@ -51,12 +51,14 @@ in {
           mesa
           pam
           pipewire
+          polkit
           qt6.qtbase
           qt6.qtdeclarative
           qt6.qtsvg
           qt6.qtshadertools
           qt6.qtwayland
           spirv-tools
+          sysprof
           wayland
           wayland-protocols
         ];
@@ -157,7 +159,7 @@ in {
           install -Dm755 build/greeter-launcher "$out/libexec/greeter-launcher"
           makeWrapper "$out/libexec/greeter-launcher" "$out/bin/greeter-launcher" \
             --set BLXSHELL_PATH ${blxshell-runtime}/share/blxshell \
-            --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git pkgs.hyprland pkgs.coreutils ]}
+            --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git pkgs.coreutils ]}
           runHook postInstall
         '';
       };
@@ -184,7 +186,7 @@ in {
 
       blxshell-bundle = pkgs.symlinkJoin {
         name = "blxshell-bundle";
-        paths = [ blxshell-cli blxshell-greeter-launcher blxshell-plugin-manager blxshell-runtime fonts.blxshell-custom-fonts scripts.blxshell-scripts ];
+        paths = [ blxshell-cli blxshell-plugin-manager blxshell-runtime fonts.blxshell-custom-fonts scripts.blxshell-scripts ];
         meta.mainProgram = "blxshell";
       };
     in rec {
@@ -192,9 +194,7 @@ in {
       inherit (fonts) blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts;
       inherit (scripts) blxshell-scripts randwall wlshot;
 
-      blxshell-audio = pkgs.symlinkJoin { name = "blxshell-audio"; paths = with pkgs; [ cava pavucontrol-qt pipewire playerctl wireplumber ]; };
-      blxshell-hyprland = pkgs.symlinkJoin { name = "blxshell-hyprland"; paths = with pkgs; [ hyprland hyprsunset wl-clipboard xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-hyprland kdePackages.xdg-desktop-portal-kde ]; };
-      blxshell-shell = pkgs.symlinkJoin { name = "blxshell-shell"; paths = with pkgs; [ fish ghostty starship uv python3 python3Packages.pillow fonts.blxshell-custom-fonts ]; };
+      blxshell-shell = pkgs.symlinkJoin { name = "blxshell-shell"; paths = with pkgs; [ uv python3 python3Packages.pillow fonts.blxshell-custom-fonts ]; };
       quickshell = blxshell-quickshell-git;
       blxshell = pkgs.symlinkJoin {
         name = "blxshell";
@@ -207,7 +207,7 @@ in {
   overlays.default = final: prev:
     let packages = self.packages.${prev.system};
     in {
-      inherit (packages) blxshell-audio blxshell-bundle blxshell-cli blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts blxshell-greeter-launcher blxshell-hyprland blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-scripts blxshell-shell blxshell-unwrapped quickshell randwall wlshot;
+      inherit (packages) blxshell-bundle blxshell-cli blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-scripts blxshell-shell blxshell-unwrapped quickshell randwall wlshot;
       blxshell = packages.default;
     };
 
@@ -218,7 +218,7 @@ in {
     let pkgs = nixpkgs.legacyPackages.${system};
     in {
       default = pkgs.mkShell {
-        packages = with pkgs; [ brightnessctl cava cmake ghostty grim hyprland hyprsunset ninja pavucontrol-qt pipewire playerctl python3 python3Packages.pillow qt6.qtbase qt6.qtdeclarative qt6.qtshadertools slurp uv wayland wayland-protocols wf-recorder wireplumber wl-clipboard ];
+        packages = with pkgs; [ cmake ninja python3 python3Packages.pillow qt6.qtbase qt6.qtdeclarative qt6.qtshadertools uv ];
         BLXSHELL_PATH = "$PWD/.config/quickshell";
         QML_IMPORT_PATH = "$PWD/.config/quickshell/qml";
       };

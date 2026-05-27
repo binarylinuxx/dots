@@ -142,6 +142,8 @@ in {
             --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git pkgs.uv pkgs.procps ]}
           runHook postInstall
         '';
+
+        meta.mainProgram = "blxshell";
       };
 
       blxshell-greeter-launcher = pkgs.stdenvNoCC.mkDerivation {
@@ -180,7 +182,11 @@ in {
         '';
       };
 
-      blxshell-bundle = pkgs.symlinkJoin { name = "blxshell-bundle"; paths = [ blxshell-cli blxshell-greeter-launcher blxshell-plugin-manager blxshell-runtime fonts.blxshell-custom-fonts scripts.blxshell-scripts ]; };
+      blxshell-bundle = pkgs.symlinkJoin {
+        name = "blxshell-bundle";
+        paths = [ blxshell-cli blxshell-greeter-launcher blxshell-plugin-manager blxshell-runtime fonts.blxshell-custom-fonts scripts.blxshell-scripts ];
+        meta.mainProgram = "blxshell";
+      };
     in rec {
       inherit blxshell-bundle blxshell-cli blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-unwrapped;
       inherit (fonts) blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts;
@@ -190,7 +196,12 @@ in {
       blxshell-hyprland = pkgs.symlinkJoin { name = "blxshell-hyprland"; paths = with pkgs; [ hyprland hyprsunset wl-clipboard xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-hyprland kdePackages.xdg-desktop-portal-kde ]; };
       blxshell-shell = pkgs.symlinkJoin { name = "blxshell-shell"; paths = with pkgs; [ fish ghostty starship uv python3 python3Packages.pillow fonts.blxshell-custom-fonts ]; };
       quickshell = blxshell-quickshell-git;
-      default = pkgs.symlinkJoin { name = "blxshell"; paths = [ blxshell-bundle blxshell-quickshell-git ]; };
+      blxshell = pkgs.symlinkJoin {
+        name = "blxshell";
+        paths = [ blxshell-bundle blxshell-quickshell-git ];
+        meta.mainProgram = "blxshell";
+      };
+      default = blxshell;
     });
 
   overlays.default = final: prev:

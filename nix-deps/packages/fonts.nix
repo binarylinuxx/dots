@@ -53,9 +53,9 @@ let
   blxshell-font-material-symbols = fontPackage {
     pname = "blxshell-font-material-symbols";
     files = [
-      { name = "MaterialSymbolsOutlined.ttf"; src = fetchFont "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsOutlined%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" "sha256-SfbvQrgq1OZkOmEBQrU9eIx3T5VSY2DyR1FUJiNOqk0="; }
-      { name = "MaterialSymbolsRounded.ttf"; src = fetchFont "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" "sha256-WHkt09FnQQwUmJIoSqHnRtxka3hIcpwxVeVx2gjMbMc="; }
-      { name = "MaterialSymbolsSharp.ttf"; src = fetchFont "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsSharp%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" "sha256-DNzyNDfrXLJrvD7waEtIb1jA3E9YzYOhK4zb8+Opeyo="; }
+      { name = "MaterialSymbolsOutlined.ttf"; src = fetchFont "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsOutlined%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" "sha256-b4PAXYghIvz1F8RKiJDlKstqyKPgCOWM0RKVLZ31ya8="; }
+      { name = "MaterialSymbolsRounded.ttf"; src = fetchFont "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" "sha256-L8mYt9pEAhFK/5SHiaBQ4e5WSa27CYvtWQ0V/j0OP/0="; }
+      { name = "MaterialSymbolsSharp.ttf"; src = fetchFont "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsSharp%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" "sha256-xVilKBXX+cHyOLy84RP1Z4D9SRd4XSgPx4l3yP58lrQ="; }
     ];
     meta.description = "Google Material Symbols variable icon fonts for blxshell";
   };

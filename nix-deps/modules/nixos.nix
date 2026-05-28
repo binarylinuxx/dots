@@ -72,6 +72,9 @@ in {
       environment.sessionVariables = {
         MOZ_APP_SYSTEM_DIRS = "/run/current-system/sw/lib/mozilla";
       };
+      systemd.tmpfiles.rules = [
+        "L+ /usr/lib/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json - - - - /run/current-system/sw/lib/mozilla/native-messaging-hosts/org.kde.plasma.browser_integration.json"
+      ];
     })
   ];
 }

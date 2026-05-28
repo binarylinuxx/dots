@@ -46,8 +46,27 @@ for better integration of mediaplayer with browsers you would like to install th
 
 ## NixOS
 
-for all MPRIS/media player functionality, import the blxshell module and enable the service:
+import the flake and add packages:
+```nix
+# flake.nix
+blxshell.url = "github:binarylinuxx/dots";
 
+# configuration.nix
+environment.systemPackages = with pkgs; [
+  inputs.blxshell.packages.${pkgs.system}.blxshell
+  inputs.blxshell.packages.${pkgs.system}.blxshell-custom-fonts
+];
+```
+
+the Nix packages provide the shell runtime, CLI wrapper, and fonts — but you still need to copy the `.config/quickshell` directory from the dots repo to your `$HOME`:
+```sh
+git clone https://github.com/binarylinuxx/dots ~/dots
+cp -r ~/dots/.config/quickshell ~/.config/quickshell
+```
+
+the packages act as the shell/wrapper layer on top of the Hyprland.
+
+for all MPRIS/media player correct functionality, add the flake input and import the module:
 ```nix
 # flake.nix inputs
 blxshell.url = "github:binarylinuxx/dots";
@@ -58,7 +77,7 @@ imports = [ inputs.blxshell.nixosModules.default ];
 services.blxshellMprisFixForZen.enable = true;
 ```
 
-this single option:
+this single option(which you can actually do urself):
 - enables `services.playerctld` (required for media player tracking)
 - installs `kdePackages.plasma-browser-integration` (native host for browser metadata)
 - sets `MOZ_APP_SYSTEM_DIRS` so Firefox/Zen finds the native messaging manifest

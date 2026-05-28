@@ -2,6 +2,7 @@ self: { config, lib, pkgs, ... }:
 
 let
   cfg = config.services.blxshellGreeter;
+  mprisCfg = config.services.blxshellMprisFixForZen;
 in {
   options.services.blxshellGreeter = {
     enable = lib.mkEnableOption "blxshell greeter";
@@ -59,5 +60,17 @@ in {
 
     environment.systemPackages = [ cfg.package ];
     security.polkit.enable = lib.mkDefault true;
+  };
+
+  options.services.blxshellMprisFixForZen = {
+    enable = lib.mkEnableOption "blxshell MPRIS fix for Zen Browser";
+  };
+
+  config = lib.mkIf mprisCfg.enable {
+    environment.systemPackages = [ pkgs.kdePackages.plasma-browser-integration ];
+    services.playerctld.enable = true;
+    environment.sessionVariables = {
+      MOZ_APP_SYSTEM_DIRS = "/run/current-system/sw/lib/mozilla";
+    };
   };
 }

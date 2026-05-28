@@ -44,6 +44,27 @@ for better integration of mediaplayer with browsers you would like to install th
 - Chrome/Chromium: https://chromewebstore.google.com/detail/plasma-integration/cimiefiiaegbelhefglklhhakcgmhkai?hl=en&pli=1
 - Firefox: https://addons.mozilla.org/en-US/firefox/addon/plasma-integration/
 
+## NixOS
+
+for all MPRIS/media player functionality, import the blxshell module and enable the service:
+
+```nix
+# flake.nix inputs
+blxshell.url = "github:binarylinuxx/dots";
+
+# configuration.nix
+imports = [ inputs.blxshell.nixosModules.default ];
+
+services.blxshellMprisFixForZen.enable = true;
+```
+
+this single option:
+- enables `services.playerctld` (required for media player tracking)
+- installs `kdePackages.plasma-browser-integration` (native host for browser metadata)
+- sets `MOZ_APP_SYSTEM_DIRS` so Firefox/Zen finds the native messaging manifest
+
+restart the browser after rebuilding.
+
 ## Shell Components
 
 | Component | Description |

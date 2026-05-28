@@ -163,7 +163,7 @@ in {
               exec qs -p "$SHELL_QML" ipc call shell reload
               ;;
             restart)
-              pkill -x qs 2>/dev/null || true
+              pkill -x .quickshell-wra 2>/dev/null || true
               sleep 0.3
               exec qs -p "$SHELL_QML"
               ;;

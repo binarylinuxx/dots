@@ -50,10 +50,10 @@ Singleton {
     readonly property string mediaUrl: playerctlUrl || mprisUrl
     readonly property string rawArtUrl: playerctlArtUrl || trackArtUrl
     readonly property bool rawArtIsRemote: rawArtUrl.indexOf("http://") === 0 || rawArtUrl.indexOf("https://") === 0
-    readonly property string artFilePath: rawArtIsRemote ? ("/tmp/blxshell-mpris-art-" + Qt.md5(rawArtUrl) + ".jpg") : ""
+    readonly property string artFilePath: rawArtUrl ? "/tmp/blxshell-mpris-art-" + Qt.md5(rawArtUrl) + ".jpg" : ""
     readonly property string downloadedArtSource: artDownloaded && artDownloadTargetUrl === rawArtUrl && artFilePath ? normalizeImageSource(artFilePath) : ""
     readonly property string playerIconSource: activePlayer && activePlayer.desktopEntry ? ("image://icon/" + activePlayer.desktopEntry) : ""
-    readonly property string realArtUrl: rawArtIsRemote ? downloadedArtSource : normalizeImageSource(rawArtUrl)
+    readonly property string realArtUrl: downloadedArtSource || normalizeImageSource(rawArtUrl)
     readonly property string artUrl: realArtUrl || playerIconSource
     readonly property bool hasArt: realArtUrl !== ""
     readonly property string playerctlName: activePlayer && activePlayer.dbusName
@@ -147,13 +147,6 @@ Singleton {
             return
         }
 
-        if (!rawArtIsRemote) {
-            artDownloaded = true
-            artDownloadTargetUrl = rawArtUrl
-            updateTrack()
-            return
-        }
-
         if (artDownloaded && artDownloadTargetUrl === rawArtUrl)
             return
         if (artDownloadProcess.running)
@@ -163,8 +156,14 @@ Singleton {
         artWidth = 0
         artHeight = 0
         artDownloadTargetUrl = rawArtUrl
-        // Download to a stable md5 cache path, then run `file` and only expose the image after dimensions parse.
-        artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + shellQuote(artFilePath) + "); [ -f " + shellQuote(artFilePath) + " ] || curl -4 -sSL " + shellQuote(rawArtUrl) + " -o " + shellQuote(artFilePath) + "; file " + shellQuote(artFilePath)]
+
+        const cachePath = shellQuote(artFilePath)
+        if (!rawArtIsRemote) {
+            const src = shellQuote(rawArtUrl.replace(/^file:\/\//, ""))
+            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); cp " + src + " " + cachePath + "; file " + cachePath]
+        } else {
+            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); [ -f " + cachePath + " ] || curl -4 -sSL " + shellQuote(rawArtUrl) + " -o " + cachePath + "; file " + cachePath]
+        }
         artDownloadProcess.running = true
     }
 

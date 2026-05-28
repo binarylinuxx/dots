@@ -2,22 +2,10 @@ self: { config, lib, pkgs, ... }:
 
 let
   cfg = config.programs.blxshell;
-  package = cfg.package;
-  colGenPkg = self.packages.${pkgs.system}.blxshell-col-gen;
-  homeDir = config.home.homeDirectory;
-  userShellDir = "${homeDir}/.local/blxshell";
   pluginEnv = lib.concatStringsSep ":" (
     (map (plugin: "${plugin}/share/blxshell/plugins") cfg.plugins)
-    ++ [ "${homeDir}/.local/share/blxshell/plugins" ]
+    ++ [ "${config.home.homeDirectory}/.local/share/blxshell/plugins" ]
   );
-
-  # Files generated at runtime by col_gen or settings — must survive rebuilds
-  userFiles = [
-    "Colors.json"
-    "config.json"
-    "lockscreen/Colors.json"
-    "menu/Colors.json"
-  ];
 in {
   options.programs.blxshell = {
     enable = lib.mkEnableOption "blxshell";
@@ -44,7 +32,7 @@ in {
   config = lib.mkIf cfg.enable {
     fonts.fontconfig.enable = true;
 
-    home.packages = [ package colGenPkg ] ++ lib.optionals cfg.installDependencies (with pkgs; [
+    home.packages = [ cfg.package ] ++ lib.optionals cfg.installDependencies (with pkgs; [
       cmake
       ninja
       qt6.qtbase
@@ -52,49 +40,7 @@ in {
       qt6.qtshadertools
     ]);
 
-    home.activation.installBlxshellRuntime = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      runtimeSrc="${package}/share/blxshell"
-      runtimeDst="${userShellDir}"
-
-      if [ ! -d "$runtimeDst" ]; then
-        # First install — copy everything including default configs/colors
-        mkdir -p "$runtimeDst"
-        cp -r "$runtimeSrc/." "$runtimeDst/"
-        chmod -R u+w "$runtimeDst"
-        rm -rf "$runtimeDst/.obsidian" "$runtimeDst/.ruff_cache" "$runtimeDst/col_gen/.venv" "$runtimeDst/col_gen/__pycache__"
-        find "$runtimeDst" -name '__pycache__' -type d -prune -exec rm -rf {} +
-      else
-        # Rebuild — preserve user-generated files, update everything else
-        preserveDir=$(mktemp -d)
-        for f in ${lib.concatStringsSep " " userFiles}; do
-          srcFile="$runtimeDst/$f"
-          if [ -f "$srcFile" ]; then
-            mkdir -p "$(dirname "$preserveDir/$f")"
-            cp "$srcFile" "$preserveDir/$f"
-          fi
-        done
-
-        rm -rf "$runtimeDst"
-        mkdir -p "$runtimeDst"
-        cp -r "$runtimeSrc/." "$runtimeDst/"
-        chmod -R u+w "$runtimeDst"
-        rm -rf "$runtimeDst/.obsidian" "$runtimeDst/.ruff_cache" "$runtimeDst/col_gen/.venv" "$runtimeDst/col_gen/__pycache__"
-        find "$runtimeDst" -name '__pycache__' -type d -prune -exec rm -rf {} +
-
-        for f in ${lib.concatStringsSep " " userFiles}; do
-          savedFile="$preserveDir/$f"
-          if [ -f "$savedFile" ]; then
-            cp "$savedFile" "$runtimeDst/$f"
-          fi
-        done
-
-        rm -rf "$preserveDir"
-      fi
-    '';
-
-    home.sessionVariables = {
-      BLXSHELL_PATH = userShellDir;
-    } // lib.optionalAttrs (cfg.plugins != [ ]) {
+    home.sessionVariables = lib.mkIf (cfg.plugins != [ ]) {
       BLXSHELL_PLUGIN_DIRS = pluginEnv;
     };
   };

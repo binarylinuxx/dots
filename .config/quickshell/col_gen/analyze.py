@@ -32,9 +32,9 @@ except ImportError:
     )
     sys.exit(1)
 
-SHELL_ROOT = Path(os.environ.get("BLXSHELL_PATH", Path(__file__).parent.parent))
-DEFAULT_OUTPUT = SHELL_ROOT / "widget_suggestions.json"
-WIDGETS_FILE = SHELL_ROOT / "widgets.json"
+XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "blxshell"
+DEFAULT_OUTPUT = XDG_CONFIG / "widget_suggestions.json"
+WIDGETS_FILE = XDG_CONFIG / "widgets.json"
 
 
 def analyze_image(image_path: str, cols: int, rows: int) -> np.ndarray:

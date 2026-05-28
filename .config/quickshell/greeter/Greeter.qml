@@ -1,3 +1,4 @@
+import QtCore
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
@@ -13,7 +14,7 @@ Rectangle {
 	// ── Colors — same FileView pattern as root shell.qml ────────────────────
 	FileView {
 		id: colorWatcher
-		path: Quickshell.shellDir + "/Colors.json"
+		path: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation).toString() + "/blxshell/Colors.json"
 		watchChanges: true
 		onFileChanged: reload()
 
@@ -72,7 +73,7 @@ Rectangle {
 
 	// ── Config ───────────────────────────────────────────────────────────────
 	FileView {
-		path: Quickshell.shellDir + "/config.json"
+		path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/config.json"
 		watchChanges: true
 		JsonAdapter {
 			id: lcfg

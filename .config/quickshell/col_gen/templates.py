@@ -8,15 +8,14 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, BaseLoader
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+XDG_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
 SHELL_ROOT = Path(os.environ.get("BLXSHELL_PATH", Path(__file__).parent.parent))
 
 # Template output mappings (template_name -> output_path)
-# Paths use ~ for home dir or $BLXSHELL_PATH for shell files
+# Paths use ~ for home dir or XDG directories for writable files
 TEMPLATE_OUTPUTS = {
     "qs_json.js": [
-        str(SHELL_ROOT / "Colors.json"),
-        str(SHELL_ROOT / "lockscreen/Colors.json"),
-        str(SHELL_ROOT / "menu/Colors.json"),
+        str(XDG_CACHE / "blxshell/Colors.json"),
     ],
     "hypr-colors.lua": ["~/.config/hypr/colors.lua"],
     "ghostty": ["~/.config/ghostty/themes/Matugen.conf"],

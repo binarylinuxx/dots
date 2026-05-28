@@ -1,3 +1,4 @@
+import QtCore
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -11,7 +12,7 @@ Rectangle {
 	// ── Config ──
 	FileView {
 		id: lockConfigWatcher
-		path: Qt.resolvedUrl("../config.json")
+		path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/config.json"
 		watchChanges: true
 		JsonAdapter {
 			id: lcfg
@@ -22,7 +23,7 @@ Rectangle {
 	// ── Colors ──
 	FileView {
 		id: lockColorWatcher
-		path: Qt.resolvedUrl("./Colors.json")
+		path: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation).toString() + "/blxshell/Colors.json"
 		watchChanges: true
 		JsonAdapter {
 			id: col

@@ -11,6 +11,10 @@ in {
       fonts = import ./packages/fonts.nix { inherit pkgs lib; };
       scripts = import ./packages/scripts.nix { inherit pkgs lib; };
 
+      pythonColGenEnv = pkgs.python314.withPackages (ps: [
+        ps.jinja2 ps.materialyoucolor ps.numpy ps.opencv-python ps.pillow
+      ]);
+
       blxshell-runtime = pkgs.stdenvNoCC.mkDerivation {
         pname = "blxshell-runtime";
         version = "0-unstable";
@@ -27,12 +31,14 @@ in {
             "$out/share/blxshell/col_gen/__pycache__"
           find "$out/share/blxshell" -name '__pycache__' -type d -prune -exec rm -rf {} +
           find "$out/share/blxshell" \( -name '*_grim.png' -o -name 'shot-*.png' \) -delete
-          # Nix-specific generate wrapper — uses blxshell-col-gen (in PATH via wrapper)
-          cat > "$out/share/blxshell/col_gen/generate" << 'EOF'
-#!/bin/bash
-cd "$(dirname "$0")"
-exec blxshell-col-gen "$@"
-EOF
+          rm -rf "$out/share/blxshell/qml/PluginManager"
+
+          printf '%s\n' '#!/bin/bash' 'exec blxshell-col-gen "$@"' \
+            > "$out/share/blxshell/col_gen/generate"
+          printf '%s\n' '#!/bin/bash' \
+            "exec ${pythonColGenEnv}/bin/python3 $out/share/blxshell/col_gen/analyze.py \"\$@\"" \
+            > "$out/share/blxshell/col_gen/analyze"
+
           runHook postInstall
         '';
       };
@@ -50,23 +56,9 @@ EOF
 
         nativeBuildInputs = with pkgs; [ cmake ninja pkg-config qt6.wrapQtAppsHook ];
         buildInputs = with pkgs; [
-          cli11
-          jemalloc
-          libdrm
-          libxcb
-          mesa
-          pam
-          pipewire
-          polkit
-          qt6.qtbase
-          qt6.qtdeclarative
-          qt6.qtsvg
-          qt6.qtshadertools
-          qt6.qtwayland
-          spirv-tools
-          sysprof
-          wayland
-          wayland-protocols
+          cli11 jemalloc libdrm libxcb mesa pam pipewire polkit
+          qt6.qtbase qt6.qtdeclarative qt6.qtsvg qt6.qtshadertools qt6.qtwayland
+          spirv-tools sysprof wayland wayland-protocols
         ];
 
         cmakeFlags = [
@@ -87,100 +79,8 @@ EOF
       };
 
       blxshell-col-gen = pkgs.writeShellScriptBin "blxshell-col-gen" ''
-        exec ${pkgs.python314.withPackages (ps: [
-          ps.jinja2 ps.materialyoucolor ps.numpy ps.opencv-python ps.pillow
-        ])}/bin/python3 "${blxshell-runtime}/share/blxshell/col_gen/main.py" "$@"
+        exec ${pythonColGenEnv}/bin/python3 "${blxshell-runtime}/share/blxshell/col_gen/main.py" "$@"
       '';
-
-      blxshell-unwrapped = pkgs.writeShellApplication {
-        name = "blxshell-unwrapped";
-        runtimeInputs = [ blxshell-quickshell-git blxshell-col-gen pkgs.playerctl pkgs.procps pkgs.pulseaudio ];
-        text = ''
-          BLXSHELL_PATH="''${BLXSHELL_PATH:-$HOME/.local/blxshell}"
-          export BLXSHELL_PATH
-
-          QML_IMPORT_PATH="$BLXSHELL_PATH/qml"
-          export QML_IMPORT_PATH
-
-          LD_LIBRARY_PATH="$BLXSHELL_PATH/qml/PluginManager''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-          export LD_LIBRARY_PATH
-
-          usage() {
-            printf '%s\n' \
-              "Usage: blxshell <command> [args]" \
-              "" \
-              "Commands:" \
-              "  start           Launch quickshell with this config" \
-              "  log             Attach to running instance log" \
-              "  reload          Trigger a soft reload of the running instance" \
-              "  restart         Restart quickshell with this config" \
-              "  theme <image>   Generate and apply a color theme from a wallpaper image" \
-              "  lock            Lock screen" \
-              "  powermenu       Toggle the powermenu" \
-              "  help            Show this message" \
-              "" \
-              "Environment:" \
-              "  BLXSHELL_PATH   Override shell root (default: ~/.local/blxshell)"
-          }
-
-          shell_qml="$BLXSHELL_PATH/shell.qml"
-
-          case "''${1:-start}" in
-            start) exec qs -p "$shell_qml" ;;
-            log) exec qs -p "$shell_qml" log ;;
-            reload) exec qs -p "$shell_qml" ipc call shell reload ;;
-            restart)
-              pkill -x qs 2>/dev/null || true
-              sleep 0.3
-              exec qs -p "$shell_qml"
-              ;;
-            theme)
-              if [[ -z "''${2:-}" ]]; then
-                echo "Usage: blxshell theme <image_path>" >&2
-                exit 1
-              fi
-              exec blxshell-col-gen image "$2"
-              ;;
-            lock) exec qs -p "$shell_qml" ipc call lockscreen lock ;;
-            powermenu) exec qs -p "$shell_qml" ipc call -- powermenu toggle ;;
-            help|--help|-h) usage ;;
-            *) exec qs -p "$shell_qml" "$@" ;;
-          esac
-        '';
-      };
-
-      blxshell-cli = pkgs.stdenvNoCC.mkDerivation {
-        pname = "blxshell-cli";
-        version = "0-unstable";
-        dontUnpack = true;
-        nativeBuildInputs = [ pkgs.makeWrapper ];
-
-        installPhase = ''
-          runHook preInstall
-          makeWrapper ${blxshell-unwrapped}/bin/blxshell-unwrapped "$out/bin/blxshell" \
-            --set-default BLXSHELL_PLUGIN_DIRS "\$HOME/.local/share/blxshell/plugins" \
-            --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git blxshell-col-gen pkgs.procps ]}
-          runHook postInstall
-        '';
-
-        meta.mainProgram = "blxshell";
-      };
-
-      blxshell-greeter-launcher = pkgs.stdenvNoCC.mkDerivation {
-        pname = "blxshell-greeter-launcher";
-        version = "0-unstable";
-        src = ../.config/quickshell/greeter-wrapper;
-        nativeBuildInputs = [ pkgs.makeWrapper ];
-
-        installPhase = ''
-          runHook preInstall
-          install -Dm755 build/greeter-launcher "$out/libexec/greeter-launcher"
-          makeWrapper "$out/libexec/greeter-launcher" "$out/bin/greeter-launcher" \
-            --set BLXSHELL_PATH ${blxshell-runtime}/share/blxshell \
-            --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git pkgs.coreutils ]}
-          runHook postInstall
-        '';
-      };
 
       blxshell-plugin-manager = pkgs.stdenv.mkDerivation {
         pname = "blxshell-plugin-manager";
@@ -202,30 +102,163 @@ EOF
         '';
       };
 
+      blxshell-greeter-launcher = pkgs.stdenvNoCC.mkDerivation {
+        pname = "blxshell-greeter-launcher";
+        version = "0-unstable";
+        src = ../.config/quickshell/greeter-wrapper;
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+
+        installPhase = ''
+          runHook preInstall
+          install -Dm755 build/greeter-launcher "$out/libexec/greeter-launcher"
+          makeWrapper "$out/libexec/greeter-launcher" "$out/bin/greeter-launcher" \
+            --set BLXSHELL_PATH ${blxshell-runtime}/share/blxshell \
+            --prefix PATH : ${lib.makeBinPath [ blxshell-quickshell-git pkgs.coreutils ]}
+          runHook postInstall
+        '';
+      };
+
+      blxshell = pkgs.writeShellApplication {
+        name = "blxshell";
+        runtimeInputs = [
+          blxshell-quickshell-git
+          blxshell-col-gen
+          pkgs.playerctl
+          pkgs.procps
+          pkgs.pulseaudio
+        ];
+
+        text = ''
+          QML_IMPORT_PATH="${blxshell-plugin-manager}/share/blxshell/qml"
+          export QML_IMPORT_PATH
+          LD_LIBRARY_PATH="${blxshell-plugin-manager}/share/blxshell/qml/PluginManager''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
+          export LD_LIBRARY_PATH
+          SHELL_QML="${blxshell-runtime}/share/blxshell/shell.qml"
+
+          usage() {
+            cat <<'USAGE'
+        Usage: blxshell <command> [args]
+
+        Commands:
+          start           Launch quickshell with blxshell config
+          log             Attach to running instance log
+          reload          Trigger a soft reload of the running instance
+          restart         Restart quickshell
+          theme <image>   Generate and apply a color theme from wallpaper
+          lock            Lock screen
+          powermenu       Toggle the powermenu
+          help            Show this message
+        USAGE
+          }
+
+          case "''${1:-start}" in
+            start|launch)
+              shift 2>/dev/null || true
+              exec qs -p "$SHELL_QML" "$@"
+              ;;
+            log)
+              exec qs -p "$SHELL_QML" log
+              ;;
+            reload)
+              exec qs -p "$SHELL_QML" ipc call shell reload
+              ;;
+            restart)
+              pkill -x qs 2>/dev/null || true
+              sleep 0.3
+              exec qs -p "$SHELL_QML"
+              ;;
+            theme)
+              if [[ $# -lt 2 ]]; then
+                echo "Usage: blxshell theme <image_path>" >&2
+                exit 1
+              fi
+              shift
+              exec blxshell-col-gen image "$@"
+              ;;
+            lock)
+              exec qs -p "$SHELL_QML" ipc call lockscreen lock
+              ;;
+            powermenu)
+              exec qs -p "$SHELL_QML" ipc call -- powermenu toggle
+              ;;
+            help|--help|-h)
+              usage
+              ;;
+            *)
+              exec qs -p "$SHELL_QML" "$@"
+              ;;
+          esac
+        '';
+
+        meta.mainProgram = "blxshell";
+      };
+
       blxshell-bundle = pkgs.symlinkJoin {
         name = "blxshell-bundle";
-        paths = [ blxshell-cli blxshell-col-gen blxshell-plugin-manager blxshell-runtime fonts.blxshell-custom-fonts scripts.blxshell-scripts ];
+        paths = [
+          blxshell
+          blxshell-col-gen
+          blxshell-plugin-manager
+          blxshell-runtime
+          fonts.blxshell-custom-fonts
+          scripts.blxshell-scripts
+        ];
         meta.mainProgram = "blxshell";
       };
     in rec {
-      inherit blxshell-bundle blxshell-cli blxshell-col-gen blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-unwrapped;
-      inherit (fonts) blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts;
-      inherit (scripts) blxshell-scripts randwall wlshot;
+      inherit
+        blxshell
+        blxshell-bundle
+        blxshell-col-gen
+        blxshell-greeter-launcher
+        blxshell-plugin-manager
+        blxshell-quickshell-git
+        blxshell-runtime;
+      inherit (fonts)
+        blxshell-custom-fonts
+        blxshell-font-bitcount
+        blxshell-font-googlesans
+        blxshell-font-material-symbols
+        blxshell-font-readex-pro
+        blxshell-font-rubik
+        blxshell-font-space-grotesk
+        blxshell-fonts;
+      inherit (scripts)
+        blxshell-scripts
+        randwall
+        wlshot;
 
-      blxshell-shell = pkgs.symlinkJoin { name = "blxshell-shell"; paths = with pkgs; [ uv python3 python3Packages.pillow fonts.blxshell-custom-fonts ]; };
-      quickshell = blxshell-quickshell-git;
-      blxshell = pkgs.symlinkJoin {
-        name = "blxshell";
-        paths = [ blxshell-bundle blxshell-quickshell-git ];
-        meta.mainProgram = "blxshell";
+      blxshell-shell = pkgs.symlinkJoin {
+        name = "blxshell-shell";
+        paths = with pkgs; [ uv python3 python3Packages.pillow fonts.blxshell-custom-fonts ];
       };
+      quickshell = blxshell-quickshell-git;
       default = blxshell;
     });
 
   overlays.default = final: prev:
     let packages = self.packages.${prev.system};
     in {
-      inherit (packages) blxshell-bundle blxshell-cli blxshell-col-gen blxshell-custom-fonts blxshell-font-bitcount blxshell-font-googlesans blxshell-font-material-symbols blxshell-font-readex-pro blxshell-font-rubik blxshell-font-space-grotesk blxshell-fonts blxshell-greeter-launcher blxshell-plugin-manager blxshell-quickshell-git blxshell-runtime blxshell-scripts blxshell-shell blxshell-unwrapped quickshell randwall wlshot;
+      inherit (packages)
+        blxshell-bundle
+        blxshell-col-gen
+        blxshell-custom-fonts
+        blxshell-font-bitcount
+        blxshell-font-googlesans
+        blxshell-font-material-symbols
+        blxshell-font-readex-pro
+        blxshell-font-rubik
+        blxshell-font-space-grotesk
+        blxshell-fonts
+        blxshell-greeter-launcher
+        blxshell-plugin-manager
+        blxshell-quickshell-git
+        blxshell-runtime
+        blxshell-scripts
+        blxshell-shell
+        quickshell
+        randwall
+        wlshot;
       blxshell = packages.default;
     };
 
@@ -237,7 +270,6 @@ EOF
     in {
       default = pkgs.mkShell {
         packages = with pkgs; [ cmake ninja python3 python3Packages.pillow qt6.qtbase qt6.qtdeclarative qt6.qtshadertools uv ];
-        BLXSHELL_PATH = "$PWD/.config/quickshell";
         QML_IMPORT_PATH = "$PWD/.config/quickshell/qml";
       };
     });

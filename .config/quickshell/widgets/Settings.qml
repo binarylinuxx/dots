@@ -1,3 +1,4 @@
+import QtCore
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
@@ -66,7 +67,7 @@ FloatingWindow {
 	// Config file management
 	FileView {
 		id: configFile
-		path: Qt.resolvedUrl("../config.json")
+		path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/config.json"
 		watchChanges: true
 		onFileChanged: reload()
 

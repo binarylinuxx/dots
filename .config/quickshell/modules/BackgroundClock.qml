@@ -1,3 +1,4 @@
+import QtCore
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
@@ -307,7 +308,7 @@ PanelWindow {
     }
 
     // ── Widget persistence via widgets.json ──
-    property string widgetFilePath: Qt.resolvedUrl("../widgets.json").toString().replace("file://", "")
+    property string widgetFilePath: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/widgets.json"
 
     // Default widgets used when no file exists
     property var defaultWidgets: [
@@ -358,7 +359,7 @@ PanelWindow {
     // Watch widgets.json for external changes
     FileView {
         id: widgetsFileWatcher
-        path: Qt.resolvedUrl("../widgets.json")
+        path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/widgets.json"
         watchChanges: true
         onFileChanged: {
             if (!editMode) {

@@ -3,5 +3,4 @@
 # Needed because Process in QML doesn't set CWD properly
 
 cd "$(dirname "$0")"
-export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 exec uv run python analyze.py "$@"

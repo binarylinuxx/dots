@@ -1,4 +1,3 @@
-import QtCore
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -35,7 +34,7 @@ PanelWindow {
 
 	FileView {
 		id: configFile
-		path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/config.json"
+		path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/blxshell/config.json"
 		watchChanges: false
 		adapter: JsonAdapter {
 			id: setupCfg

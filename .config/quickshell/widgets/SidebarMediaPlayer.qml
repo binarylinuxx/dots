@@ -1,4 +1,3 @@
-import QtCore
 import qs.services
 import QtQuick
 import QtQuick.Effects
@@ -17,7 +16,7 @@ Item {
 
     Process {
         id: cavaProcess
-        command: ["cava", "-p", StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/cava_media.conf"]
+        command: ["cava", "-p", (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/blxshell/cava_media.conf"]
         running: true
         stdout: SplitParser {
             onRead: data => {

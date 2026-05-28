@@ -1,4 +1,3 @@
-import QtCore
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -20,7 +19,7 @@ ShellRoot {
 	// Config file for settings
 	FileView {
 		id: configWatcher
-		path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/config.json"
+		path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/blxshell/config.json"
 		watchChanges: true
 		onFileChanged: reload()
 
@@ -113,7 +112,7 @@ ShellRoot {
 	// Using matugen generated colors
 	FileView {
 	    id: colorWatcher
-	    path: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation).toString() + "/blxshell/Colors.json"
+	    path: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/blxshell/Colors.json"
 	    watchChanges: true
 	    onFileChanged: reload()
 

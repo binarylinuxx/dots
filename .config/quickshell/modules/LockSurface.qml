@@ -1,4 +1,3 @@
-import QtCore
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
@@ -15,7 +14,7 @@ Rectangle {
 	// ── Config ───────────────────────────────────────────────────────────────
 	FileView {
 		id: lockConfig
-		path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/config.json"
+		path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/blxshell/config.json"
 		watchChanges: true
 		JsonAdapter {
 			id: lcfg

@@ -1,4 +1,3 @@
-import QtCore
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
@@ -67,7 +66,7 @@ FloatingWindow {
 	// Config file management
 	FileView {
 		id: configFile
-		path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/config.json"
+		path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/blxshell/config.json"
 		watchChanges: true
 		onFileChanged: reload()
 

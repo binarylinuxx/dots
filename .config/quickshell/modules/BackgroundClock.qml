@@ -1,4 +1,3 @@
-import QtCore
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
@@ -308,7 +307,7 @@ PanelWindow {
     }
 
     // ── Widget persistence via widgets.json ──
-    property string widgetFilePath: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/widgets.json"
+    property string widgetFilePath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/blxshell/widgets.json"
 
     // Default widgets used when no file exists
     property var defaultWidgets: [
@@ -359,7 +358,7 @@ PanelWindow {
     // Watch widgets.json for external changes
     FileView {
         id: widgetsFileWatcher
-        path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation).toString() + "/blxshell/widgets.json"
+        path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/blxshell/widgets.json"
         watchChanges: true
         onFileChanged: {
             if (!editMode) {

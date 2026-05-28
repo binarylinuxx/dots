@@ -1,6 +1,5 @@
 pragma Singleton
 
-import QtCore
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -11,7 +10,7 @@ Singleton {
     // List of reminder objects: { id, title, date (YYYY-MM-DD), time (HH:MM), fired }
     property var reminders: []
 
-    readonly property string filePath: StandardPaths.writableLocation(StandardPaths.GenericDataLocation).toString() + "/blxshell/reminders.json"
+    readonly property string filePath: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/blxshell/reminders.json"
 
     // ── Load ──
     FileView {

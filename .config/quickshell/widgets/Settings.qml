@@ -43,6 +43,8 @@ FloatingWindow {
 		{ name: "Custom", format: "", id: "custom" }
 	]
 
+	property var removedTypes: []
+
 	property var animationSpeeds: [
 		{ name: "Disabled", value: "disabled", multiplier: 0 },
 		{ name: "Fast", value: "fast", multiplier: 0.5 },

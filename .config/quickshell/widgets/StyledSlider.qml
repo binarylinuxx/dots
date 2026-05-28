@@ -132,11 +132,11 @@ Item {
             hoverEnabled: true
             cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
-            onPressed: {
+            onPressed: function(mouse) {
                 userInteractionStarted()
                 updateFromPosition(mouse.x)
             }
-            onPositionChanged: {
+            onPositionChanged: function(mouse) {
                 if (pressed) updateFromPosition(mouse.x)
             }
             onReleased: {

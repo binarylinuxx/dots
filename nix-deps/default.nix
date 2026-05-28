@@ -94,7 +94,7 @@ EOF
 
       blxshell-unwrapped = pkgs.writeShellApplication {
         name = "blxshell-unwrapped";
-        runtimeInputs = [ blxshell-quickshell-git blxshell-col-gen pkgs.procps ];
+        runtimeInputs = [ blxshell-quickshell-git blxshell-col-gen pkgs.playerctl pkgs.procps pkgs.pulseaudio ];
         text = ''
           BLXSHELL_PATH="''${BLXSHELL_PATH:-$HOME/.local/blxshell}"
           export BLXSHELL_PATH

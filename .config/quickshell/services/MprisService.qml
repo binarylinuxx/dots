@@ -54,7 +54,8 @@ Singleton {
     readonly property string artFilePath: rawArtUrl ? "/tmp/blxshell-mpris-art-" + Qt.md5(rawArtUrl) + ".jpg" : ""
     readonly property string downloadedArtSource: artDownloaded && artDownloadTargetUrl === rawArtUrl && artFilePath ? normalizeImageSource(artFilePath) : ""
     readonly property string playerIconSource: activePlayer && activePlayer.desktopEntry ? ("image://icon/" + activePlayer.desktopEntry) : ""
-    readonly property string realArtUrl: displayedArtSource
+    readonly property string localArtSource: rawArtUrl && !rawArtIsRemote ? normalizeImageSource(rawArtUrl) : ""
+    readonly property string realArtUrl: localArtSource || displayedArtSource
     readonly property string artUrl: realArtUrl || playerIconSource
     readonly property bool hasArt: realArtUrl !== ""
     readonly property string playerctlName: activePlayer && activePlayer.dbusName
@@ -149,6 +150,14 @@ Singleton {
             return
         }
 
+        if (!rawArtIsRemote) {
+            artDownloaded = true
+            artDownloadTargetUrl = rawArtUrl
+            displayedArtSource = ""
+            updateTrack()
+            return
+        }
+
         if (artDownloaded && artDownloadTargetUrl === rawArtUrl)
             return
         if (artDownloadProcess.running)
@@ -160,12 +169,7 @@ Singleton {
         artDownloadTargetUrl = rawArtUrl
 
         const cachePath = shellQuote(artFilePath)
-        if (!rawArtIsRemote) {
-            const src = shellQuote(rawArtUrl.replace(/^file:\/\//, ""))
-            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); cp " + src + " " + cachePath + " && test -s " + cachePath + " && printf '1x1'"]
-        } else {
-            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); [ -s " + cachePath + " ] || curl -4 -fLsS " + shellQuote(rawArtUrl) + " -o " + cachePath + "; test -s " + cachePath + " && printf '1x1'"]
-        }
+        artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); [ -s " + cachePath + " ] || curl -4 -fLsS " + shellQuote(rawArtUrl) + " -o " + cachePath + "; test -s " + cachePath + " && printf '1x1'"]
         artDownloadProcess.running = true
     }
 

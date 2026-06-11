@@ -162,9 +162,9 @@ Singleton {
         const cachePath = shellQuote(artFilePath)
         if (!rawArtIsRemote) {
             const src = shellQuote(rawArtUrl.replace(/^file:\/\//, ""))
-            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); cp " + src + " " + cachePath + "; file " + cachePath]
+            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); cp " + src + " " + cachePath + " && test -s " + cachePath + " && printf '1x1'"]
         } else {
-            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); [ -f " + cachePath + " ] || curl -4 -sSL " + shellQuote(rawArtUrl) + " -o " + cachePath + "; file " + cachePath]
+            artDownloadProcess.command = ["bash", "-c", "mkdir -p $(dirname " + cachePath + "); [ -s " + cachePath + " ] || curl -4 -fLsS " + shellQuote(rawArtUrl) + " -o " + cachePath + "; test -s " + cachePath + " && printf '1x1'"]
         }
         artDownloadProcess.running = true
     }

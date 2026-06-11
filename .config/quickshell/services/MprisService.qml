@@ -41,9 +41,9 @@ Singleton {
     readonly property real effectiveLength: activePlayer && activePlayer.lengthSupported && activePlayer.length > 0
         ? activePlayer.length
         : playerctlFallbackLength
-    readonly property real effectivePosition: playerctlFallbackPosition > 0
-        ? playerctlFallbackPosition
-        : (activePlayer && activePlayer.positionSupported && activePlayer.position > 0 ? activePlayer.position : 0)
+    readonly property real effectivePosition: activePlayer && activePlayer.positionSupported && activePlayer.position > 0
+        ? activePlayer.position
+        : playerctlFallbackPosition
     readonly property bool hasProgressTrack: activePlayer && effectiveLength > 0
     readonly property bool canSeekTrack: hasProgressTrack && activePlayer.canSeek
 
@@ -231,6 +231,7 @@ Singleton {
             return
 
         pendingSeekPosition = Math.floor(effectiveLength * Math.max(0, Math.min(1, progress)))
+        playerctlFallbackPosition = pendingSeekPosition
         if (canSeekTrack) {
             activePlayer.position = pendingSeekPosition
             return
@@ -242,7 +243,6 @@ Singleton {
             ? ["playerctl", "-p", preferredPlayerctlName, "position", pendingSeekPosition.toString()]
             : ["playerctl", "position", pendingSeekPosition.toString()]
         playerctlSeekProcess.running = true
-        playerctlFallbackPosition = pendingSeekPosition
     }
 
     function togglePlaying() {

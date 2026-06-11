@@ -11,7 +11,8 @@ Singleton {
 
     property MprisPlayer trackedPlayer: null
     readonly property list<MprisPlayer> players: filterDuplicatePlayers(Mpris.players.values.filter(player => isRealPlayer(player)))
-    readonly property MprisPlayer activePlayer: trackedPlayer && players.indexOf(trackedPlayer) !== -1 ? trackedPlayer : (players[0] || null)
+    readonly property MprisPlayer plasmaPlayer: Mpris.players.values.find(p => p.dbusName && p.dbusName.startsWith("org.mpris.MediaPlayer2.plasma-browser-integration")) || null
+    readonly property MprisPlayer activePlayer: plasmaPlayer || (trackedPlayer && players.indexOf(trackedPlayer) !== -1 ? trackedPlayer : (players[0] || null))
 
     property real playerctlFallbackPosition: 0
     property real pendingSeekPosition: 0
@@ -417,5 +418,17 @@ Singleton {
         function playPause(): void { root.togglePlaying() }
         function previous(): void { root.previous() }
         function next(): void { root.next() }
+        function debugState(): string {
+            return JSON.stringify({
+                activePlayer: root.activePlayer ? root.activePlayer.dbusName : "",
+                preferredPlayerctlName: root.preferredPlayerctlName,
+                trackArtUrl: root.trackArtUrl,
+                playerctlArtUrl: root.playerctlArtUrl,
+                rawArtUrl: root.rawArtUrl,
+                realArtUrl: root.realArtUrl,
+                artUrl: root.artUrl,
+                hasArt: root.hasArt
+            })
+        }
     }
 }

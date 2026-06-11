@@ -80,27 +80,72 @@ Item {
     readonly property color textColor: {
         const c = dominantColor.color
         const lum = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
-        return lum > 0.45 ? "#111111" : "#ffffff"
+        return lum > 0.45 ? Qt.rgba(0, 0, 0, 0.92) : Qt.rgba(1, 1, 1, 0.95)
     }
     readonly property color subTextColor: {
         const c = dominantColor.color
         const lum = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
-        return lum > 0.45 ? "#3f3f3f" : "#e8e8e8"
+        return lum > 0.45 ? Qt.rgba(0, 0, 0, 0.60) : Qt.rgba(1, 1, 1, 0.62)
     }
 
     // ── Card ──
     ClippingRectangle {
         anchors.fill: parent
-        radius: 28
-        color: root.hasArt ? dominantColor.color : col.surfaceContainerLow
+        radius: 20
+        color: root.hasArt ? dominantColor.color : col.surfaceContainer
+        //clip: true
         Behavior on color { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
 
+        // Full-bleed blurred art background
+        Image {
+            id: artBg
+            anchors.fill: parent
+            source: root.displayArtUrl
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            cache: false
+            visible: false
+            opacity: 0
+
+            onStatusChanged: if (status === Image.Ready) artFadeIn.start()
+            onSourceChanged: opacity = 0
+
+            NumberAnimation {
+                id: artFadeIn
+                target: artBg
+                property: "opacity"
+                to: 0.38
+                duration: 700
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        MultiEffect {
+            anchors.fill: parent
+            source: artBg
+            visible: root.hasArt
+            opacity: artBg.opacity
+            blurEnabled: true
+            blur: 0.72
+            brightness: -0.08
+            saturation: 1.18
+            autoPaddingEnabled: false
+        }
+
+        // Gradient scrim for readability
         Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: 8
-            color: root.hasArt ? root.textColor : col.primary
+            anchors.fill: parent
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: Qt.rgba(
+                    dominantColor.color.r,
+                    dominantColor.color.g,
+                    dominantColor.color.b, 0.78) }
+                GradientStop { position: 1.0; color: Qt.rgba(
+                    dominantColor.color.r,
+                    dominantColor.color.g,
+                    dominantColor.color.b, 0.32) }
+            }
         }
 
         // Cava visualizer overlay at bottom
@@ -110,6 +155,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             height: 28
+            opacity: 0.18
 
             onPaint: {
                 const ctx = getContext("2d")
@@ -118,7 +164,7 @@ Item {
                 if (!bars || bars.length === 0) return
                 const n = bars.length
                 const c = root.hasArt ? root.textColor : col.onSurface
-                ctx.fillStyle = c
+                ctx.fillStyle = Qt.rgba(c.r, c.g, c.b, 1)
 
                 // Build points: evenly spaced x, y = height - bar amplitude
                 const pts = []
@@ -153,7 +199,7 @@ Item {
                 Layout.preferredWidth: 72
                 Layout.preferredHeight: 72
                 radius: 12
-                color: col.surfaceContainerHighest
+                color: Qt.rgba(0, 0, 0, 0.25)
                 clip: true
 
                 Image {
@@ -293,7 +339,7 @@ Item {
                         Rectangle {
                             anchors.fill: parent
                             radius: height / 2
-                            color: col.surfaceContainerHighest
+                            color: Qt.rgba(0, 0, 0, 0.20)
 
                             // Flat unplayed section
                             Rectangle {
@@ -302,6 +348,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 height: 2; radius: 1
                                 color: root.hasArt ? root.textColor : col.onSurfaceVariant
+                                opacity: 0.4
                             }
 
                             // Sine wave played section
@@ -318,7 +365,9 @@ Item {
                                         const ctx = getContext("2d")
                                         ctx.clearRect(0, 0, width, height)
                                         ctx.lineWidth = 2.2
-                                        ctx.strokeStyle = root.hasArt ? root.textColor : col.primary
+                                        ctx.strokeStyle = root.hasArt
+                                            ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.9)
+                                            : col.primary
                                         ctx.beginPath()
                                         for (let x = 0; x <= width; x += 2) {
                                             const window = Math.sin(Math.PI * x / width)
@@ -342,7 +391,9 @@ Item {
                                 y: parent.height / 2 - height / 2
                                 color: root.hasArt ? root.textColor : col.primary
                                 border.width: 2
-                                border.color: root.hasArt ? root.subTextColor : col.onPrimary
+                                border.color: root.hasArt
+                                    ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.4)
+                                    : col.onPrimary
                             }
                         }
 
@@ -376,6 +427,7 @@ Item {
                             font.family: cfg ? cfg.fontFamily : "Rubik"
                             font.pixelSize: 10
                             color: root.hasArt ? root.subTextColor : col.onSurfaceVariant
+                            opacity: 0.85
                         }
                         Item { Layout.fillWidth: true }
                         Text {
@@ -383,6 +435,7 @@ Item {
                             font.family: cfg ? cfg.fontFamily : "Rubik"
                             font.pixelSize: 10
                             color: root.hasArt ? root.subTextColor : col.onSurfaceVariant
+                            opacity: 0.85
                         }
                     }
                 }
@@ -393,9 +446,13 @@ Item {
                     Layout.preferredWidth: controlsRow.implicitWidth + 12
                     Layout.preferredHeight: 44
                     radius: 22
-                    color: col.surfaceContainerHigh
+                    color: root.hasArt
+                        ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.10)
+                        : col.surfaceContainerHigh
                     border.width: 1
-                    border.color: col.outlineVariant
+                    border.color: root.hasArt
+                        ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.14)
+                        : col.outlineVariant
 
                     RowLayout {
                         id: controlsRow
@@ -409,15 +466,15 @@ Item {
                             Layout.preferredHeight: 34
                             radius: 17
                             color: prevHover.containsMouse
-                                ? col.secondaryContainer
-                                : col.surfaceContainerHighest
+                                ? (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.24) : col.secondaryContainer)
+                                : (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.14) : col.surfaceContainerHighest)
                             visible: MprisService.canGoPrevious
                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                             MaterialSymbol {
                                 anchors.centerIn: parent
                                 icon: "skip_previous"
                                 iconSize: 19
-                                color: col.onSecondaryContainer
+                                color: root.hasArt ? root.textColor : col.onSecondaryContainer
                                 Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                             }
                             MouseArea {
@@ -434,8 +491,8 @@ Item {
                             Layout.preferredHeight: 38
                             radius: 19
                             color: playHover.containsMouse
-                                ? col.primary
-                                : col.primaryContainer
+                                ? (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.92) : col.primary)
+                                : (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.82) : col.primaryContainer)
                             visible: MprisService.canTogglePlaying
                             scale: playHover.containsMouse ? 1.04 : 1.0
                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
@@ -444,7 +501,7 @@ Item {
                                 anchors.centerIn: parent
                                 icon: root.activePlayer && root.activePlayer.isPlaying ? "pause" : "play_arrow"
                                 iconSize: 22
-                                color: playHover.containsMouse ? col.onPrimary : col.onPrimaryContainer
+                                color: root.hasArt ? dominantColor.color : col.onPrimaryContainer
                                 Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                             }
                             MouseArea {
@@ -461,15 +518,15 @@ Item {
                             Layout.preferredHeight: 34
                             radius: 17
                             color: nextHover.containsMouse
-                                ? col.secondaryContainer
-                                : col.surfaceContainerHighest
+                                ? (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.24) : col.secondaryContainer)
+                                : (root.hasArt ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.14) : col.surfaceContainerHighest)
                             visible: MprisService.canGoNext
                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                             MaterialSymbol {
                                 anchors.centerIn: parent
                                 icon: "skip_next"
                                 iconSize: 19
-                                color: col.onSecondaryContainer
+                                color: root.hasArt ? root.textColor : col.onSecondaryContainer
                                 Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                             }
                             MouseArea {

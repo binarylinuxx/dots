@@ -65,8 +65,8 @@ Scope {
             x: sidebarWindow.panelX
             y: sidebarWindow.edgeMargin
             height: sidebarWindow.height - sidebarWindow.edgeMargin * 2
-            color: col.surfaceContainerLowest
-            radius: 28
+            color: col.surface
+            radius: 20
             clip: true
 
             property int activeTab: 0
@@ -98,7 +98,7 @@ Scope {
                 Column {
                     id: mainCol
                     width: panel.width
-                    spacing: 12
+                    spacing: 0
 
                     // ═══════════════════════════════════════
                     // Header — date + time
@@ -106,42 +106,13 @@ Scope {
                     Item {
                         id: headerItem
                         width: parent.width
-                        height: 112
-
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            radius: 28
-                            color: col.primaryContainer
-                        }
-
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.rightMargin: 28
-                            anchors.topMargin: 22
-                            width: 76
-                            height: 36
-                            radius: 18
-                            color: col.tertiaryContainer
-                        }
-
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.rightMargin: 22
-                            anchors.bottomMargin: 18
-                            width: 116
-                            height: 22
-                            radius: 11
-                            color: col.secondaryContainer
-                        }
+                        height: 80
 
                         Column {
                             anchors.left: parent.left
-                            anchors.leftMargin: 32
+                            anchors.leftMargin: 20
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 2
+                            spacing: 1
 
                             Text {
                                 property var now: new Date()
@@ -151,9 +122,9 @@ Scope {
                                 }
                                 text: Qt.formatTime(now, cfg ? cfg.clockFormat : "h:mm AP")
                                 font.family: cfg ? cfg.fontFamily : "Rubik"
-                                font.pixelSize: 38
-                                font.weight: 800
-                                color: col.onPrimaryContainer
+                                font.pixelSize: 36
+                                font.weight: 300
+                                color: col.onSurface
                             }
 
                             Text {
@@ -165,8 +136,8 @@ Scope {
                                 text: Qt.formatDateTime(now, "dddd, MMMM d")
                                 font.family: cfg ? cfg.fontFamily : "Rubik"
                                 font.pixelSize: 13
-                                font.weight: 700
-                                color: col.onPrimaryContainer
+                                font.weight: 400
+                                color: col.onSurfaceVariant
                             }
                         }
                     }
@@ -177,7 +148,7 @@ Scope {
                     Item {
                         id: tilesItem
                         width: parent.width
-                         height: tilesGrid.height + 4
+                        height: tilesGrid.height + 16
 
                         Process { id: themeModeProc; command: [] }
 
@@ -246,7 +217,7 @@ Scope {
                         anchors.right: parent.right
                         anchors.leftMargin: 16
                         anchors.rightMargin: 16
-                        spacing: 10
+                        spacing: 8
 
                             // ── Network tile ──
                             Rectangle {
@@ -256,8 +227,8 @@ Scope {
                                 property int tileSpan: 1
 
                                 width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
-                                 height: 78
-                                 radius: 24
+                                height: 72
+                                radius: 20
                                 color: connected ? col.primaryContainer : col.surfaceContainer
 
                                 Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
@@ -270,9 +241,9 @@ Scope {
 
                                     // Icon circle
                                     Rectangle {
-                                         width: 42
-                                         height: 42
-                                         radius: 21
+                                        width: 40
+                                        height: 40
+                                        radius: 20
                                         color: networkTile.connected ? col.primary : col.surfaceContainerHighest
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
@@ -330,6 +301,7 @@ Scope {
                                             font.pixelSize: 12
                                             color: networkTile.connected
                                                 ? col.onPrimaryContainer : col.onSurfaceVariant
+                                            opacity: 0.8
                                             elide: Text.ElideRight
                                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
@@ -340,6 +312,7 @@ Scope {
                                         iconSize: 16
                                         icon: "chevron_right"
                                         color: networkTile.connected ? col.onPrimaryContainer : col.onSurfaceVariant
+                                        opacity: 0.7
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
                                 }
@@ -360,8 +333,8 @@ Scope {
                                 property bool active: Gstate.nightLightEnabled
                                 property int tileSpan: 1
                                 width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
-                                 height: 78
-                                 radius: 24
+                                height: 72
+                                radius: 20
                                 color: active ? col.primaryContainer : col.surfaceContainer
                                 Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
@@ -372,9 +345,9 @@ Scope {
                                     spacing: 12
 
                                     Rectangle {
-                                         width: 42
-                                         height: 42
-                                         radius: 21
+                                        width: 40
+                                        height: 40
+                                        radius: 20
                                         color: nightLightTile.active ? col.primary : col.surfaceContainerHighest
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
@@ -406,6 +379,7 @@ Scope {
                                             font.family: cfg ? cfg.fontFamily : "Rubik"
                                             font.pixelSize: 12
                                             color: nightLightTile.active ? col.onPrimaryContainer : col.onSurfaceVariant
+                                            opacity: 0.8
                                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
@@ -423,8 +397,8 @@ Scope {
                                 id: dndTile
                                 property int tileSpan: 1
                                 width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
-                                 height: 78
-                                 radius: 24
+                                height: 72
+                                radius: 20
                                 color: NotificationService.dndEnabled ? col.tertiaryContainer : col.surfaceContainer
                                 Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
@@ -435,9 +409,9 @@ Scope {
                                     spacing: 12
 
                                     Rectangle {
-                                         width: 42
-                                         height: 42
-                                         radius: 21
+                                        width: 40
+                                        height: 40
+                                        radius: 20
                                         color: NotificationService.dndEnabled ? col.tertiary : col.surfaceContainerHighest
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
@@ -473,6 +447,7 @@ Scope {
                                             font.family: cfg ? cfg.fontFamily : "Rubik"
                                             font.pixelSize: 12
                                             color: NotificationService.dndEnabled ? col.onTertiaryContainer : col.onSurfaceVariant
+                                            opacity: 0.8
                                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
@@ -491,8 +466,8 @@ Scope {
                                 property bool darkMode: (cfg ? cfg.matugenMode : "dark") === "dark"
                                 property int tileSpan: 1
                                 width: tileSpan === 2 ? tilesGrid.width : (tilesGrid.width - tilesGrid.spacing) / 2
-                                 height: 78
-                                 radius: 24
+                                height: 72
+                                radius: 20
                                 color: darkMode ? col.secondaryContainer : col.primaryContainer
                                 Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
@@ -503,9 +478,9 @@ Scope {
                                     spacing: 12
 
                                     Rectangle {
-                                         width: 42
-                                         height: 42
-                                         radius: 21
+                                        width: 40
+                                        height: 40
+                                        radius: 20
                                         color: themeModeTile.darkMode ? col.secondary : col.primary
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
@@ -537,6 +512,7 @@ Scope {
                                             font.family: cfg ? cfg.fontFamily : "Rubik"
                                             font.pixelSize: 12
                                             color: themeModeTile.darkMode ? col.onSecondaryContainer : col.onPrimaryContainer
+                                            opacity: 0.8
                                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
@@ -575,23 +551,23 @@ Scope {
                     Item {
                         id: tabBarItem
                         width: parent.width
-                         height: 62
+                        height: 56
 
                         Rectangle {
                             anchors.centerIn: parent
-                             width: parent.width - 32
-                             height: 46
-                             radius: 23
-                             color: col.surfaceContainer
+                            width: parent.width - 32
+                            height: 40
+                            radius: 20
+                            color: col.surfaceContainerHigh
 
                             Rectangle {
                                 id: tabPill
                                 x: panel.activeTab === 0 ? 4 : parent.width / 2
-                                 y: 5
-                                 width: parent.width / 2 - 4
-                                 height: parent.height - 10
-                                 radius: 18
-                                 color: col.primary
+                                y: 4
+                                width: parent.width / 2 - 4
+                                height: parent.height - 8
+                                radius: 16
+                                color: col.secondaryContainer
                                 Behavior on x {
                                     NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
                                 }
@@ -609,8 +585,8 @@ Scope {
                                         text: "Notifications"
                                         font.family: cfg ? cfg.fontFamily : "Rubik"
                                         font.pixelSize: 13
-                                         font.weight: panel.activeTab === 0 ? 800 : 500
-                                         color: panel.activeTab === 0 ? col.onPrimary : col.onSurfaceVariant
+                                        font.weight: panel.activeTab === 0 ? 600 : 400
+                                        color: panel.activeTab === 0 ? col.onSecondaryContainer : col.onSurfaceVariant
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
 
@@ -630,8 +606,8 @@ Scope {
                                         text: "Audio"
                                         font.family: cfg ? cfg.fontFamily : "Rubik"
                                         font.pixelSize: 13
-                                         font.weight: panel.activeTab === 1 ? 800 : 500
-                                         color: panel.activeTab === 1 ? col.onPrimary : col.onSurfaceVariant
+                                        font.weight: panel.activeTab === 1 ? 600 : 400
+                                        color: panel.activeTab === 1 ? col.onSecondaryContainer : col.onSurfaceVariant
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
 
@@ -668,8 +644,8 @@ Scope {
                             anchors.leftMargin: 12
                             anchors.rightMargin: 12
                             anchors.bottomMargin: 12
-                            radius: 28
-                            color: col.surfaceContainerLow
+                            radius: 20
+                            color: col.surfaceContainer
 
                             // ── Empty state ──
                             Item {
@@ -685,6 +661,7 @@ Scope {
                                         icon: "notifications_none"
                                         iconSize: 32
                                         color: col.onSurfaceVariant
+                                        opacity: 0.5
                                     }
 
                                     Text {
@@ -693,6 +670,7 @@ Scope {
                                         font.family: cfg ? cfg.fontFamily : "Rubik"
                                         font.pixelSize: 14
                                         color: col.onSurfaceVariant
+                                        opacity: 0.5
                                     }
                                 }
                             }
@@ -772,8 +750,8 @@ Scope {
                                                 anchors.rightMargin: 8
                                                 anchors.top: parent.top
                                                 height: notifCardContent.implicitHeight + 20
-                                                 radius: 20
-                                                 color: col.surfaceContainerHighest
+                                                radius: 14
+                                                color: col.surfaceContainerHigh
 
                                                 ColumnLayout {
                                                     id: notifCardContent
@@ -793,7 +771,7 @@ Scope {
                                                             width: 18
                                                             height: 18
                                                             radius: 5
-                                                             color: col.primaryContainer
+                                                            color: "transparent"
 
                                                             Image {
                                                                 anchors.fill: parent
@@ -837,6 +815,7 @@ Scope {
                                                             font.family: cfg ? cfg.fontFamily : "Rubik"
                                                             font.pixelSize: 11
                                                             color: col.onSurfaceVariant
+                                                            opacity: 0.55
                                                         }
 
                                                         // ── Dismiss button ──
@@ -848,8 +827,9 @@ Scope {
                                                                 anchors.centerIn: parent
                                                                 icon: "close"
                                                                 iconSize: 15
-                                                                color: dismissArea.containsMouse ? col.onErrorContainer : col.onSurfaceVariant
-                                                                Behavior on color { ColorAnimation { duration: 100 } }
+                                                                color: col.onSurfaceVariant
+                                                                opacity: dismissArea.containsMouse ? 0.9 : 0.45
+                                                                Behavior on opacity { NumberAnimation { duration: 100 } }
                                                             }
 
                                                             MouseArea {
@@ -933,7 +913,7 @@ Scope {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 height: 40
-                                 radius: 28
+                                radius: 20
                                 // Only bottom corners rounded to match parent clip
                                 color: col.surfaceContainerHigh
                                 visible: NotificationService.sidebarHistory.length > 0
@@ -968,7 +948,7 @@ Scope {
                                         width: clearBtnRow.implicitWidth + 16
                                         height: 26
                                         radius: 13
-                                         color: clearBtnHover.containsMouse ? col.errorContainer : col.surfaceContainerHighest
+                                        color: clearBtnHover.containsMouse ? col.errorContainer : "transparent"
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                         Row {
@@ -1013,8 +993,8 @@ Scope {
                         width: parent.width - 24
                         anchors.horizontalCenter: parent.horizontalCenter
                         height: calendarWidget.implicitHeight
-                         radius: 28
-                         color: col.surfaceContainerLow
+                        radius: 20
+                        color: col.surfaceContainer
                         clip: false
 
                         Calendar {
@@ -1062,8 +1042,8 @@ Scope {
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: parent.width - 32
-                            radius: 28
-                            color: col.surfaceContainerLow
+                            radius: 20
+                            color: col.surfaceContainer
                             height: deviceMicColumn.implicitHeight + 24
 
                             ColumnLayout {
@@ -1124,6 +1104,7 @@ Scope {
                                     Layout.fillWidth: true
                                     height: 1
                                     color: col.outlineVariant
+                                    opacity: 0.5
                                 }
 
                                 // Volume row
@@ -1249,8 +1230,8 @@ Scope {
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: parent.width - 32
                             height: Math.min(250, sourcesContent.implicitHeight + 50)
-                             radius: 28
-                             color: col.surfaceContainerLow
+                            radius: 20
+                            color: col.surfaceContainer
                             clip: true
 
                             Column {
@@ -1279,6 +1260,7 @@ Scope {
                                         font.family: cfg ? cfg.fontFamily : "Rubik"
                                         font.pixelSize: 11
                                         color: col.onSurfaceVariant
+                                        opacity: 0.8
                                     }
                                 }
 
@@ -1312,8 +1294,8 @@ Scope {
 
                                                     width: streamsColumn.width
                                                     height: visible ? streamRow.implicitHeight + 10 : 0
-                                                    radius: 18
-                                                    color: col.surfaceContainerHighest
+                                                    radius: 12
+                                                    color: col.surfaceContainerHigh
                                                     visible: routedToDefaultSink && srcNode && srcNode.audio
 
                                                     PwObjectTracker { objects: [srcNode] }
@@ -1428,6 +1410,7 @@ Scope {
                                                     font.family: cfg ? cfg.fontFamily : "Rubik"
                                                     font.pixelSize: 12
                                                     color: col.onSurfaceVariant
+                                                    opacity: 0.7
                                                 }
                                             }
                                         }
@@ -1457,7 +1440,7 @@ Scope {
                     id: wifiPageHeader
                     width: parent.width
                     height: 56
-                    color: col.surfaceContainerLowest
+                    color: "transparent"
 
                     RowLayout {
                         anchors.fill: parent
@@ -1467,8 +1450,8 @@ Scope {
 
                         // Back button
                         Rectangle {
-                            width: 40; height: 40; radius: 20
-                            color: backBtnMa.containsMouse ? col.primaryContainer : col.surfaceContainer
+                            width: 36; height: 36; radius: 18
+                            color: backBtnMa.containsMouse ? col.surfaceContainerHigh : "transparent"
                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                             MaterialSymbol {
@@ -1496,16 +1479,16 @@ Scope {
                         Text {
                             text: "Wi-Fi Networks"
                             font.family: cfg ? cfg.fontFamily : "Rubik"
-                            font.pixelSize: 18
-                            font.weight: 800
+                            font.pixelSize: 16
+                            font.weight: 600
                             color: col.onSurface
                             Layout.fillWidth: true
                         }
 
                         // Refresh button
                         Rectangle {
-                            width: 40; height: 40; radius: 20
-                            color: wifiRefreshMa.containsMouse ? col.primaryContainer : col.surfaceContainer
+                            width: 36; height: 36; radius: 18
+                            color: wifiRefreshMa.containsMouse ? col.surfaceContainerHigh : "transparent"
                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                             MaterialSymbol {
@@ -1556,7 +1539,7 @@ Scope {
                             width: parent.width
                             height: NetworkManager.connectError !== "" ? wifiErrRow.implicitHeight + 16 : 0
                             clip: true
-                            radius: 18
+                            radius: 12
                             color: col.errorContainer
                             visible: height > 0
                             Behavior on height { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
@@ -1597,8 +1580,8 @@ Scope {
                             width: parent.width
                             height: wifiPage.showPasswordField ? 48 : 0
                             clip: true
-                            radius: 18
-                            color: col.surfaceContainer
+                            radius: 14
+                            color: col.surfaceContainerHigh
                             visible: height > 0
                             Behavior on height { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
 
@@ -1620,6 +1603,7 @@ Scope {
                                         font.family: cfg ? cfg.fontFamily : "Rubik"
                                         font.pixelSize: 13
                                         color: col.onSurfaceVariant
+                                        opacity: 0.5
                                         visible: wifiPasswordField.text.length === 0
                                     }
 
@@ -1646,8 +1630,9 @@ Scope {
                                 // Confirm
                                 Rectangle {
                                     width: 30; height: 30; radius: 15
-                                    color: wifiPage.passwordInput.length >= 8 ? col.primary : col.surfaceContainerHighest
-                                    Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                                    color: col.primary
+                                    opacity: wifiPage.passwordInput.length >= 8 ? 1.0 : 0.35
+                                    Behavior on opacity { NumberAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol { anchors.centerIn: parent; icon: "arrow_forward"; iconSize: 16; color: col.onPrimary }
 
@@ -1667,7 +1652,7 @@ Scope {
                                 // Cancel
                                 Rectangle {
                                     width: 30; height: 30; radius: 15
-                                    color: cancelPwMa.containsMouse ? col.errorContainer : col.surfaceContainerHighest
+                                    color: cancelPwMa.containsMouse ? col.surfaceContainerHighest : "transparent"
                                     Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol { anchors.centerIn: parent; icon: "close"; iconSize: 15; color: col.onSurfaceVariant }
@@ -1702,6 +1687,7 @@ Scope {
                                     icon: NetworkManager.scanning ? "wifi_find" : "wifi_off"
                                     iconSize: 28
                                     color: col.onSurfaceVariant
+                                    opacity: 0.5
                                 }
 
                                 Text {
@@ -1710,6 +1696,7 @@ Scope {
                                     font.family: cfg ? cfg.fontFamily : "Rubik"
                                     font.pixelSize: 13
                                     color: col.onSurfaceVariant
+                                    opacity: 0.5
                                 }
                             }
                         }
@@ -1730,7 +1717,7 @@ Scope {
 
                                 width: parent.width
                                 height: 52
-                                radius: 20
+                                radius: 16
                                 color: {
                                     if (net_connected) return col.primaryContainer
                                     if (wifiRowHover.containsMouse) return col.surfaceContainerHigh
@@ -1779,6 +1766,7 @@ Scope {
                                             font.family: cfg ? cfg.fontFamily : "Rubik"
                                             font.pixelSize: 11
                                             color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
+                                            opacity: 0.8
                                             Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                         }
                                     }
@@ -1786,7 +1774,7 @@ Scope {
                                     MaterialSymbol {
                                         iconSize: 14; icon: "lock"
                                         color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
-                                        visible: wifiNetRow.net_secured
+                                        opacity: wifiNetRow.net_secured ? 0.7 : 0
                                     }
 
                                     Text {
@@ -1794,6 +1782,7 @@ Scope {
                                         font.family: cfg ? cfg.fontFamily : "Rubik"
                                         font.pixelSize: 11
                                         color: wifiNetRow.net_connected ? col.onPrimaryContainer : col.onSurfaceVariant
+                                        opacity: 0.6
                                         Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
                                     }
                                 }
@@ -1806,7 +1795,7 @@ Scope {
                                     anchors.right: parent.right
                                     anchors.rightMargin: 9
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: wifiDisconnectMa.containsMouse ? col.error : col.primary
+                                    color: wifiDisconnectMa.containsMouse ? col.error : "transparent"
                                     Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
 
                                     MaterialSymbol {

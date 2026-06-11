@@ -23,6 +23,7 @@ Singleton {
     property string playerctlStatus: ""
     property string artDownloadTargetUrl: ""
     property bool artDownloaded: false
+    property string displayedArtSource: ""
     property int artWidth: 0
     property int artHeight: 0
     property bool serviceReady: false
@@ -53,7 +54,7 @@ Singleton {
     readonly property string artFilePath: rawArtUrl ? "/tmp/blxshell-mpris-art-" + Qt.md5(rawArtUrl) + ".jpg" : ""
     readonly property string downloadedArtSource: artDownloaded && artDownloadTargetUrl === rawArtUrl && artFilePath ? normalizeImageSource(artFilePath) : ""
     readonly property string playerIconSource: activePlayer && activePlayer.desktopEntry ? ("image://icon/" + activePlayer.desktopEntry) : ""
-    readonly property string realArtUrl: downloadedArtSource || normalizeImageSource(rawArtUrl)
+    readonly property string realArtUrl: displayedArtSource
     readonly property string artUrl: realArtUrl || playerIconSource
     readonly property bool hasArt: realArtUrl !== ""
     readonly property string playerctlName: activePlayer && activePlayer.dbusName
@@ -141,6 +142,7 @@ Singleton {
         if (!rawArtUrl) {
             artDownloaded = false
             artDownloadTargetUrl = ""
+            displayedArtSource = ""
             artWidth = 0
             artHeight = 0
             updateTrack()
@@ -356,7 +358,13 @@ Singleton {
                 root.artDownloaded = !!match && root.artDownloadTargetUrl === root.rawArtUrl
                 root.artWidth = match ? Number(match[1]) : 0
                 root.artHeight = match ? Number(match[2]) : 0
+                if (root.artDownloaded)
+                    root.displayedArtSource = root.downloadedArtSource
+                else if (root.artDownloadTargetUrl === root.rawArtUrl)
+                    root.displayedArtSource = ""
                 root.updateTrack()
+                if (root.artDownloadTargetUrl !== root.rawArtUrl)
+                    root.downloadArtwork()
             }
         }
     }
@@ -380,17 +388,6 @@ Singleton {
         running: root.activePlayer || root.playerctlUrl !== ""
         triggeredOnStart: true
         onTriggered: root.fetchPlayerctlMetadata()
-    }
-
-    Timer {
-        interval: 1000
-        repeat: true
-        running: root.activePlayer
-        triggeredOnStart: true
-        onTriggered: {
-            root.fetchPlayerctlMetadata()
-            root.downloadArtwork()
-        }
     }
 
     Timer {

@@ -44,6 +44,7 @@ Item {
     readonly property string artUrl: MprisService.artUrl
     readonly property bool hasArt: MprisService.hasArt
     readonly property var activeTrack: MprisService.activeTrack
+    readonly property string displayArtUrl: activeTrack.artUrl || realArtUrl || artUrl
 
     function formatTime(seconds) {
         const s = Math.max(0, Math.floor(seconds || 0))
@@ -58,7 +59,7 @@ Item {
     // ── Dominant color extraction ──
     ColorQuantizer {
         id: quantizer
-        source: root.realArtUrl
+        source: root.displayArtUrl
         depth: 2      // 4 colors — fast, enough for dominant
         rescaleSize: 48
         onColorsChanged: {
@@ -99,7 +100,7 @@ Item {
         Image {
             id: artBg
             anchors.fill: parent
-            source: root.realArtUrl
+            source: root.displayArtUrl
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: false
@@ -202,12 +203,17 @@ Item {
                 clip: true
 
                 Image {
+                    id: albumArtImage
                     anchors.fill: parent
                     fillMode: Image.PreserveAspectCrop
-                    source: root.artUrl
-                    visible: root.artUrl !== ""
+                    source: root.displayArtUrl
+                    visible: status !== Image.Error && root.displayArtUrl !== ""
                     asynchronous: true
                     cache: false
+                    onStatusChanged: {
+                        if (status === Image.Error)
+                            console.warn("SidebarMediaPlayer failed to load artwork", source)
+                    }
                 }
 
                 MaterialSymbol {
@@ -215,7 +221,7 @@ Item {
                     icon: "music_note"
                     iconSize: 24
                     color: col.onSurfaceVariant
-                    visible: root.artUrl === ""
+                    visible: root.displayArtUrl === "" || albumArtImage.status === Image.Error
                 }
             }
 

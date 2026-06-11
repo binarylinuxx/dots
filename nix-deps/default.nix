@@ -57,7 +57,7 @@ in {
         nativeBuildInputs = with pkgs; [ cmake ninja pkg-config qt6.wrapQtAppsHook ];
         buildInputs = with pkgs; [
           cli11 jemalloc libdrm libxcb mesa pam pipewire polkit
-          qt6.qtbase qt6.qtdeclarative qt6.qtsvg qt6.qtshadertools qt6.qtwayland
+          qt6.qtbase qt6.qtdeclarative qt6.qtsvg qt6.qtimageformats qt6.qtshadertools qt6.qtwayland
           spirv-tools sysprof wayland wayland-protocols
         ];
 

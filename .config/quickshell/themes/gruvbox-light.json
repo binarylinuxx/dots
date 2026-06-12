@@ -45,10 +45,10 @@
     "surfaceDim": "#d5c4a1",
     "surfaceBright": "#f9f5d7",
     "surfaceContainerLowest": "#f9f5d7",
-    "surfaceContainerLow": "#f9f5d7",
-    "surfaceContainer": "#fbf1c7",
-    "surfaceContainerHigh": "#ebdbb2",
-    "surfaceContainerHighest": "#d5c4a1",
+    "surfaceContainerLow": "#fbf1c7",
+    "surfaceContainer": "#ebdbb2",
+    "surfaceContainerHigh": "#d5c4a1",
+    "surfaceContainerHighest": "#bdae93",
     "surfaceVariant": "#bdae93",
     "wallpaper": ""
 }

@@ -145,6 +145,8 @@ in {
           reload          Trigger a soft reload of the running instance
           restart         Restart quickshell
           theme <image>   Generate and apply a color theme from wallpaper
+          theme <name>    Apply a bundled static theme, e.g. gruvbox-dark
+          theme list      List bundled static themes
           lock            Lock screen
           powermenu       Toggle the powermenu
           help            Show this message
@@ -169,11 +171,20 @@ in {
               ;;
             theme)
               if [[ $# -lt 2 ]]; then
-                echo "Usage: blxshell theme <image_path>" >&2
+                echo "Usage: blxshell theme <image_path|theme_name|list>" >&2
                 exit 1
               fi
               shift
-              exec blxshell-col-gen image "$@"
+              if [[ "''${1:-}" == "list" ]]; then
+                exec blxshell-col-gen static --list
+              elif [[ "''${1:-}" == "static" ]]; then
+                shift
+                exec blxshell-col-gen static "$@"
+              elif [[ -f "''${1:-}" ]]; then
+                exec blxshell-col-gen image "$@"
+              else
+                exec blxshell-col-gen static "$@"
+              fi
               ;;
             lock)
               exec qs -p "$SHELL_QML" ipc call lockscreen lock

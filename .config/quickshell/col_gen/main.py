@@ -4,6 +4,7 @@ col_gen - Material You color generator for quickshell
 
 Usage:
     uv run main.py image <path> [options]
+    uv run main.py static <name> [options]
     
 Options:
     -m, --mode          dark | light (default: dark)
@@ -22,6 +23,7 @@ from pathlib import Path
 from colors import generate_scheme, generate_scheme_from_seed, SCHEME_MAP
 from templates import render_all, write_outputs
 from hooks import run_hooks
+from static_themes import list_static_themes, load_static_theme
 
 
 def main():
@@ -78,6 +80,24 @@ def main():
         help="Skip post-generation hooks",
     )
     image_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Verbose output",
+    )
+
+    static_parser = subparsers.add_parser("static", help="Apply a bundled static color theme")
+    static_parser.add_argument("name", nargs="?", help="Static theme name, e.g. gruvbox-dark")
+    static_parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List available static themes",
+    )
+    static_parser.add_argument(
+        "--no-hooks",
+        action="store_true",
+        help="Skip post-generation hooks",
+    )
+    static_parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Verbose output",
@@ -141,6 +161,37 @@ def main():
                 print(f"Executed hooks: {', '.join(executed)}")
         
         print(f"Done. Generated {len(colors)} colors, wrote {len(written)} files.")
+
+    if args.command == "static":
+        if args.list or not args.name:
+            for theme_name in list_static_themes():
+                print(theme_name)
+            return
+
+        try:
+            colors, mode = load_static_theme(args.name)
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        if args.verbose:
+            print(f"Applying static theme: {args.name}")
+            print(f"Mode: {mode}")
+            print(f"Primary: {colors.get('primary', {}).get('hex', 'N/A')}")
+
+        rendered = render_all(colors, f"static:{args.name}", mode)
+        written = write_outputs(rendered)
+
+        if args.verbose:
+            for path in written:
+                print(f"Wrote: {path}")
+
+        if not args.no_hooks:
+            executed = run_hooks(mode, verbose=args.verbose)
+            if args.verbose and executed:
+                print(f"Executed hooks: {', '.join(executed)}")
+
+        print(f"Done. Applied static theme '{args.name}', wrote {len(written)} files.")
 
 
 if __name__ == "__main__":

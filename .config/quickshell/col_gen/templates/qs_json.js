@@ -1,6 +1,6 @@
 {
-    "background": "{{colors.surface.default.hex}}",
-    "foreground": "{{colors.on_surface.default.hex}}",
+    "background": "{{colors.background.default.hex}}",
+    "foreground": "{{colors.on_background.default.hex}}",
     "primary": "{{colors.primary.default.hex}}",
     "primaryFixed": "{{colors.primary_fixed.default.hex}}",
     "primaryFixedDim": "{{colors.primary_fixed_dim.default.hex}}",
@@ -48,4 +48,3 @@
     "surfaceContainerHighest": "{{colors.surface_container_highest.default.hex}}",
     "wallpaper": "{{image}}"
 }
-

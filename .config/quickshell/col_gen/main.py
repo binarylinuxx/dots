@@ -17,6 +17,8 @@ Options:
 """
 
 import argparse
+import json
+import os
 import sys
 from pathlib import Path
 
@@ -24,6 +26,30 @@ from colors import generate_scheme, generate_scheme_from_seed, SCHEME_MAP
 from templates import render_all, write_outputs
 from hooks import run_hooks
 from static_themes import list_static_themes, load_static_theme
+
+
+XDG_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+COLORS_PATH = XDG_CACHE / "blxshell/Colors.json"
+CONFIG_PATH = XDG_CONFIG / "blxshell/config.json"
+
+
+def read_current_wallpaper() -> str:
+    try:
+        wallpaper = json.loads(COLORS_PATH.read_text()).get("wallpaper", "")
+        return wallpaper if isinstance(wallpaper, str) and not wallpaper.startswith("static:") else ""
+    except Exception:
+        return ""
+
+
+def update_config(**values) -> None:
+    try:
+        config = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
+        config.update(values)
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_PATH.write_text(json.dumps(config, indent=4) + "\n")
+    except Exception as e:
+        print(f"Warning: failed to update config: {e}", file=sys.stderr)
 
 
 def main():
@@ -87,6 +113,11 @@ def main():
 
     static_parser = subparsers.add_parser("static", help="Apply a bundled static color theme")
     static_parser.add_argument("name", nargs="?", help="Static theme name, e.g. gruvbox-dark")
+    static_parser.add_argument(
+        "--wallpaper",
+        default="",
+        help="Wallpaper path to keep while applying the static theme",
+    )
     static_parser.add_argument(
         "--list",
         action="store_true",
@@ -159,6 +190,8 @@ def main():
             executed = run_hooks(args.mode, verbose=args.verbose)
             if args.verbose and executed:
                 print(f"Executed hooks: {', '.join(executed)}")
+
+        update_config(themeSource="dynamic")
         
         print(f"Done. Generated {len(colors)} colors, wrote {len(written)} files.")
 
@@ -179,7 +212,8 @@ def main():
             print(f"Mode: {mode}")
             print(f"Primary: {colors.get('primary', {}).get('hex', 'N/A')}")
 
-        rendered = render_all(colors, f"static:{args.name}", mode)
+        wallpaper = args.wallpaper or read_current_wallpaper()
+        rendered = render_all(colors, wallpaper, mode)
         written = write_outputs(rendered)
 
         if args.verbose:
@@ -190,6 +224,8 @@ def main():
             executed = run_hooks(mode, verbose=args.verbose)
             if args.verbose and executed:
                 print(f"Executed hooks: {', '.join(executed)}")
+
+        update_config(themeSource="static", staticTheme=args.name, matugenMode=mode)
 
         print(f"Done. Applied static theme '{args.name}', wrote {len(written)} files.")
 

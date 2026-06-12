@@ -41,6 +41,8 @@
     "matugenContrast": -2.7755575615628914e-17,
     "matugenMode": "light",
     "matugenScheme": "content",
+    "staticTheme": "gruvbox-dark",
+    "themeSource": "dynamic",
     "nightLightEnabled": false,
     "nightLightStrength": 1,
     "nightLightTemperature": 1,

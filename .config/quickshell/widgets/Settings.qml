@@ -87,6 +87,8 @@ FloatingWindow {
 			property string matugenMode: "dark"
 			property string matugenScheme: "tonal-spot"
 			property real matugenContrast: 0.0
+			property string themeSource: "dynamic"
+			property string staticTheme: "gruvbox-dark"
 			property int workspaceCount: 10
 			property bool dynamicWorkspaces: false
 			property string workspaceStyle: "dots"
@@ -172,6 +174,7 @@ FloatingWindow {
 			var scheme = schemeMapping[colorSchemeIndex]
 			
 			if (configAdapter) {
+				configAdapter.themeSource = "dynamic"
 				configAdapter.matugenMode = mode
 				configAdapter.matugenScheme = scheme
 				configFile.writeAdapter()
@@ -4327,16 +4330,23 @@ FloatingWindow {
 		currentFolder: "file://" + Quickshell.env("HOME") + "/.local/wallpapers"
 		nameFilters: ["Images (*.jpg *.jpeg *.png *.webp)"]
 
-		onAccepted: {
+			onAccepted: {
 			var path = selectedFile.toString().replace("file://", "")
 			var mode = darkModeIndex === 0 ? "dark" : "light"
 			var scheme = schemeMapping[colorSchemeIndex]
 			var contrast = configAdapter ? configAdapter.matugenContrast : 0.0
 			var genScript = Qt.resolvedUrl("../col_gen/generate").toString().replace("file://", "")
-			matugenProcess.command = [
-				genScript, "image", path,
-				"-m", mode, "-s", scheme, "-c", contrast.toString()
-			]
+			if (configAdapter && configAdapter.themeSource === "static") {
+				matugenProcess.command = [
+					genScript, "static", configAdapter.staticTheme || "gruvbox-dark",
+					"--wallpaper", path
+				]
+			} else {
+				matugenProcess.command = [
+					genScript, "image", path,
+					"-m", mode, "-s", scheme, "-c", contrast.toString()
+				]
+			}
 			matugenProcess.running = true
 		}
 	}

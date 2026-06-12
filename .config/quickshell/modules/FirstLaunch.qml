@@ -49,6 +49,8 @@ PanelWindow {
 			property string matugenMode: cfg ? cfg.matugenMode : "dark"
 			property string matugenScheme: cfg ? cfg.matugenScheme : "tonal-spot"
 			property real matugenContrast: cfg ? cfg.matugenContrast : 0.0
+			property string themeSource: cfg ? cfg.themeSource : "dynamic"
+			property string staticTheme: cfg ? cfg.staticTheme : "gruvbox-dark"
 			property int workspaceCount: cfg ? cfg.workspaceCount : 10
 			property string workspaceStyle: cfg ? cfg.workspaceStyle : "dots"
 			property bool showSystemTray: cfg ? cfg.showSystemTray : true

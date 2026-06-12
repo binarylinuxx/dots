@@ -38,6 +38,8 @@ ShellRoot {
 			property string matugenMode: "dark"
 			property string matugenScheme: "tonal-spot"
 			property real matugenContrast: 0.0
+			property string themeSource: "dynamic"
+			property string staticTheme: "gruvbox-dark"
 			property int workspaceCount: 10
 			property bool dynamicWorkspaces: false
 			property string workspaceStyle: "dots"

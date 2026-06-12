@@ -532,7 +532,12 @@ Scope {
                                         if (cfg)
                                             cfg.matugenMode = mode
 
-                                        if (wallpaper && wallpaper !== "") {
+                                        if (cfg && cfg.themeSource === "static") {
+                                            const staticTheme = (cfg.staticTheme || "gruvbox-dark").replace(/-(dark|light)$/, "-" + mode)
+                                            cfg.staticTheme = staticTheme
+                                            themeModeProc.command = [genScript, "static", staticTheme, "--wallpaper", wallpaper]
+                                            themeModeProc.running = true
+                                        } else if (wallpaper && wallpaper !== "") {
                                             themeModeProc.command = [
                                                 genScript, "image", wallpaper,
                                                 "-m", mode, "-s", scheme, "-c", contrast.toString()

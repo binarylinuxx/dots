@@ -144,8 +144,8 @@ in {
           log             Attach to running instance log
           reload          Trigger a soft reload of the running instance
           restart         Restart quickshell
-          theme <image>   Generate and apply a color theme from wallpaper
-          theme <name>    Apply a bundled static theme, e.g. gruvbox-dark
+          theme <image>   Generate and apply dynamic colors from wallpaper
+          theme <name>    Apply a bundled static theme while keeping wallpaper
           theme list      List bundled static themes
           lock            Lock screen
           powermenu       Toggle the powermenu

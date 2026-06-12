@@ -111,6 +111,36 @@ def main():
         help="Verbose output",
     )
 
+    dynamic_parser = subparsers.add_parser("dynamic", help="Re-apply dynamic colors using the current wallpaper")
+    dynamic_parser.add_argument(
+        "-m", "--mode",
+        choices=["dark", "light"],
+        default="",
+        help="Color mode. Defaults to config matugenMode or dark",
+    )
+    dynamic_parser.add_argument(
+        "-s", "--scheme",
+        choices=list(SCHEME_MAP.keys()),
+        default="",
+        help="Scheme type. Defaults to config matugenScheme or tonal-spot",
+    )
+    dynamic_parser.add_argument(
+        "-c", "--contrast",
+        type=float,
+        default=None,
+        help="Contrast level. Defaults to config matugenContrast or 0.0",
+    )
+    dynamic_parser.add_argument(
+        "--no-hooks",
+        action="store_true",
+        help="Skip post-generation hooks",
+    )
+    dynamic_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Verbose output",
+    )
+
     static_parser = subparsers.add_parser("static", help="Apply a bundled static color theme")
     static_parser.add_argument("name", nargs="?", help="Static theme name, e.g. gruvbox-dark")
     static_parser.add_argument(
@@ -194,6 +224,46 @@ def main():
         update_config(themeSource="dynamic")
         
         print(f"Done. Generated {len(colors)} colors, wrote {len(written)} files.")
+
+    if args.command == "dynamic":
+        wallpaper = read_current_wallpaper()
+        if not wallpaper:
+            print("Error: no current wallpaper found. Use: blxshell theme /path/to/wallpaper", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            config = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
+        except Exception:
+            config = {}
+
+        mode = args.mode or config.get("matugenMode", "dark")
+        scheme = args.scheme or config.get("matugenScheme", "tonal-spot")
+        contrast = args.contrast if args.contrast is not None else config.get("matugenContrast", 0.0)
+        image_path = Path(wallpaper).expanduser().resolve()
+
+        if not image_path.exists():
+            print(f"Error: current wallpaper not found: {image_path}", file=sys.stderr)
+            sys.exit(1)
+
+        if args.verbose:
+            print(f"Generating dynamic colors from: {image_path}")
+            print(f"Mode: {mode}, Scheme: {scheme}, Contrast: {contrast}")
+
+        colors = generate_scheme(image_path, mode=mode, scheme_type=scheme, contrast=contrast)
+        rendered = render_all(colors, str(image_path), mode)
+        written = write_outputs(rendered)
+
+        if args.verbose:
+            for path in written:
+                print(f"Wrote: {path}")
+
+        if not args.no_hooks:
+            executed = run_hooks(mode, verbose=args.verbose)
+            if args.verbose and executed:
+                print(f"Executed hooks: {', '.join(executed)}")
+
+        update_config(themeSource="dynamic", matugenMode=mode, matugenScheme=scheme, matugenContrast=contrast)
+        print(f"Done. Re-applied dynamic theme from current wallpaper, wrote {len(written)} files.")
 
     if args.command == "static":
         if args.list or not args.name:

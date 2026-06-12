@@ -3,12 +3,18 @@ Static color themes for the col_gen pipeline.
 """
 
 import json
+import os
 from pathlib import Path
 
 from templates import SHELL_ROOT
 
 
+XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+
 THEMES_DIRS = [
+    Path.home() / ".local/blxshell/themes",
+    XDG_CONFIG / "blxshell/themes",
+    XDG_CONFIG / "quickshell/themes",
     SHELL_ROOT / "themes",
     Path(__file__).parent.parent / "themes",
 ]

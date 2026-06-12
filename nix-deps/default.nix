@@ -145,6 +145,7 @@ in {
           reload          Trigger a soft reload of the running instance
           restart         Restart quickshell
           theme <image>   Generate and apply dynamic colors from wallpaper
+          theme dynamic   Re-apply dynamic colors from current wallpaper
           theme <name>    Apply a bundled static theme while keeping wallpaper
           theme list      List bundled static themes
           lock            Lock screen
@@ -177,6 +178,12 @@ in {
               shift
               if [[ "''${1:-}" == "list" ]]; then
                 exec blxshell-col-gen static --list
+              elif [[ "''${1:-}" == "dynamic" ]]; then
+                exec blxshell-col-gen dynamic "''${@:2}"
+              elif [[ "''${1:-}" == "dynamic-light" ]]; then
+                exec blxshell-col-gen dynamic --mode light "''${@:2}"
+              elif [[ "''${1:-}" == "dynamic-dark" ]]; then
+                exec blxshell-col-gen dynamic --mode dark "''${@:2}"
               elif [[ "''${1:-}" == "static" ]]; then
                 shift
                 exec blxshell-col-gen static "$@"

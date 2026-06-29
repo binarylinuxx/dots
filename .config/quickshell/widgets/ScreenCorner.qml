@@ -1,9 +1,11 @@
 import QtQuick
 import QtQuick.Shapes
 import Quickshell
+import Quickshell.Wayland
 
 PanelWindow {
     id: screenCorner
+    WlrLayershell.layer: WlrLayer.Bottom
 
     // Enum-like property for corner direction
     property int cornerDirection: ScreenCorner.TopLeft

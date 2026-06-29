@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Wayland
 import QtQuick
 import qs.bar.widgets
 import qs.widgets
@@ -7,6 +8,7 @@ import PluginManager
 
 PanelWindow {
 	id: barWindow
+	WlrLayershell.layer: WlrLayer.Bottom
 
 	property int barHeight: cfg ? cfg.barHeight : 35
 	property int barWidth: cfg && cfg.barWidth ? cfg.barWidth : 46

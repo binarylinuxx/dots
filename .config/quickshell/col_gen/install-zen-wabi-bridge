@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DOTY_RAW="https://raw.githubusercontent.com/parazeeknova/doty/main/modules/features/applications/zen/fx-autoconfig"
+
+usage() {
+    cat <<'USAGE'
+Usage: install-zen-wabi-bridge [--profile PROFILE_DIR] [--program PROGRAM_DIR]
+
+Installs the zen-wabi/fx-autoconfig bridge files used by blxshell col_gen.
+
+Options:
+  --profile DIR   Zen profile dir. Defaults to ZEN_PROFILE_DIR or first ~/.config/zen/* profile.
+  --program DIR   Zen application/program dir containing config.js location.
+                  Required only for first-time fx-autoconfig install.
+
+Environment:
+  ZEN_PROFILE_DIR  Same as --profile.
+  ZEN_PROGRAM_DIR  Same as --program.
+
+Notes:
+  Profile files are installed to PROFILE_DIR/chrome.
+  Program files are installed to PROGRAM_DIR/config.js and PROGRAM_DIR/defaults/pref/config-prefs.js.
+  Nix store program dirs are immutable; use a Zen package override or non-store install for program files.
+USAGE
+}
+
+profile_dir="${ZEN_PROFILE_DIR:-}"
+program_dir="${ZEN_PROGRAM_DIR:-}"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --profile)
+            profile_dir="${2:-}"
+            shift 2
+            ;;
+        --program)
+            program_dir="${2:-}"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [[ -z "$profile_dir" ]]; then
+    for candidate in "$HOME"/.config/zen/*; do
+        if [[ -d "$candidate/chrome" ]]; then
+            profile_dir="$candidate"
+            break
+        fi
+    done
+fi
+
+if [[ -z "$profile_dir" ]]; then
+    echo "Error: no Zen profile found. Pass --profile ~/.config/zen/<profile>." >&2
+    exit 1
+fi
+
+profile_dir="${profile_dir/#\~/$HOME}"
+chrome_dir="$profile_dir/chrome"
+
+download() {
+    local url="$1"
+    local dest="$2"
+    mkdir -p "$(dirname "$dest")"
+    curl -fsSL "$url" -o "$dest"
+}
+
+append_pref_once() {
+    local pref_line="$1"
+    local user_js="$profile_dir/user.js"
+    touch "$user_js"
+    if ! grep -Fqx "$pref_line" "$user_js"; then
+        printf '%s\n' "$pref_line" >> "$user_js"
+    fi
+}
+
+echo "Installing zen-wabi bridge profile files to: $chrome_dir"
+mkdir -p "$chrome_dir/JS/Matugen" "$chrome_dir/utils"
+
+download "$DOTY_RAW/profile/chrome/JS/matugen-bridge.uc.js" "$chrome_dir/JS/matugen-bridge.uc.js"
+download "$DOTY_RAW/profile/chrome/JS/Matugen/MatugenParent.sys.mjs" "$chrome_dir/JS/Matugen/MatugenParent.sys.mjs"
+download "$DOTY_RAW/profile/chrome/JS/Matugen/MatugenChild.sys.mjs" "$chrome_dir/JS/Matugen/MatugenChild.sys.mjs"
+
+for file in boot.sys.mjs chrome.manifest fs.sys.mjs module_loader.mjs uc_api.sys.mjs utils.sys.mjs; do
+    download "$DOTY_RAW/profile/chrome/utils/$file" "$chrome_dir/utils/$file"
+done
+
+append_pref_once 'user_pref("userChromeJS.experimental.enabled", true);'
+append_pref_once 'user_pref("devtools.chrome.enabled", true);'
+append_pref_once 'user_pref("devtools.debugger.remote-enabled", true);'
+append_pref_once 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
+append_pref_once 'user_pref("zen.boosts.enabled", true);'
+
+if [[ -n "$program_dir" ]]; then
+    program_dir="${program_dir/#\~/$HOME}"
+    if [[ ! -d "$program_dir" ]]; then
+        echo "Error: Zen program dir does not exist: $program_dir" >&2
+        exit 1
+    fi
+    if [[ ! -w "$program_dir" ]]; then
+        echo "Error: Zen program dir is not writable: $program_dir" >&2
+        echo "If this is a Nix store path, install these files through a Zen package override instead." >&2
+        exit 1
+    fi
+
+    echo "Installing fx-autoconfig program files to: $program_dir"
+    download "$DOTY_RAW/program/config.js" "$program_dir/config.js"
+    download "$DOTY_RAW/program/defaults/pref/config-prefs.js" "$program_dir/defaults/pref/config-prefs.js"
+else
+    echo "Skipped program files. If fx-autoconfig is not already installed, pass --program /path/to/zen/program."
+fi
+
+echo "Done. Restart Zen, then check: $chrome_dir/matugen-bridge.log"

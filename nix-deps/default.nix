@@ -123,6 +123,7 @@ in {
         runtimeInputs = [
           blxshell-quickshell-git
           blxshell-col-gen
+          pkgs.curl
           pkgs.playerctl
           pkgs.procps
           pkgs.pulseaudio
@@ -148,6 +149,7 @@ in {
           theme dynamic   Re-apply dynamic colors from current wallpaper
           theme <name>    Apply a bundled static theme while keeping wallpaper
           theme list      List bundled static themes
+          zen-bridge      Install zen-wabi bridge files into a Zen profile
           lock            Lock screen
           powermenu       Toggle the powermenu
           help            Show this message
@@ -192,6 +194,10 @@ in {
               else
                 exec blxshell-col-gen static "$@"
               fi
+              ;;
+            zen-bridge)
+              shift 2>/dev/null || true
+              exec ${blxshell-runtime}/share/blxshell/col_gen/install-zen-wabi-bridge "$@"
               ;;
             lock)
               exec qs -p "$SHELL_QML" ipc call lockscreen lock

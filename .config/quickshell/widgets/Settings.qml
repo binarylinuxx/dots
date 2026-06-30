@@ -3823,8 +3823,20 @@ FloatingWindow {
 								RowLayout {
 									Layout.fillWidth: true
 									spacing: 10
-									MaterialSymbol { icon: "speaker"; iconSize: 22; color: col.primary }
-									Text { text: "Output Device"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface; Layout.fillWidth: true }
+									MaterialSymbol {
+										icon: "speaker"
+										iconSize: 22
+										color: col.primary
+									}
+
+									Text {
+										Layout.fillWidth: true
+										text: "Output Device"
+										font.pixelSize: 16
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										font.weight: 700
+										color: col.onSurface
+									}
 
 									StyledDropdown {
 										id: audioSinkDropdown
@@ -3843,7 +3855,12 @@ FloatingWindow {
 									}
 								}
 
-								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+								Rectangle {
+									Layout.fillWidth: true
+									height: 1
+									color: col.outlineVariant
+									opacity: 0.5
+								}
 
 								RowLayout {
 									Layout.fillWidth: true
@@ -3872,14 +3889,31 @@ FloatingWindow {
 										sliderHeight: 36
 										radius: 10
 										value: Pipewire.defaultAudioSink?.audio?.volume ?? 0
-										from: 0.0; to: 1.0; stepSize: 0.01
-										onMoved: function(v) { if (Pipewire.defaultAudioSink?.audio) Pipewire.defaultAudioSink.audio.volume = v }
+										from: 0.0
+										to: 1.0
+										stepSize: 0.01
+										onMoved: function(v) {
+											if (Pipewire.defaultAudioSink?.audio)
+												Pipewire.defaultAudioSink.audio.volume = v
+										}
 									}
 
-									Text { text: Math.round((Pipewire.defaultAudioSink?.audio?.volume ?? 0) * 100) + "%"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; Layout.minimumWidth: 38; horizontalAlignment: Text.AlignRight }
+									Text {
+										Layout.minimumWidth: 38
+										text: Math.round((Pipewire.defaultAudioSink?.audio?.volume ?? 0) * 100) + "%"
+										font.pixelSize: 12
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										color: col.onSurfaceVariant
+										horizontalAlignment: Text.AlignRight
+									}
 								}
 
-								Rectangle { Layout.fillWidth: true; height: 1; color: col.outlineVariant; opacity: 0.5 }
+								Rectangle {
+									Layout.fillWidth: true
+									height: 1
+									color: col.outlineVariant
+									opacity: 0.5
+								}
 
 								RowLayout {
 									Layout.fillWidth: true
@@ -3907,11 +3941,23 @@ FloatingWindow {
 										sliderHeight: 36
 										radius: 10
 										value: Pipewire.defaultAudioSource?.audio?.volume ?? 0
-										from: 0.0; to: 1.0; stepSize: 0.01
-										onMoved: function(v) { if (Pipewire.defaultAudioSource?.audio) Pipewire.defaultAudioSource.audio.volume = v }
+										from: 0.0
+										to: 1.0
+										stepSize: 0.01
+										onMoved: function(v) {
+											if (Pipewire.defaultAudioSource?.audio)
+												Pipewire.defaultAudioSource.audio.volume = v
+										}
 									}
 
-									Text { text: Math.round((Pipewire.defaultAudioSource?.audio?.volume ?? 0) * 100) + "%"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; Layout.minimumWidth: 38; horizontalAlignment: Text.AlignRight }
+									Text {
+										Layout.minimumWidth: 38
+										text: Math.round((Pipewire.defaultAudioSource?.audio?.volume ?? 0) * 100) + "%"
+										font.pixelSize: 12
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										color: col.onSurfaceVariant
+										horizontalAlignment: Text.AlignRight
+									}
 								}
 							}
 						}
@@ -3933,8 +3979,20 @@ FloatingWindow {
 
 								RowLayout {
 									Layout.fillWidth: true
-									MaterialSymbol { icon: "graphic_eq"; iconSize: 22; color: col.primary }
-									Text { text: "Audio Sources"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface; Layout.fillWidth: true }
+									MaterialSymbol {
+										icon: "graphic_eq"
+										iconSize: 22
+										color: col.primary
+									}
+
+									Text {
+										Layout.fillWidth: true
+										text: "Audio Sources"
+										font.pixelSize: 16
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										font.weight: 700
+										color: col.onSurface
+									}
 								}
 
 								Repeater {
@@ -3970,7 +4028,19 @@ FloatingWindow {
 												elide: Text.ElideRight
 											}
 
-											StyledSlider { Layout.preferredWidth: 180; sliderHeight: 30; radius: 8; value: srcNode && srcNode.audio ? srcNode.audio.volume : 0; from: 0.0; to: 1.0; stepSize: 0.01; onMoved: function(v) { if (srcNode && srcNode.audio) srcNode.audio.volume = v } }
+											StyledSlider {
+												Layout.preferredWidth: 180
+												sliderHeight: 30
+												radius: 8
+												value: srcNode && srcNode.audio ? srcNode.audio.volume : 0
+												from: 0.0
+												to: 1.0
+												stepSize: 0.01
+												onMoved: function(v) {
+													if (srcNode && srcNode.audio)
+														srcNode.audio.volume = v
+												}
+											}
 
 											MaterialSymbol {
 												icon: srcNode && srcNode.audio && srcNode.audio.muted ? "volume_off" : "volume_up"
@@ -3990,7 +4060,16 @@ FloatingWindow {
 									}
 								}
 
-								Text { Layout.fillWidth: true; visible: !Pipewire.defaultAudioSink; text: "No output device detected"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; horizontalAlignment: Text.AlignHCenter; opacity: 0.7 }
+								Text {
+									Layout.fillWidth: true
+									visible: !Pipewire.defaultAudioSink
+									text: "No output device detected"
+									font.pixelSize: 12
+									font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+									color: col.onSurfaceVariant
+									horizontalAlignment: Text.AlignHCenter
+									opacity: 0.7
+								}
 							}
 						}
 					}
@@ -4006,15 +4085,47 @@ FloatingWindow {
 
 						RowLayout {
 							Layout.fillWidth: true
-							Text { text: "Network"; font.pixelSize: 26; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface; Layout.fillWidth: true }
+							Text {
+								Layout.fillWidth: true
+								text: "Network"
+								font.pixelSize: 26
+								font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+								font.weight: 700
+								color: col.onSurface
+							}
 
 							Rectangle {
 								Layout.preferredHeight: 36
 								Layout.preferredWidth: networkRefreshRow.width + 22
 								radius: 18
 								color: networkRefreshMouse.containsMouse ? col.primaryContainer : col.surfaceContainer
-								RowLayout { id: networkRefreshRow; anchors.centerIn: parent; spacing: 6; MaterialSymbol { icon: "refresh"; iconSize: 18; color: col.onSurfaceVariant }; Text { text: NetworkManager.scanning ? "Scanning" : "Rescan"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface } }
-								MouseArea { id: networkRefreshMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: NetworkManager.rescanWifi() }
+								RowLayout {
+									id: networkRefreshRow
+									anchors.centerIn: parent
+									spacing: 6
+
+									MaterialSymbol {
+										icon: "refresh"
+										iconSize: 18
+										color: col.onSurfaceVariant
+									}
+
+									Text {
+										text: NetworkManager.scanning ? "Scanning" : "Rescan"
+										font.pixelSize: 12
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										font.weight: 700
+										color: col.onSurface
+									}
+								}
+
+								MouseArea {
+									id: networkRefreshMouse
+									anchors.fill: parent
+									hoverEnabled: true
+									cursorShape: Qt.PointingHandCursor
+									onClicked: NetworkManager.rescanWifi()
+								}
 							}
 						}
 
@@ -4035,12 +4146,86 @@ FloatingWindow {
 								RowLayout {
 									Layout.fillWidth: true
 									spacing: 12
-									Rectangle { Layout.preferredWidth: 44; Layout.preferredHeight: 44; radius: 14; color: NetworkManager.connectionStatus === "connected" ? col.primaryContainer : col.surfaceContainerHigh; MaterialSymbol { anchors.centerIn: parent; icon: root.networkIcon(NetworkManager.primaryConnectionType, NetworkManager.wifiSignalStrength); iconSize: 24; color: NetworkManager.connectionStatus === "connected" ? col.onPrimaryContainer : col.onSurfaceVariant } }
-									ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: NetworkManager.primaryConnectionType === "ethernet" ? "Ethernet" : (NetworkManager.primaryConnectionType === "wifi" ? (NetworkManager.wifiSsid || "Wi-Fi") : "Disconnected"); font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }; Text { text: NetworkManager.primaryConnectionType === "wifi" ? NetworkManager.wifiSignalStrength + "% signal" : (NetworkManager.primaryConnectionType === "ethernet" ? "Wired connection" : "No active connection"); font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant } }
-									Rectangle { visible: NetworkManager.primaryConnectionType === "wifi"; Layout.preferredWidth: disconnectNetworkText.width + 22; Layout.preferredHeight: 34; radius: 17; color: disconnectNetworkMouse.containsMouse ? col.errorContainer : col.surfaceContainerHigh; Text { id: disconnectNetworkText; anchors.centerIn: parent; text: "Disconnect"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: disconnectNetworkMouse.containsMouse ? col.onErrorContainer : col.onSurface }; MouseArea { id: disconnectNetworkMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: NetworkManager.disconnectWifi() } }
+									Rectangle {
+										Layout.preferredWidth: 44
+										Layout.preferredHeight: 44
+										radius: 14
+										color: NetworkManager.connectionStatus === "connected" ? col.primaryContainer : col.surfaceContainerHigh
+
+										MaterialSymbol {
+											anchors.centerIn: parent
+											icon: root.networkIcon(NetworkManager.primaryConnectionType, NetworkManager.wifiSignalStrength)
+											iconSize: 24
+											color: NetworkManager.connectionStatus === "connected" ? col.onPrimaryContainer : col.onSurfaceVariant
+										}
+									}
+
+									ColumnLayout {
+										Layout.fillWidth: true
+										spacing: 2
+
+										Text {
+											text: NetworkManager.primaryConnectionType === "ethernet" ? "Ethernet" : (NetworkManager.primaryConnectionType === "wifi" ? (NetworkManager.wifiSsid || "Wi-Fi") : "Disconnected")
+											font.pixelSize: 16
+											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+											font.weight: 700
+											color: col.onSurface
+										}
+
+										Text {
+											text: NetworkManager.primaryConnectionType === "wifi" ? NetworkManager.wifiSignalStrength + "% signal" : (NetworkManager.primaryConnectionType === "ethernet" ? "Wired connection" : "No active connection")
+											font.pixelSize: 12
+											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+											color: col.onSurfaceVariant
+										}
+									}
+
+									Rectangle {
+										visible: NetworkManager.primaryConnectionType === "wifi"
+										Layout.preferredWidth: disconnectNetworkText.width + 22
+										Layout.preferredHeight: 34
+										radius: 17
+										color: disconnectNetworkMouse.containsMouse ? col.errorContainer : col.surfaceContainerHigh
+
+										Text {
+											id: disconnectNetworkText
+											anchors.centerIn: parent
+											text: "Disconnect"
+											font.pixelSize: 12
+											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+											font.weight: 700
+											color: disconnectNetworkMouse.containsMouse ? col.onErrorContainer : col.onSurface
+										}
+
+										MouseArea {
+											id: disconnectNetworkMouse
+											anchors.fill: parent
+											hoverEnabled: true
+											cursorShape: Qt.PointingHandCursor
+											onClicked: NetworkManager.disconnectWifi()
+										}
+									}
 								}
 
-								Rectangle { Layout.fillWidth: true; height: NetworkManager.connectError !== "" ? networkErrorText.implicitHeight + 20 : 0; visible: height > 0; radius: 12; color: col.errorContainer; clip: true; Text { id: networkErrorText; anchors.fill: parent; anchors.margins: 10; text: NetworkManager.connectError; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onErrorContainer; wrapMode: Text.WordWrap } }
+								Rectangle {
+									Layout.fillWidth: true
+									height: NetworkManager.connectError !== "" ? networkErrorText.implicitHeight + 20 : 0
+									visible: height > 0
+									radius: 12
+									color: col.errorContainer
+									clip: true
+
+									Text {
+										id: networkErrorText
+										anchors.fill: parent
+										anchors.margins: 10
+										text: NetworkManager.connectError
+										font.pixelSize: 11
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										color: col.onErrorContainer
+										wrapMode: Text.WordWrap
+									}
+								}
 							}
 						}
 
@@ -4059,8 +4244,89 @@ FloatingWindow {
 								anchors.top: parent.top
 								anchors.margins: 12
 								spacing: 10
-								Text { text: "Password for " + root.settingsWifiPendingSsid; font.pixelSize: 13; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface }
-								RowLayout { Layout.fillWidth: true; spacing: 8; TextField { id: settingsWifiPasswordField; Layout.fillWidth: true; text: root.settingsWifiPassword; placeholderText: "Wi-Fi password"; placeholderTextColor: col.onSurfaceVariant; echoMode: TextInput.Password; background: null; color: col.onSurface; font.pixelSize: 13; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; onTextChanged: root.settingsWifiPassword = text; Keys.onReturnPressed: { if (root.settingsWifiPassword.length >= 8) { NetworkManager.connectWithPassword(root.settingsWifiPendingSsid, root.settingsWifiPassword); root.settingsWifiShowPassword = false; root.settingsWifiPassword = "" } } }; Rectangle { Layout.preferredWidth: 34; Layout.preferredHeight: 34; radius: 17; color: root.settingsWifiPassword.length >= 8 ? col.primary : col.surfaceContainerHigh; MaterialSymbol { anchors.centerIn: parent; icon: "arrow_forward"; iconSize: 17; color: root.settingsWifiPassword.length >= 8 ? col.onPrimary : col.onSurfaceVariant }; MouseArea { anchors.fill: parent; enabled: root.settingsWifiPassword.length >= 8; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: { NetworkManager.connectWithPassword(root.settingsWifiPendingSsid, root.settingsWifiPassword); root.settingsWifiShowPassword = false; root.settingsWifiPassword = "" } } }; Rectangle { Layout.preferredWidth: 34; Layout.preferredHeight: 34; radius: 17; color: cancelSettingsWifiMouse.containsMouse ? col.surfaceContainerHighest : "transparent"; MaterialSymbol { anchors.centerIn: parent; icon: "close"; iconSize: 16; color: col.onSurfaceVariant }; MouseArea { id: cancelSettingsWifiMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.settingsWifiShowPassword = false; root.settingsWifiPassword = "" } } } }
+								Text {
+									text: "Password for " + root.settingsWifiPendingSsid
+									font.pixelSize: 13
+									font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+									font.weight: 700
+									color: col.onSurface
+								}
+
+								RowLayout {
+									Layout.fillWidth: true
+									spacing: 8
+
+									TextField {
+										id: settingsWifiPasswordField
+										Layout.fillWidth: true
+										text: root.settingsWifiPassword
+										placeholderText: "Wi-Fi password"
+										placeholderTextColor: col.onSurfaceVariant
+										echoMode: TextInput.Password
+										background: null
+										color: col.onSurface
+										font.pixelSize: 13
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										onTextChanged: root.settingsWifiPassword = text
+										Keys.onReturnPressed: {
+											if (root.settingsWifiPassword.length >= 8) {
+												NetworkManager.connectWithPassword(root.settingsWifiPendingSsid, root.settingsWifiPassword)
+												root.settingsWifiShowPassword = false
+												root.settingsWifiPassword = ""
+											}
+										}
+									}
+
+									Rectangle {
+										Layout.preferredWidth: 34
+										Layout.preferredHeight: 34
+										radius: 17
+										color: root.settingsWifiPassword.length >= 8 ? col.primary : col.surfaceContainerHigh
+
+										MaterialSymbol {
+											anchors.centerIn: parent
+											icon: "arrow_forward"
+											iconSize: 17
+											color: root.settingsWifiPassword.length >= 8 ? col.onPrimary : col.onSurfaceVariant
+										}
+
+										MouseArea {
+											anchors.fill: parent
+											enabled: root.settingsWifiPassword.length >= 8
+											cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+											onClicked: {
+												NetworkManager.connectWithPassword(root.settingsWifiPendingSsid, root.settingsWifiPassword)
+												root.settingsWifiShowPassword = false
+												root.settingsWifiPassword = ""
+											}
+										}
+									}
+
+									Rectangle {
+										Layout.preferredWidth: 34
+										Layout.preferredHeight: 34
+										radius: 17
+										color: cancelSettingsWifiMouse.containsMouse ? col.surfaceContainerHighest : "transparent"
+
+										MaterialSymbol {
+											anchors.centerIn: parent
+											icon: "close"
+											iconSize: 16
+											color: col.onSurfaceVariant
+										}
+
+										MouseArea {
+											id: cancelSettingsWifiMouse
+											anchors.fill: parent
+											hoverEnabled: true
+											cursorShape: Qt.PointingHandCursor
+											onClicked: {
+												root.settingsWifiShowPassword = false
+												root.settingsWifiPassword = ""
+											}
+										}
+									}
+								}
 							}
 						}
 
@@ -4078,7 +4344,31 @@ FloatingWindow {
 								anchors.margins: 15
 								spacing: 8
 
-								RowLayout { Layout.fillWidth: true; MaterialSymbol { icon: "wifi"; iconSize: 22; color: col.primary }; Text { text: "Wi-Fi Networks"; font.pixelSize: 16; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: 700; color: col.onSurface; Layout.fillWidth: true }; Text { text: NetworkManager.wifiNetworks.length + " found"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; opacity: 0.7 } }
+								RowLayout {
+									Layout.fillWidth: true
+									MaterialSymbol {
+										icon: "wifi"
+										iconSize: 22
+										color: col.primary
+									}
+
+									Text {
+										Layout.fillWidth: true
+										text: "Wi-Fi Networks"
+										font.pixelSize: 16
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										font.weight: 700
+										color: col.onSurface
+									}
+
+									Text {
+										text: NetworkManager.wifiNetworks.length + " found"
+										font.pixelSize: 11
+										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+										color: col.onSurfaceVariant
+										opacity: 0.7
+									}
+								}
 
 								Repeater {
 									model: NetworkManager.wifiNetworks
@@ -4101,10 +4391,51 @@ FloatingWindow {
 											anchors.leftMargin: 12
 											anchors.rightMargin: 12
 											spacing: 12
-											MaterialSymbol { icon: root.networkIcon("wifi", settingsWifiRow.signal); iconSize: 22; fill: 1; color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurface }
-											ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: settingsWifiRow.ssid; font.pixelSize: 13; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; font.weight: settingsWifiRow.connected ? 700 : 500; color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurface; elide: Text.ElideRight }; Text { visible: NetworkManager.connectingTo === settingsWifiRow.ssid || settingsWifiRow.connected; text: NetworkManager.connectingTo === settingsWifiRow.ssid ? "Connecting..." : "Connected"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurfaceVariant; opacity: 0.8 } }
-											MaterialSymbol { icon: "lock"; iconSize: 14; visible: settingsWifiRow.secured; color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurfaceVariant; opacity: 0.7 }
-											Text { text: settingsWifiRow.signal + "%"; font.pixelSize: 11; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurfaceVariant; opacity: 0.7 }
+											MaterialSymbol {
+												icon: root.networkIcon("wifi", settingsWifiRow.signal)
+												iconSize: 22
+												fill: 1
+												color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurface
+											}
+
+											ColumnLayout {
+												Layout.fillWidth: true
+												spacing: 2
+
+												Text {
+													text: settingsWifiRow.ssid
+													font.pixelSize: 13
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													font.weight: settingsWifiRow.connected ? 700 : 500
+													color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurface
+													elide: Text.ElideRight
+												}
+
+												Text {
+													visible: NetworkManager.connectingTo === settingsWifiRow.ssid || settingsWifiRow.connected
+													text: NetworkManager.connectingTo === settingsWifiRow.ssid ? "Connecting..." : "Connected"
+													font.pixelSize: 11
+													font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+													color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurfaceVariant
+													opacity: 0.8
+												}
+											}
+
+											MaterialSymbol {
+												icon: "lock"
+												iconSize: 14
+												visible: settingsWifiRow.secured
+												color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurfaceVariant
+												opacity: 0.7
+											}
+
+											Text {
+												text: settingsWifiRow.signal + "%"
+												font.pixelSize: 11
+												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+												color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurfaceVariant
+												opacity: 0.7
+											}
 										}
 
 										MouseArea {
@@ -4126,7 +4457,16 @@ FloatingWindow {
 									}
 								}
 
-								Text { Layout.fillWidth: true; visible: NetworkManager.wifiNetworks.length === 0; text: NetworkManager.scanning ? "Scanning..." : "No networks found"; font.pixelSize: 12; font.family: configAdapter ? configAdapter.fontFamily : "Rubik"; color: col.onSurfaceVariant; horizontalAlignment: Text.AlignHCenter; opacity: 0.7 }
+								Text {
+									Layout.fillWidth: true
+									visible: NetworkManager.wifiNetworks.length === 0
+									text: NetworkManager.scanning ? "Scanning..." : "No networks found"
+									font.pixelSize: 12
+									font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+									color: col.onSurfaceVariant
+									horizontalAlignment: Text.AlignHCenter
+									opacity: 0.7
+								}
 							}
 						}
 					}

@@ -508,61 +508,78 @@ FloatingWindow {
 						}
 					}
 
-					Repeater {
-						model: root.filteredPageItems
+					ScrollView {
+						id: settingsPageScroll
+						Layout.fillWidth: true
+						Layout.fillHeight: true
+						clip: true
+						ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-						Rectangle {
-							Layout.fillWidth: true
-							Layout.preferredHeight: 44
-							radius: 12
-							color: modelData.index === root.selectedIndex ? col.primaryContainer : (navMouseArea.containsMouse ? col.surfaceContainer : "transparent")
+						ColumnLayout {
+							width: settingsPageScroll.availableWidth
+							spacing: 6
 
-							Behavior on color {
-								ColorAnimation { duration: 150 }
+							Repeater {
+								model: root.filteredPageItems
+
+								Rectangle {
+									Layout.fillWidth: true
+									Layout.preferredHeight: 44
+									radius: 12
+									color: modelData.index === root.selectedIndex ? col.primaryContainer : (navMouseArea.containsMouse ? col.surfaceContainer : "transparent")
+
+									Behavior on color {
+										ColorAnimation { duration: 150 }
+									}
+
+									RowLayout {
+										anchors.fill: parent
+										anchors.leftMargin: 14
+										anchors.rightMargin: 10
+										spacing: 12
+
+										MaterialSymbol {
+											Layout.preferredWidth: 24
+											Layout.alignment: Qt.AlignVCenter
+											icon: modelData.icon || "circle"
+											iconSize: 22
+											color: modelData.index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
+										}
+
+										Text {
+											Layout.fillWidth: true
+											Layout.alignment: Qt.AlignVCenter
+											text: modelData.name
+											font.pixelSize: 14
+											font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+											font.weight: 700
+											color: modelData.index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
+											elide: Text.ElideRight
+										}
+									}
+
+									MouseArea {
+										id: navMouseArea
+										anchors.fill: parent
+										cursorShape: Qt.PointingHandCursor
+										hoverEnabled: true
+										onClicked: root.selectedIndex = modelData.index
+									}
+								}
 							}
 
-							RowLayout {
-								anchors.fill: parent
-								anchors.leftMargin: 14
-								spacing: 12
-
-								MaterialSymbol {
-									icon: modelData.icon || "circle"
-									iconSize: 22
-									color: modelData.index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
-								}
-
-								Text {
-									text: modelData.name
-									font.pixelSize: 14
-									font.family: configAdapter.fontFamily 
-									font.weight: 700
-									color: modelData.index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
-								}
-							}
-
-							MouseArea {
-								id: navMouseArea
-								anchors.fill: parent
-								cursorShape: Qt.PointingHandCursor
-								hoverEnabled: true
-								onClicked: root.selectedIndex = modelData.index
+							Text {
+								Layout.fillWidth: true
+								visible: root.settingsSearchQuery.length > 0 && root.filteredPageItems.length === 0
+								text: "No matching settings"
+								font.pixelSize: 12
+								font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+								color: col.onSurfaceVariant
+								horizontalAlignment: Text.AlignHCenter
+								opacity: 0.75
 							}
 						}
 					}
-
-					Text {
-						Layout.fillWidth: true
-						visible: root.settingsSearchQuery.length > 0 && root.filteredPageItems.length === 0
-						text: "No matching settings"
-						font.pixelSize: 12
-						font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
-						color: col.onSurfaceVariant
-						horizontalAlignment: Text.AlignHCenter
-						opacity: 0.75
-					}
-
-					Item { Layout.fillHeight: true }
 
 					Rectangle {
 						Layout.fillWidth: true
@@ -3823,10 +3840,17 @@ FloatingWindow {
 								RowLayout {
 									Layout.fillWidth: true
 									spacing: 10
-									MaterialSymbol {
-										icon: "speaker"
-										iconSize: 22
-										color: col.primary
+									Item {
+										Layout.preferredWidth: 28
+										Layout.preferredHeight: 28
+										Layout.alignment: Qt.AlignVCenter
+
+										MaterialSymbol {
+											anchors.centerIn: parent
+											icon: "speaker"
+											iconSize: 22
+											color: col.primary
+										}
 									}
 
 									Text {
@@ -3840,6 +3864,7 @@ FloatingWindow {
 
 									StyledDropdown {
 										id: audioSinkDropdown
+										Layout.alignment: Qt.AlignVCenter
 										implicitWidth: 240
 										implicitHeight: 36
 										model: root.audioSinkLabels
@@ -3866,16 +3891,23 @@ FloatingWindow {
 									Layout.fillWidth: true
 									spacing: 12
 
-									MaterialSymbol {
-										iconSize: 22
-										fill: 1
-										property real vol: Pipewire.defaultAudioSink?.audio?.volume ?? 0
-										property bool muted: Pipewire.defaultAudioSink?.audio?.muted ?? false
-										color: muted ? col.error : col.onSurfaceVariant
-										icon: muted || vol === 0 ? "volume_off" : (vol > 0.66 ? "volume_up" : (vol > 0.33 ? "volume_down" : "volume_mute"))
+									Item {
+										Layout.preferredWidth: 28
+										Layout.preferredHeight: 36
+										Layout.alignment: Qt.AlignVCenter
+
+										MaterialSymbol {
+											anchors.centerIn: parent
+											iconSize: 22
+											fill: 1
+											property real vol: Pipewire.defaultAudioSink?.audio?.volume ?? 0
+											property bool muted: Pipewire.defaultAudioSink?.audio?.muted ?? false
+											color: muted ? col.error : col.onSurfaceVariant
+											icon: muted || vol === 0 ? "volume_off" : (vol > 0.66 ? "volume_up" : (vol > 0.33 ? "volume_down" : "volume_mute"))
+										}
+
 										MouseArea {
 											anchors.fill: parent
-											anchors.margins: -6
 											cursorShape: Qt.PointingHandCursor
 											onClicked: {
 												if (Pipewire.defaultAudioSink?.audio)
@@ -3886,6 +3918,7 @@ FloatingWindow {
 
 									StyledSlider {
 										Layout.fillWidth: true
+										Layout.alignment: Qt.AlignVCenter
 										sliderHeight: 36
 										radius: 10
 										value: Pipewire.defaultAudioSink?.audio?.volume ?? 0
@@ -3900,6 +3933,7 @@ FloatingWindow {
 
 									Text {
 										Layout.minimumWidth: 38
+										Layout.alignment: Qt.AlignVCenter
 										text: Math.round((Pipewire.defaultAudioSink?.audio?.volume ?? 0) * 100) + "%"
 										font.pixelSize: 12
 										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
@@ -3919,15 +3953,22 @@ FloatingWindow {
 									Layout.fillWidth: true
 									spacing: 12
 
-									MaterialSymbol {
-										iconSize: 22
-										fill: 1
-										property bool muted: Pipewire.defaultAudioSource?.audio?.muted ?? false
-										color: muted ? col.error : col.onSurfaceVariant
-										icon: muted ? "mic_off" : "mic"
+									Item {
+										Layout.preferredWidth: 28
+										Layout.preferredHeight: 36
+										Layout.alignment: Qt.AlignVCenter
+
+										MaterialSymbol {
+											anchors.centerIn: parent
+											iconSize: 22
+											fill: 1
+											property bool muted: Pipewire.defaultAudioSource?.audio?.muted ?? false
+											color: muted ? col.error : col.onSurfaceVariant
+											icon: muted ? "mic_off" : "mic"
+										}
+
 										MouseArea {
 											anchors.fill: parent
-											anchors.margins: -6
 											cursorShape: Qt.PointingHandCursor
 											onClicked: {
 												if (Pipewire.defaultAudioSource?.audio)
@@ -3938,6 +3979,7 @@ FloatingWindow {
 
 									StyledSlider {
 										Layout.fillWidth: true
+										Layout.alignment: Qt.AlignVCenter
 										sliderHeight: 36
 										radius: 10
 										value: Pipewire.defaultAudioSource?.audio?.volume ?? 0
@@ -3952,6 +3994,7 @@ FloatingWindow {
 
 									Text {
 										Layout.minimumWidth: 38
+										Layout.alignment: Qt.AlignVCenter
 										text: Math.round((Pipewire.defaultAudioSource?.audio?.volume ?? 0) * 100) + "%"
 										font.pixelSize: 12
 										font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
@@ -3979,10 +4022,17 @@ FloatingWindow {
 
 								RowLayout {
 									Layout.fillWidth: true
-									MaterialSymbol {
-										icon: "graphic_eq"
-										iconSize: 22
-										color: col.primary
+									Item {
+										Layout.preferredWidth: 28
+										Layout.preferredHeight: 28
+										Layout.alignment: Qt.AlignVCenter
+
+										MaterialSymbol {
+											anchors.centerIn: parent
+											icon: "graphic_eq"
+											iconSize: 22
+											color: col.primary
+										}
 									}
 
 									Text {
@@ -4030,6 +4080,7 @@ FloatingWindow {
 
 											StyledSlider {
 												Layout.preferredWidth: 180
+												Layout.alignment: Qt.AlignVCenter
 												sliderHeight: 30
 												radius: 8
 												value: srcNode && srcNode.audio ? srcNode.audio.volume : 0
@@ -4043,6 +4094,8 @@ FloatingWindow {
 											}
 
 											MaterialSymbol {
+												Layout.preferredWidth: 28
+												Layout.alignment: Qt.AlignVCenter
 												icon: srcNode && srcNode.audio && srcNode.audio.muted ? "volume_off" : "volume_up"
 												iconSize: 18
 												color: srcNode && srcNode.audio && srcNode.audio.muted ? col.error : col.onSurfaceVariant
@@ -4149,6 +4202,7 @@ FloatingWindow {
 									Rectangle {
 										Layout.preferredWidth: 44
 										Layout.preferredHeight: 44
+										Layout.alignment: Qt.AlignVCenter
 										radius: 14
 										color: NetworkManager.connectionStatus === "connected" ? col.primaryContainer : col.surfaceContainerHigh
 
@@ -4162,6 +4216,7 @@ FloatingWindow {
 
 									ColumnLayout {
 										Layout.fillWidth: true
+										Layout.alignment: Qt.AlignVCenter
 										spacing: 2
 
 										Text {
@@ -4184,6 +4239,7 @@ FloatingWindow {
 										visible: NetworkManager.primaryConnectionType === "wifi"
 										Layout.preferredWidth: disconnectNetworkText.width + 22
 										Layout.preferredHeight: 34
+										Layout.alignment: Qt.AlignVCenter
 										radius: 17
 										color: disconnectNetworkMouse.containsMouse ? col.errorContainer : col.surfaceContainerHigh
 
@@ -4347,6 +4403,9 @@ FloatingWindow {
 								RowLayout {
 									Layout.fillWidth: true
 									MaterialSymbol {
+										Layout.preferredWidth: 28
+										Layout.preferredHeight: 28
+										Layout.alignment: Qt.AlignVCenter
 										icon: "wifi"
 										iconSize: 22
 										color: col.primary
@@ -4391,15 +4450,23 @@ FloatingWindow {
 											anchors.leftMargin: 12
 											anchors.rightMargin: 12
 											spacing: 12
-											MaterialSymbol {
-												icon: root.networkIcon("wifi", settingsWifiRow.signal)
-												iconSize: 22
-												fill: 1
-												color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurface
+											Item {
+												Layout.preferredWidth: 28
+												Layout.preferredHeight: 28
+												Layout.alignment: Qt.AlignVCenter
+
+												MaterialSymbol {
+													anchors.centerIn: parent
+													icon: root.networkIcon("wifi", settingsWifiRow.signal)
+													iconSize: 22
+													fill: 1
+													color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurface
+												}
 											}
 
 											ColumnLayout {
 												Layout.fillWidth: true
+												Layout.alignment: Qt.AlignVCenter
 												spacing: 2
 
 												Text {
@@ -4422,6 +4489,8 @@ FloatingWindow {
 											}
 
 											MaterialSymbol {
+												Layout.preferredWidth: 18
+												Layout.alignment: Qt.AlignVCenter
 												icon: "lock"
 												iconSize: 14
 												visible: settingsWifiRow.secured
@@ -4430,11 +4499,14 @@ FloatingWindow {
 											}
 
 											Text {
+												Layout.minimumWidth: 34
+												Layout.alignment: Qt.AlignVCenter
 												text: settingsWifiRow.signal + "%"
 												font.pixelSize: 11
 												font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
 												color: settingsWifiRow.connected ? col.onPrimaryContainer : col.onSurfaceVariant
 												opacity: 0.7
+												horizontalAlignment: Text.AlignRight
 											}
 										}
 

@@ -52,6 +52,27 @@ def update_config(**values) -> None:
         print(f"Warning: failed to update config: {e}", file=sys.stderr)
 
 
+def trigger_zen_bridge(written: list[str], verbose: bool = False) -> None:
+    """Bump watched Zen files so the running bridge reloads new colors."""
+    watched_names = {"matugen-vars.json", "matugen-userstyles.css"}
+    triggered = []
+
+    for output_path in written:
+        path = Path(output_path).expanduser()
+        if path.name not in watched_names:
+            continue
+
+        try:
+            os.utime(path, None)
+            triggered.append(str(path))
+        except Exception as e:
+            print(f"Warning: failed to trigger Zen bridge for {path}: {e}", file=sys.stderr)
+
+    if verbose and triggered:
+        for path in triggered:
+            print(f"Triggered Zen bridge: {path}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate Material You colors from an image",
@@ -210,6 +231,7 @@ def main():
         
         # Write outputs
         written = write_outputs(rendered)
+        trigger_zen_bridge(written, verbose=args.verbose)
         
         if args.verbose:
             for path in written:
@@ -252,6 +274,7 @@ def main():
         colors = generate_scheme(image_path, mode=mode, scheme_type=scheme, contrast=contrast)
         rendered = render_all(colors, str(image_path), mode)
         written = write_outputs(rendered)
+        trigger_zen_bridge(written, verbose=args.verbose)
 
         if args.verbose:
             for path in written:
@@ -285,6 +308,7 @@ def main():
         wallpaper = args.wallpaper or read_current_wallpaper()
         rendered = render_all(colors, wallpaper, mode)
         written = write_outputs(rendered)
+        trigger_zen_bridge(written, verbose=args.verbose)
 
         if args.verbose:
             for path in written:

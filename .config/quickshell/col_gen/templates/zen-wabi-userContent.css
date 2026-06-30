@@ -11,6 +11,8 @@
   --matugen-accent: {{ accent }};
   --matugen-secondary: {{ secondary }};
   --matugen-tertiary: {{ tertiary }};
+  --matugen-radius-sm: 6px;
+  --matugen-radius-md: 10px;
 }
 
 ::selection,
@@ -72,6 +74,6 @@
   background-color: color-mix(in srgb, var(--matugen-accent) 60%, transparent) !important;
   color: var(--matugen-bg-dark) !important;
   text-decoration: none !important;
-  border-radius: 0 !important;
+  border-radius: var(--matugen-radius-sm) !important;
   box-shadow: none !important;
 }

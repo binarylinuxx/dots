@@ -11,6 +11,8 @@
   --matugen-accent: {{ accent }};
   --matugen-secondary: {{ secondary }};
   --matugen-tertiary: {{ tertiary }};
+  --matugen-radius-sm: 6px;
+  --matugen-radius-md: 10px;
 }
 
 #navigator-toolbox,
@@ -68,33 +70,27 @@ menuitem,
   --toolbarbutton-icon-fill: var(--matugen-accent);
 }
 
-#navigator-toolbox,
-#titlebar,
-#TabsToolbar,
-#tabbrowser-tabs,
-#tabbrowser-tabs[orient="vertical"],
-#tabbrowser-tabs[orient="horizontal"],
 .tabbrowser-tab,
 .tab-background,
 .tab-stack,
 .tab-content,
-#zen-sidebar-splitter,
 #zen-workspaces-button,
 .zen-workspace-tabs-section,
 .zen-current-workspace-indicator,
 zen-folder,
 .tab-group-label,
-#zen-appcontent-navbar-container,
+toolbarbutton,
+.toolbarbutton-1,
+menuitem {
+  border-radius: var(--matugen-radius-sm) !important;
+}
+
 #urlbar,
 .urlbar-background,
 #searchbar,
-toolbarbutton,
-.toolbarbutton-1,
 menupopup,
-panel,
-menu,
-menuitem {
-  border-radius: 0 !important;
+panel {
+  border-radius: var(--matugen-radius-md) !important;
 }
 
 #zen-main-app-wrapper,

@@ -12,6 +12,8 @@
   --matugen-accent: {{ accent }};
   --matugen-secondary: {{ secondary }};
   --matugen-tertiary: {{ tertiary }};
+  --matugen-radius-sm: 6px;
+  --matugen-radius-md: 10px;
 }
 
 html,
@@ -42,5 +44,5 @@ button,
 input,
 textarea,
 select {
-  border-radius: 0 !important;
+  border-radius: var(--matugen-radius-sm) !important;
 }

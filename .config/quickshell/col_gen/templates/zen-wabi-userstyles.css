@@ -47,3 +47,22 @@ textarea,
 select {
   border-radius: var(--matugen-radius-sm) !important;
 }
+
+ytd-searchbox #container,
+ytd-searchbox #search-container {
+  border-radius: var(--matugen-radius-md) 0 0 var(--matugen-radius-md) !important;
+  overflow: hidden !important;
+}
+
+ytd-searchbox input#search,
+ytd-searchbox #search-input,
+ytd-searchbox #search-form input {
+  border-radius: 0 !important;
+}
+
+ytd-searchbox #search-icon-legacy,
+ytd-searchbox button#search-icon-legacy,
+ytd-searchbox button[aria-label="Search"] {
+  margin-left: 0 !important;
+  border-radius: 0 var(--matugen-radius-md) var(--matugen-radius-md) 0 !important;
+}

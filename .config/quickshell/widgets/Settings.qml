@@ -9,6 +9,7 @@ import QtQuick.Dialogs
 import qs.widgets
 import qs.services
 import PluginManager
+import "FuzzySearch.js" as FuzzySearch
 
 FloatingWindow {
 	id: root
@@ -19,9 +20,19 @@ FloatingWindow {
 	visible: Gstate.settingsOpen
 
 	property int selectedIndex: 0
-	property var pageNames: ["Appearance", "Wallpaper", "Bar", "Launcher", "Clock", "Advanced", "Performance", "Plugins", "About"]
-	// Icons per-page, matches pageNames order.
-	property var pageIcons: ["palette", "wallpaper", "view_sidebar", "rocket_launch", "schedule", "science", "speed", "extension", "info"]
+	property string settingsSearchQuery: ""
+	property var pageSearchItems: [
+		{ index: 0, name: "Appearance", icon: "palette", keywords: "theme colors material you matugen dark light scheme contrast font typography radius widgets opacity border background" },
+		{ index: 1, name: "Wallpaper", icon: "wallpaper", keywords: "wallpaper image wallhaven pexels download parallax transition provider api key purity nsfw" },
+		{ index: 2, name: "Bar", icon: "view_sidebar", keywords: "bar panel dock floating position top bottom left right height width gap tray workspaces modules" },
+		{ index: 3, name: "Launcher", icon: "rocket_launch", keywords: "launcher search apps emoji clipboard wallpapers width height item icons descriptions" },
+		{ index: 4, name: "Clock", icon: "schedule", keywords: "clock time date format 12h 24h custom preset" },
+		{ index: 5, name: "Advanced", icon: "science", keywords: "advanced desktop widgets weather openweather wttr city api idle dpms suspend night light recorder recording corners" },
+		{ index: 6, name: "Performance", icon: "speed", keywords: "performance animation speed fast slow disabled effects" },
+		{ index: 7, name: "Plugins", icon: "extension", keywords: "plugins extension manager install remove enable disable qml background sidebar settings" },
+		{ index: 8, name: "About", icon: "info", keywords: "about version qml md3 hyprland matugen credits" }
+	]
+	property var filteredPageItems: FuzzySearch.filter(pageSearchItems, settingsSearchQuery)
 	readonly property string writablePluginDir: Quickshell.env("HOME") + "/.local/share/blxshell/plugins"
 	property int darkModeIndex: 0
 	property int colorSchemeIndex: 7
@@ -197,6 +208,15 @@ FloatingWindow {
 		}
 	}
 
+	function selectFirstSearchResult() {
+		if (settingsSearchQuery.trim().length === 0)
+			return
+
+		var matches = FuzzySearch.filter(pageSearchItems, settingsSearchQuery)
+		if (matches.length > 0)
+			selectedIndex = matches[0].index
+	}
+
 	function incrementWorkspaces() {
 		if (configAdapter && workspaceCount < 20) {
 			workspaceCount++
@@ -301,7 +321,7 @@ FloatingWindow {
 
 					RowLayout {
 						spacing: 10
-						Layout.bottomMargin: 10
+						Layout.bottomMargin: 6
 
 						Rectangle {
 							width: 36
@@ -326,14 +346,72 @@ FloatingWindow {
 						}
 					}
 
+					Rectangle {
+						Layout.fillWidth: true
+						Layout.preferredHeight: 38
+						Layout.bottomMargin: 6
+						radius: 12
+						color: col.surfaceContainer
+						border.width: settingsSearchField.activeFocus ? 2 : 0
+						border.color: col.primary
+
+						RowLayout {
+							anchors.fill: parent
+							anchors.leftMargin: 10
+							anchors.rightMargin: 8
+							spacing: 6
+
+							MaterialSymbol {
+								icon: "search"
+								iconSize: 18
+								color: settingsSearchField.activeFocus ? col.primary : col.onSurfaceVariant
+							}
+
+							TextField {
+								id: settingsSearchField
+								Layout.fillWidth: true
+								text: root.settingsSearchQuery
+								placeholderText: "Search settings"
+								placeholderTextColor: col.onSurfaceVariant
+								background: null
+								color: col.onSurface
+								font.pixelSize: 13
+								font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+								verticalAlignment: Text.AlignVCenter
+								onTextChanged: {
+									root.settingsSearchQuery = text
+									root.selectFirstSearchResult()
+								}
+								Keys.onReturnPressed: root.selectFirstSearchResult()
+								Keys.onEscapePressed: text = ""
+							}
+
+							MaterialSymbol {
+								visible: root.settingsSearchQuery.length > 0
+								icon: "close"
+								iconSize: 16
+								color: clearSearchMouse.containsMouse ? col.onSurface : col.onSurfaceVariant
+
+								MouseArea {
+									id: clearSearchMouse
+									anchors.fill: parent
+									anchors.margins: -6
+									hoverEnabled: true
+									cursorShape: Qt.PointingHandCursor
+									onClicked: settingsSearchField.text = ""
+								}
+							}
+						}
+					}
+
 					Repeater {
-						model: root.pageNames
+						model: root.filteredPageItems
 
 						Rectangle {
 							Layout.fillWidth: true
 							Layout.preferredHeight: 44
 							radius: 12
-							color: index === root.selectedIndex ? col.primaryContainer : (navMouseArea.containsMouse ? col.surfaceContainer : "transparent")
+							color: modelData.index === root.selectedIndex ? col.primaryContainer : (navMouseArea.containsMouse ? col.surfaceContainer : "transparent")
 
 							Behavior on color {
 								ColorAnimation { duration: 150 }
@@ -345,17 +423,17 @@ FloatingWindow {
 								spacing: 12
 
 								MaterialSymbol {
-									icon: root.pageIcons[index] || "circle"
+									icon: modelData.icon || "circle"
 									iconSize: 22
-									color: index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
+									color: modelData.index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
 								}
 
 								Text {
-									text: modelData
+									text: modelData.name
 									font.pixelSize: 14
 									font.family: configAdapter.fontFamily 
 									font.weight: 700
-									color: index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
+									color: modelData.index === root.selectedIndex ? col.onPrimaryContainer : col.onSurfaceVariant
 								}
 							}
 
@@ -364,9 +442,20 @@ FloatingWindow {
 								anchors.fill: parent
 								cursorShape: Qt.PointingHandCursor
 								hoverEnabled: true
-								onClicked: root.selectedIndex = index
+								onClicked: root.selectedIndex = modelData.index
 							}
 						}
+					}
+
+					Text {
+						Layout.fillWidth: true
+						visible: root.settingsSearchQuery.length > 0 && root.filteredPageItems.length === 0
+						text: "No matching settings"
+						font.pixelSize: 12
+						font.family: configAdapter ? configAdapter.fontFamily : "Rubik"
+						color: col.onSurfaceVariant
+						horizontalAlignment: Text.AlignHCenter
+						opacity: 0.75
 					}
 
 					Item { Layout.fillHeight: true }

@@ -1,10 +1,11 @@
 {
   "accent": "{{ accent }}",
   "bg": "{{ bg }}",
-  "bg_dark": "{{ bg_dark }}",
-  "bg_light": "{{ bg_light }}",
+  "bg-dark": "{{ bg_dark }}",
+  "bg-light": "{{ bg_light }}",
   "fg": "{{ fg }}",
-  "fg_light": "{{ fg_light }}",
+  "fg-light": "{{ fg_light }}",
   "secondary": "{{ secondary }}",
-  "tertiary": "{{ tertiary }}"
+  "tertiary": "{{ tertiary }}",
+  "generated-at": "{{ generated_at }}"
 }

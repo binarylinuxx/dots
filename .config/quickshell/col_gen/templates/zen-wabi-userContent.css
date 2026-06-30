@@ -11,8 +11,8 @@
   --matugen-accent: {{ accent }};
   --matugen-secondary: {{ secondary }};
   --matugen-tertiary: {{ tertiary }};
-  --matugen-radius-sm: 6px;
-  --matugen-radius-md: 10px;
+  --matugen-radius-sm: 12px;
+  --matugen-radius-md: 18px;
 }
 
 ::selection,

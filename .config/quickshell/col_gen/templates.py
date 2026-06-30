@@ -4,6 +4,7 @@ Jinja2 template rendering for color configs.
 
 import os
 import re
+import time
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, BaseLoader
 
@@ -162,6 +163,7 @@ def render_template(
         colors=colors,
         image=image_path,
         mode=mode,
+        generated_at=time.time_ns(),
         **zen_wabi_palette(colors),
     )
 

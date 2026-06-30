@@ -243,7 +243,7 @@ def main():
             if args.verbose and executed:
                 print(f"Executed hooks: {', '.join(executed)}")
 
-        update_config(themeSource="dynamic")
+        update_config(themeSource="dynamic", matugenMode=args.mode, matugenScheme=args.scheme, matugenContrast=args.contrast)
         
         print(f"Done. Generated {len(colors)} colors, wrote {len(written)} files.")
 

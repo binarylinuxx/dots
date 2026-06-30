@@ -16,6 +16,30 @@ ShellRoot {
 	id: shellRoot
 	property bool nightLightSyncReady: false
 
+	function generatedMode() {
+		if (col && (col.mode === "dark" || col.mode === "light"))
+			return col.mode
+
+		if (!col || !col.background || col.background.length < 7)
+			return ""
+
+		const hex = col.background.slice(1)
+		const r = parseInt(hex.slice(0, 2), 16) / 255
+		const g = parseInt(hex.slice(2, 4), 16) / 255
+		const b = parseInt(hex.slice(4, 6), 16) / 255
+		const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+		return luminance < 0.5 ? "dark" : "light"
+	}
+
+	function syncConfigModeFromGenerated() {
+		const mode = generatedMode()
+		if (!mode || !cfg || cfg.matugenMode === mode)
+			return
+
+		cfg.matugenMode = mode
+		configWatcher.writeAdapter()
+	}
+
 	// Config file for settings
 	FileView {
 		id: configWatcher
@@ -116,7 +140,10 @@ ShellRoot {
 	    id: colorWatcher
 	    path: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/blxshell/Colors.json"
 	    watchChanges: true
-	    onFileChanged: reload()
+	    onFileChanged: {
+	        reload()
+	        generatedModeSyncTimer.restart()
+	    }
 
 	    JsonAdapter {
 	        id: col
@@ -167,8 +194,17 @@ ShellRoot {
 	        property string surfaceContainer
 	        property string surfaceContainerHigh
 	        property string surfaceContainerHighest
+	        property string mode
 	        property string wallpaper
 	    }
+	}
+
+	Timer {
+		id: generatedModeSyncTimer
+		interval: 250
+		running: true
+		repeat: false
+		onTriggered: shellRoot.syncConfigModeFromGenerated()
 	}
 
 	// Sync dndEnabled between cfg and Gstate (cfg is not accessible in Singletons)

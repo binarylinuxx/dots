@@ -46,5 +46,6 @@
     "surfaceContainer": "{{colors.surface_container.default.hex}}",
     "surfaceContainerHigh": "{{colors.surface_container_high.default.hex}}",
     "surfaceContainerHighest": "{{colors.surface_container_highest.default.hex}}",
+    "mode": "{{mode}}",
     "wallpaper": "{{image}}"
 }

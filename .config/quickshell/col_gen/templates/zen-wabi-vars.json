@@ -1,0 +1,10 @@
+{
+  "accent": "{{ accent }}",
+  "bg": "{{ bg }}",
+  "bg_dark": "{{ bg_dark }}",
+  "bg_light": "{{ bg_light }}",
+  "fg": "{{ fg }}",
+  "fg_light": "{{ fg_light }}",
+  "secondary": "{{ secondary }}",
+  "tertiary": "{{ tertiary }}"
+}

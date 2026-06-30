@@ -30,6 +30,31 @@ SCHEME_MAP = {
     "content": SchemeContent,
 }
 
+BACKGROUND_FILTERS = {
+    "dark": {
+        "background": 0.90,
+        "surface": 0.88,
+        "surface_dim": 0.90,
+        "surface_bright": 0.78,
+        "surface_container_lowest": 0.96,
+        "surface_container_low": 0.92,
+        "surface_container": 0.88,
+        "surface_container_high": 0.84,
+        "surface_container_highest": 0.80,
+    },
+    "light": {
+        "background": 0.92,
+        "surface": 0.94,
+        "surface_dim": 0.84,
+        "surface_bright": 0.98,
+        "surface_container_lowest": 1.00,
+        "surface_container_low": 0.96,
+        "surface_container": 0.92,
+        "surface_container_high": 0.88,
+        "surface_container_highest": 0.84,
+    },
+}
+
 
 def extract_seed_color(image_path: str | Path) -> int:
     """Extract dominant seed color (ARGB int) from image."""
@@ -59,6 +84,44 @@ def argb_to_hex_stripped(argb: int) -> str:
     g = (argb >> 8) & 0xFF
     b = argb & 0xFF
     return f"{r:02x}{g:02x}{b:02x}"
+
+
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert #rrggbb to RGB channels."""
+    value = hex_color.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def rgb_to_color(r: int, g: int, b: int) -> dict:
+    """Build a color dict from RGB channels."""
+    hex_color = f"#{r:02x}{g:02x}{b:02x}"
+    return {"hex": hex_color, "hex_stripped": hex_color[1:]}
+
+
+def blend_rgb(color: tuple[int, int, int], target: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
+    """Blend RGB color toward target by amount in the 0..1 range."""
+    return tuple(round(channel + (target_channel - channel) * amount) for channel, target_channel in zip(color, target))
+
+
+def filter_background_colors(colors: dict, mode: str) -> dict:
+    """Keep generated accents, but force background/surface roles near black or white."""
+    mode_key = mode.lower()
+    filters = BACKGROUND_FILTERS.get(mode_key)
+    if not filters:
+        return colors
+
+    target = (0, 0, 0) if mode_key == "dark" else (255, 255, 255)
+    filtered = dict(colors)
+
+    for name, amount in filters.items():
+        color = filtered.get(name)
+        if not color:
+            continue
+
+        rgb = hex_to_rgb(color["hex"])
+        filtered[name] = rgb_to_color(*blend_rgb(rgb, target, amount))
+
+    return filtered
 
 
 def generate_scheme_from_seed(
@@ -131,7 +194,7 @@ def generate_scheme_from_seed(
             colors[name] = {"hex": argb_to_hex(argb), "hex_stripped": argb_to_hex_stripped(argb)}
         except Exception:
             colors[name] = {"hex": "#000000", "hex_stripped": "000000"}
-    return colors
+    return filter_background_colors(colors, mode)
 
 
 def generate_scheme(
@@ -210,4 +273,4 @@ def generate_scheme(
             colors[name] = {"hex": argb_to_hex(argb), "hex_stripped": argb_to_hex_stripped(argb)}
         except Exception:
             colors[name] = {"hex": "#000000", "hex_stripped": "000000"}
-    return colors
+    return filter_background_colors(colors, mode)

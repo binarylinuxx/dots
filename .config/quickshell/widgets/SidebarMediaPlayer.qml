@@ -2,6 +2,7 @@ import qs.services
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
@@ -329,11 +330,24 @@ Item {
                             seekArea.dragProgress = p
                         }
 
+                        function wavePath(pathWidth, pathHeight) {
+                            if (pathWidth <= 0 || pathHeight <= 0)
+                                return ""
+
+                            let path = ""
+                            for (let x = 0; x <= pathWidth; x += 2) {
+                                const window = Math.sin(Math.PI * x / pathWidth)
+                                const y = pathHeight / 2 + Math.sin((x / 3.5) + phase) * (pathHeight * 0.12) * window
+                                path += x === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`
+                            }
+                            return path
+                        }
+
                         Timer {
                             interval: 33
                             repeat: true
                             running: root.activePlayer && root.activePlayer.isPlaying
-                            onTriggered: { waveSlider.phase += 0.22; activeWave.requestPaint() }
+                            onTriggered: waveSlider.phase += 0.22
                         }
 
                         Rectangle {
@@ -353,29 +367,26 @@ Item {
 
                             // Sine wave played section
                             Item {
+                                id: playedWave
                                 x: waveSlider.trackInset
                                 width: Math.max(0, waveSlider.usableWidth * waveSlider.progress)
                                 height: parent.height
                                 clip: true
 
-                                Canvas {
-                                    id: activeWave
+                                Shape {
                                     anchors.fill: parent
-                                    onPaint: {
-                                        const ctx = getContext("2d")
-                                        ctx.clearRect(0, 0, width, height)
-                                        ctx.lineWidth = 2.2
-                                        ctx.strokeStyle = root.hasArt
+                                    preferredRendererType: Shape.CurveRenderer
+
+                                    ShapePath {
+                                        strokeWidth: 2.2
+                                        strokeColor: root.hasArt
                                             ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.9)
                                             : col.primary
-                                        ctx.beginPath()
-                                        for (let x = 0; x <= width; x += 2) {
-                                            const window = Math.sin(Math.PI * x / width)
-                                            const y = height / 2 + Math.sin((x / 3.5) + waveSlider.phase) * (height * 0.12) * window
-                                            if (x === 0) ctx.moveTo(x, y)
-                                            else ctx.lineTo(x, y)
-                                        }
-                                        ctx.stroke()
+                                        fillColor: "transparent"
+                                        capStyle: ShapePath.RoundCap
+                                        joinStyle: ShapePath.RoundJoin
+
+                                        PathSvg { path: waveSlider.wavePath(playedWave.width, playedWave.height) }
                                     }
                                 }
                             }

@@ -79,7 +79,8 @@ in {
       };
 
       blxshell-col-gen = pkgs.writeShellScriptBin "blxshell-col-gen" ''
-        exec ${pythonColGenEnv}/bin/python3 "${blxshell-runtime}/share/blxshell/col_gen/main.py" "$@"
+        SHELL_ROOT="''${BLXSHELL_PATH:-${blxshell-runtime}/share/blxshell}"
+        exec ${pythonColGenEnv}/bin/python3 "$SHELL_ROOT/col_gen/main.py" "$@"
       '';
 
       blxshell-plugin-manager = pkgs.stdenv.mkDerivation {
@@ -129,11 +130,12 @@ in {
         ];
 
         text = ''
-          QML_IMPORT_PATH="${blxshell-plugin-manager}/share/blxshell/qml"
+          SHELL_ROOT="''${BLXSHELL_PATH:-${blxshell-runtime}/share/blxshell}"
+          QML_IMPORT_PATH="$SHELL_ROOT/qml:${blxshell-plugin-manager}/share/blxshell/qml"
           export QML_IMPORT_PATH
           LD_LIBRARY_PATH="${blxshell-plugin-manager}/share/blxshell/qml/PluginManager''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
           export LD_LIBRARY_PATH
-          SHELL_QML="${blxshell-runtime}/share/blxshell/shell.qml"
+          SHELL_QML="$SHELL_ROOT/shell.qml"
 
           usage() {
             cat <<'USAGE'
@@ -151,6 +153,13 @@ in {
           lock            Lock screen
           powermenu       Toggle the powermenu
           help            Show this message
+
+        Environment:
+          BLXSHELL_PATH   Override shell root for live editing
+
+        Examples:
+          BLXSHELL_PATH=$PWD/.config/quickshell blxshell restart
+          BLXSHELL_PATH=$PWD/.config/quickshell blxshell theme dynamic
         USAGE
           }
 

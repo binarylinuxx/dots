@@ -11,8 +11,9 @@
   --matugen-accent: {{ accent }};
   --matugen-secondary: {{ secondary }};
   --matugen-tertiary: {{ tertiary }};
-  --matugen-radius-sm: 12px;
-  --matugen-radius-md: 18px;
+  --matugen-radius-sm: 16px;
+  --matugen-radius-md: 24px;
+  --matugen-radius-lg: 32px;
 }
 
 ::selection,
@@ -41,6 +42,87 @@
     --newtab-text-primary-color: var(--matugen-fg) !important;
     --newtab-wordmark-color: var(--matugen-fg) !important;
     --newtab-primary-action-background: var(--matugen-accent) !important;
+  }
+
+  body,
+  #root,
+  .outer-wrapper,
+  .activity-stream {
+    background: var(--matugen-bg) !important;
+  }
+
+  .search-wrapper,
+  .search-inner-wrapper,
+  .search-handoff-button,
+  .fake-textbox,
+  input.search-handoff-button {
+    border-radius: var(--matugen-radius-lg) !important;
+  }
+
+  .search-wrapper,
+  .search-inner-wrapper {
+    background: transparent !important;
+  }
+
+  .search-handoff-button,
+  .fake-textbox,
+  input.search-handoff-button {
+    min-height: 56px !important;
+    background: color-mix(in srgb, var(--matugen-bg-light) 78%, transparent) !important;
+    color: var(--matugen-fg) !important;
+    border: 1px solid color-mix(in srgb, var(--matugen-accent) 28%, var(--matugen-bg-light) 72%) !important;
+    box-shadow: 0 18px 48px color-mix(in srgb, var(--matugen-bg-dark) 70%, transparent) !important;
+  }
+
+  .search-handoff-button:focus,
+  .search-handoff-button:hover,
+  input.search-handoff-button:focus,
+  input.search-handoff-button:hover {
+    background: color-mix(in srgb, var(--matugen-accent) 14%, var(--matugen-bg-light) 86%) !important;
+    border-color: color-mix(in srgb, var(--matugen-accent) 60%, var(--matugen-bg-light) 40%) !important;
+  }
+
+  .top-sites,
+  .collapsible-section,
+  .discovery-stream.ds-layout,
+  .body-wrapper .section-list {
+    background: transparent !important;
+  }
+
+  .top-site-outer,
+  .top-site-inner,
+  .top-site-button,
+  .tile,
+  .card,
+  .ds-card,
+  .compact-cards .card-outer,
+  .context-menu-button {
+    border-radius: var(--matugen-radius-md) !important;
+  }
+
+  .top-site-outer,
+  .card-outer,
+  .ds-card,
+  .compact-cards .card-outer {
+    margin: 8px !important;
+    background: color-mix(in srgb, var(--matugen-bg-light) 64%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--matugen-fg-light) 12%, transparent) !important;
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--matugen-bg-dark) 58%, transparent) !important;
+    overflow: hidden !important;
+  }
+
+  .top-site-outer:hover,
+  .card-outer:hover,
+  .ds-card:hover {
+    background: color-mix(in srgb, var(--matugen-accent) 13%, var(--matugen-bg-light) 87%) !important;
+    border-color: color-mix(in srgb, var(--matugen-accent) 36%, transparent) !important;
+  }
+
+  .top-site-outer .title,
+  .card-outer .title,
+  .ds-card .title,
+  .ds-card .excerpt {
+    color: var(--matugen-fg) !important;
   }
 }
 

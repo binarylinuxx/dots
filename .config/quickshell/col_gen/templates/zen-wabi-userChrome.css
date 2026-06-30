@@ -11,8 +11,9 @@
   --matugen-accent: {{ accent }};
   --matugen-secondary: {{ secondary }};
   --matugen-tertiary: {{ tertiary }};
-  --matugen-radius-sm: 12px;
-  --matugen-radius-md: 18px;
+  --matugen-radius-sm: 16px;
+  --matugen-radius-md: 24px;
+  --matugen-radius-lg: 32px;
 }
 
 #navigator-toolbox,
@@ -91,6 +92,39 @@ menuitem {
 menupopup,
 panel {
   border-radius: var(--matugen-radius-md) !important;
+}
+
+#urlbar[open],
+#urlbar[breakout][breakout-extend] {
+  border-radius: var(--matugen-radius-lg) !important;
+}
+
+#urlbar[open] > #urlbar-background,
+#urlbar[breakout][breakout-extend] > #urlbar-background,
+.urlbarView {
+  border-radius: var(--matugen-radius-lg) !important;
+  overflow: hidden !important;
+}
+
+.urlbarView-body-inner {
+  border-top: 0 !important;
+  padding: 8px !important;
+}
+
+.urlbarView-row {
+  margin: 6px 0 !important;
+  border-radius: var(--matugen-radius-md) !important;
+  overflow: hidden !important;
+}
+
+.urlbarView-row-inner {
+  border-radius: var(--matugen-radius-md) !important;
+  background-color: color-mix(in srgb, var(--matugen-bg-light) 62%, transparent) !important;
+}
+
+.urlbarView-row[selected] > .urlbarView-row-inner,
+.urlbarView-row:hover > .urlbarView-row-inner {
+  background-color: color-mix(in srgb, var(--matugen-accent) 18%, var(--matugen-bg-light) 82%) !important;
 }
 
 #zen-main-app-wrapper,

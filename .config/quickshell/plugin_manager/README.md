@@ -82,6 +82,24 @@ Repeater {
 Every component path is resolved to an absolute `componentUrl` (a
 `file://` URL) alongside the original field.
 
+## Shell Extension Points
+
+The shell loads these `provides` keys when present:
+
+| Key | Component placement and API |
+|-----|-----------------------------|
+| `bar` | Right side of a horizontal bar. Receives `plugin` when declared. |
+| `background` | A desktop-widget grid cell. Receives `plugin` when declared. |
+| `wallpaper-transition` | Full-screen wallpaper replacement while wallpaper changes. Declare `property var transition`; it receives `{ oldWallpaper, newWallpaper, duration }`. It also receives `plugin` when declared. The built-in slide is disabled while this component is active. |
+| `lockscreen` | Full-screen layer behind the unlock card. Declare `property var lockContext` to inspect the lock state, and `property var plugin` for manifest data. |
+| `settings` | Embedded on the plugin's card in the Settings app. Receives `plugin` when declared. Its `implicitHeight` controls the expanded page height. |
+
+Set `wallpaperTransitionPlugin` in `~/.config/blxshell/config.json` to a
+plugin ID to select it. Leave it empty to use the first enabled transition
+plugin. Bar, background, and lockscreen plugins can be loaded together.
+Disabled plugin IDs in
+`~/.config/blxshell/config.json` apply to every extension point.
+
 ## API
 
 | Member                         | Notes |
@@ -92,7 +110,7 @@ Every component path is resolved to an absolute `componentUrl` (a
 | `rescan()`                     | Reparse everything |
 | `get(id) -> map`               | One plugin as a map |
 | `byKind(kind) -> list<map>`    | All plugins providing `kind`, with `kindData` injected |
-| Model roles                    | `id, name, version, author, description, icon, path, provides, providesKinds, configSchema, valid, error` |
+| Model roles                    | `id, name, version, author, description, icon, path, provides, providesKinds, configSchema, settingsUrl, valid, error` |
 
 ## What this does NOT do
 

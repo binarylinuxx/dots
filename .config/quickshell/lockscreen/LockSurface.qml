@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import PluginManager
 
 Rectangle {
 	id: root
@@ -16,6 +17,7 @@ Rectangle {
 		JsonAdapter {
 			id: lcfg
 			property string fontFamily: "Rubik"
+			property var disabledPlugins: []
 		}
 	}
 
@@ -67,6 +69,26 @@ Rectangle {
 		color: "#000000"
 		opacity: wallpaperBg.visible ? 0.55 : 0
 		Behavior on opacity { NumberAnimation { duration: 400 } }
+	}
+
+	// Plugins in this layer can decorate the lockscreen but stay behind the
+	// authentication card, keeping the unlock flow usable.
+	Repeater {
+		model: {
+			var _rescan = PluginRegistry.count
+			var disabled = lcfg.disabledPlugins || []
+			return PluginRegistry.byKind("lockscreen").filter(function(plugin) {
+				return disabled.indexOf(plugin.id) === -1
+			})
+		}
+		delegate: Loader {
+			anchors.fill: parent
+			source: modelData.kindData.componentUrl
+			onLoaded: {
+				if (item && "plugin" in item) item.plugin = modelData
+				if (item && "lockContext" in item) item.lockContext = root.context
+			}
+		}
 	}
 
 	// ══════════════════════════════════════

@@ -78,6 +78,7 @@ ShellRoot {
 			property bool wallpaperParallax: true
 			property real wallpaperParallaxStrength: 0.1
 			property int wallpaperTransitionDuration: 600
+			property string wallpaperTransitionPlugin: ""
 			// Launcher settings
 			property string launcherPreset: "default"
 			property int launcherWidth: 400
@@ -100,18 +101,18 @@ ShellRoot {
 			property string widgetBorderColor: ""
 			property string widgetBackgroundColor: ""
 			property real widgetOpacity: 0.85
-		// Weather settings
-		property bool weatherUseApiProvider: false
-		property string weatherProvider: "wttr"
-		property string weatherCity: ""
-		property string weatherApiKey: ""
-		// Screen recorder settings
-		property string recordingDir: ""       // empty = ~/Videos
-		property string recordingMonitor: "HDMI-A-1"
-		property int    recordingFps: 60
-		property string recordingQuality: "very_high"  // very_high|high|medium|low
-		property string recordingCodec: "av1"          // h264|hevc|av1
-		property string recordingAudio: "default_output"
+			// Weather settings
+			property bool weatherUseApiProvider: false
+			property string weatherProvider: "wttr"
+			property string weatherCity: ""
+			property string weatherApiKey: ""
+			// Screen recorder settings
+			property string recordingDir: ""       // empty = ~/Videos
+			property string recordingMonitor: "HDMI-A-1"
+			property int    recordingFps: 60
+			property string recordingQuality: "very_high"  // very_high|high|medium|low
+			property string recordingCodec: "av1"          // h264|hevc|av1
+			property string recordingAudio: "default_output"
 			// Sidebar
 			property int sidebarTopPadding: 120*2
 		// Night Light

@@ -70,6 +70,7 @@ QHash<int, QByteArray> PluginRegistry::roleNames() const {
 		{ ProvidesRole,       "provides" },
 		{ ProvidesKindsRole,  "providesKinds" },
 		{ ConfigSchemaRole,   "configSchema" },
+		{ SettingsUrlRole,    "settingsUrl" },
 		{ ValidRole,          "valid" },
 		{ ErrorRole,          "error" },
 	};
@@ -91,6 +92,7 @@ QVariant PluginRegistry::data(const QModelIndex& index, int role) const {
 		case ProvidesRole:      return p.provides;
 		case ProvidesKindsRole: return p.providesKinds;
 		case ConfigSchemaRole:  return p.configSchema;
+		case SettingsUrlRole:   return p.settingsUrl;
 		case ValidRole:         return p.valid;
 		case ErrorRole:         return p.error;
 		default:                return {};
@@ -169,6 +171,8 @@ PluginEntry PluginRegistry::parseManifest(const QString& manifestPath) const {
 			}
 		}
 		e.provides = resolved;
+		const QVariantMap settings = resolved.value(QStringLiteral("settings")).toMap();
+		e.settingsUrl = settings.value(QStringLiteral("componentUrl")).toString();
 	}
 
 	// config schema: kept as-is for QML to render
@@ -216,6 +220,7 @@ QVariantMap PluginRegistry::get(const QString& id) const {
 			m.insert(QStringLiteral("provides"),      p.provides);
 			m.insert(QStringLiteral("providesKinds"), p.providesKinds);
 			m.insert(QStringLiteral("configSchema"),  p.configSchema);
+			m.insert(QStringLiteral("settingsUrl"),   p.settingsUrl);
 			m.insert(QStringLiteral("valid"),         p.valid);
 			m.insert(QStringLiteral("error"),         p.error);
 			return m;

@@ -3,6 +3,7 @@ import Quickshell.Wayland
 import qs.modules
 import qs.services
 import QtQuick
+import PluginManager
 
 PanelWindow {
 	id: bgWindow
@@ -27,6 +28,22 @@ PanelWindow {
 
 	// Wallpaper transition configuration
 	property bool isTransitioning: false
+	property var transitionPlugin: {
+		var _rescan = PluginRegistry.count
+		var disabled = cfg && cfg.disabledPlugins ? cfg.disabledPlugins : []
+		var plugins = PluginRegistry.byKind("wallpaper-transition")
+		var selected = cfg ? cfg.wallpaperTransitionPlugin : ""
+		for (var i = 0; i < plugins.length; i++) {
+			if (plugins[i].id === selected && disabled.indexOf(plugins[i].id) === -1)
+				return plugins[i]
+		}
+		if (selected !== "") return null
+		for (var j = 0; j < plugins.length; j++) {
+			if (disabled.indexOf(plugins[j].id) === -1)
+				return plugins[j]
+		}
+		return null
+	}
 
 	// Persist previousWallpaper across config reloads
 	PersistentProperties {
@@ -65,7 +82,16 @@ PanelWindow {
 	function startWallpaperTransition() {
 		if (isTransitioning) return
 
+		transitionLayer.transition = {
+			oldWallpaper: persist.lastWallpaper,
+			newWallpaper: currentWallpaper,
+			duration: transitionDuration
+		}
 		isTransitioning = true
+		if (transitionPlugin !== null) {
+			pluginTransitionTimer.restart()
+			return
+		}
 
 		// Set up old wallpaper image at current parallax position
 		oldWallpaperImage.source = persist.lastWallpaper
@@ -84,6 +110,20 @@ PanelWindow {
 		// Start the slide animation
 		slideOutAnim.start()
 		slideInAnim.start()
+	}
+
+	function finishWallpaperTransition() {
+		wallpaperImage.source = currentWallpaper
+		persist.lastWallpaper = currentWallpaper
+		oldWallpaperImage.source = ""
+		newWallpaperImage.source = ""
+		isTransitioning = false
+	}
+
+	Timer {
+		id: pluginTransitionTimer
+		interval: transitionDuration
+		onTriggered: bgWindow.finishWallpaperTransition()
 	}
 
 	// Old wallpaper (slides out to the right)
@@ -114,6 +154,21 @@ PanelWindow {
 
 		x: parallaxX - parent.width
 		opacity: 1
+	}
+
+	// A transition plugin replaces the built-in slide while remaining active.
+	Loader {
+		id: transitionLayer
+		anchors.fill: parent
+		active: bgWindow.isTransitioning && bgWindow.transitionPlugin !== null
+		source: active ? bgWindow.transitionPlugin.kindData.componentUrl : ""
+		property var transition: ({})
+
+		onLoaded: {
+			if (item && "plugin" in item) item.plugin = bgWindow.transitionPlugin
+			if (item && "transition" in item) item.transition = transition
+		}
+		onTransitionChanged: if (item && "transition" in item) item.transition = transition
 	}
 
 	// Main wallpaper image (shown when not transitioning)
@@ -162,15 +217,7 @@ PanelWindow {
 		easing.type: Easing.InOutCubic
 
 		onFinished: {
-			// Transition complete - update main wallpaper and clean up
-			wallpaperImage.source = currentWallpaper
-			persist.lastWallpaper = currentWallpaper
-
-			// Reset transition images
-			oldWallpaperImage.source = ""
-			newWallpaperImage.source = ""
-
-			isTransitioning = false
+			bgWindow.finishWallpaperTransition()
 		}
 	}
 

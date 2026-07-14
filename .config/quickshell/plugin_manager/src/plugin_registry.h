@@ -16,6 +16,7 @@ struct PluginEntry {
 	QString description;
 	QString icon;
 	QString path;                 // absolute plugin dir
+	QString settingsUrl;          // absolute QML URL for the settings page
 	QVariantMap provides;         // { bar: {...}, background: {...}, ... }
 	QStringList providesKinds;    // ["bar","background","sidebarTile", ...]
 	QVariantMap configSchema;     // raw "config" object from manifest
@@ -44,6 +45,7 @@ public:
 		ProvidesRole,
 		ProvidesKindsRole,
 		ConfigSchemaRole,
+		SettingsUrlRole,
 		ValidRole,
 		ErrorRole,
 	};

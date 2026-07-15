@@ -88,6 +88,7 @@ PanelWindow {
 		if (usePluginTransition) {
 			isTransitioning = true
 			pluginTransitionPending = true
+			newWallpaperImage.x = parallaxX
 		}
 
 		// These are texture providers for transition plugins as well as the
@@ -157,50 +158,60 @@ PanelWindow {
 		onTriggered: bgWindow.finishWallpaperTransition()
 	}
 
-	// Old wallpaper (slides out to the right)
-	Image {
-		id: oldWallpaperImage
-		fillMode: Image.PreserveAspectCrop
-		asynchronous: true
+	// These frames match the built-in transition: a clipped full-screen view of
+	// an oversized image positioned by the current parallax state.
+	Item {
+		id: oldTransitionFrame
+		anchors.fill: parent
+		clip: true
 		visible: isTransitioning
-		onStatusChanged: bgWindow.tryStartPluginTransition()
 
-		width: parent.width * (1 + parallaxStrength)
-		height: parent.height * (1 + parallaxStrength)
-		y: (parent.height - height) / 2
+		Image {
+			id: oldWallpaperImage
+			fillMode: Image.PreserveAspectCrop
+			asynchronous: true
+			onStatusChanged: bgWindow.tryStartPluginTransition()
 
-		x: parallaxX
-		opacity: 1
+			width: parent.width * (1 + parallaxStrength)
+			height: parent.height * (1 + parallaxStrength)
+			y: (parent.height - height) / 2
+			x: parallaxX
+			opacity: 1
+		}
 	}
 
-	// New wallpaper (slides in from the left)
-	Image {
-		id: newWallpaperImage
-		fillMode: Image.PreserveAspectCrop
-		asynchronous: true
+	Item {
+		id: newTransitionFrame
+		anchors.fill: parent
+		clip: true
 		visible: isTransitioning
-		onStatusChanged: bgWindow.tryStartPluginTransition()
 
-		width: parent.width * (1 + parallaxStrength)
-		height: parent.height * (1 + parallaxStrength)
-		y: (parent.height - height) / 2
+		Image {
+			id: newWallpaperImage
+			fillMode: Image.PreserveAspectCrop
+			asynchronous: true
+			onStatusChanged: bgWindow.tryStartPluginTransition()
 
-		x: parallaxX - parent.width
-		opacity: 1
+			width: parent.width * (1 + parallaxStrength)
+			height: parent.height * (1 + parallaxStrength)
+			y: (parent.height - height) / 2
+			x: parallaxX - parent.width
+			opacity: 1
+		}
 	}
 
-	// ShaderEffectSource keeps the decoded wallpaper available as a GPU texture
-	// while hideSource prevents it from painting over a plugin transition.
+	// Capture the exact built-in frames for shader plugins. hideSource leaves
+	// the normal frames visible for the slide fallback only.
 	ShaderEffectSource {
 		id: oldTransitionTexture
-		sourceItem: oldWallpaperImage
+		sourceItem: oldTransitionFrame
 		hideSource: bgWindow.transitionPlugin !== null
 		live: true
 	}
 
 	ShaderEffectSource {
 		id: newTransitionTexture
-		sourceItem: newWallpaperImage
+		sourceItem: newTransitionFrame
 		hideSource: bgWindow.transitionPlugin !== null
 		live: true
 	}

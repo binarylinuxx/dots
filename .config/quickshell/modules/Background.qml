@@ -124,13 +124,12 @@ PanelWindow {
 
 		pluginTransitionPending = false
 		transitionLayer.transition = {
-			oldSource: oldWallpaperImage,
-			newSource: newWallpaperImage,
+			oldSource: oldTransitionTexture,
+			newSource: newTransitionTexture,
 			oldWallpaper: persist.lastWallpaper,
 			newWallpaper: currentWallpaper,
 			duration: transitionDuration
 		}
-		pluginTransitionTimer.restart()
 	}
 
 	function finishWallpaperTransition() {
@@ -153,7 +152,7 @@ PanelWindow {
 		id: oldWallpaperImage
 		fillMode: Image.PreserveAspectCrop
 		asynchronous: true
-		visible: isTransitioning && transitionPlugin === null
+		visible: isTransitioning
 		onStatusChanged: bgWindow.tryStartPluginTransition()
 
 		width: parent.width * (1 + parallaxStrength)
@@ -169,7 +168,7 @@ PanelWindow {
 		id: newWallpaperImage
 		fillMode: Image.PreserveAspectCrop
 		asynchronous: true
-		visible: isTransitioning && transitionPlugin === null
+		visible: isTransitioning
 		onStatusChanged: bgWindow.tryStartPluginTransition()
 
 		width: parent.width * (1 + parallaxStrength)
@@ -180,6 +179,22 @@ PanelWindow {
 		opacity: 1
 	}
 
+	// ShaderEffectSource keeps the decoded wallpaper available as a GPU texture
+	// while hideSource prevents it from painting over a plugin transition.
+	ShaderEffectSource {
+		id: oldTransitionTexture
+		sourceItem: oldWallpaperImage
+		hideSource: bgWindow.transitionPlugin !== null
+		live: true
+	}
+
+	ShaderEffectSource {
+		id: newTransitionTexture
+		sourceItem: newWallpaperImage
+		hideSource: bgWindow.transitionPlugin !== null
+		live: true
+	}
+
 	// A transition plugin replaces the built-in slide while remaining active.
 	Loader {
 		id: transitionLayer
@@ -188,11 +203,18 @@ PanelWindow {
 		source: active ? bgWindow.transitionPlugin.kindData.componentUrl : ""
 		property var transition: ({})
 
+		function deliverTransition() {
+			if (!item || !transition.oldSource || !transition.newSource)
+				return
+			if ("transition" in item) item.transition = transition
+			pluginTransitionTimer.restart()
+		}
+
 		onLoaded: {
 			if (item && "plugin" in item) item.plugin = bgWindow.transitionPlugin
-			if (item && "transition" in item) item.transition = transition
+			deliverTransition()
 		}
-		onTransitionChanged: if (item && "transition" in item) item.transition = transition
+		onTransitionChanged: deliverTransition()
 	}
 
 	// Main wallpaper image (shown when not transitioning)

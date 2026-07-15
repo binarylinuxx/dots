@@ -29,6 +29,7 @@ PanelWindow {
 	// Wallpaper transition configuration
 	property bool isTransitioning: false
 	property bool pluginTransitionPending: false
+	property bool finishTransitionPending: false
 	property var transitionPlugin: {
 		var _rescan = PluginRegistry.count
 		var disabled = cfg && cfg.disabledPlugins ? cfg.disabledPlugins : []
@@ -135,9 +136,16 @@ PanelWindow {
 	function finishWallpaperTransition() {
 		wallpaperImage.source = currentWallpaper
 		persist.lastWallpaper = currentWallpaper
+		finishTransitionPending = true
+		if (wallpaperImage.status === Image.Ready)
+			completeWallpaperTransition()
+	}
+
+	function completeWallpaperTransition() {
 		oldWallpaperImage.source = ""
 		newWallpaperImage.source = ""
 		pluginTransitionPending = false
+		finishTransitionPending = false
 		isTransitioning = false
 	}
 
@@ -225,6 +233,10 @@ PanelWindow {
 		asynchronous: true
 		visible: !isTransitioning
 		opacity: status === Image.Ready ? 1 : 0
+		onStatusChanged: {
+			if (finishTransitionPending && status === Image.Ready)
+				bgWindow.completeWallpaperTransition()
+		}
 
 		// Oversized to allow parallax movement
 		width: parent.width * (1 + parallaxStrength)

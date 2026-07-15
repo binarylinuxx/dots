@@ -151,7 +151,9 @@ PanelWindow {
 
 	Timer {
 		id: pluginTransitionTimer
-		interval: transitionDuration
+		// Plugins signal completion after presenting their final frame. This only
+		// prevents a broken plugin from leaving the wallpaper transition open.
+		interval: transitionDuration + 500
 		onTriggered: bgWindow.finishWallpaperTransition()
 	}
 
@@ -220,6 +222,12 @@ PanelWindow {
 
 		onLoaded: {
 			if (item && "plugin" in item) item.plugin = bgWindow.transitionPlugin
+			if (item && "finished" in item) {
+				item.finished.connect(function() {
+					pluginTransitionTimer.stop()
+					bgWindow.finishWallpaperTransition()
+				})
+			}
 			deliverTransition()
 		}
 		onTransitionChanged: deliverTransition()

@@ -90,7 +90,7 @@ The shell loads these `provides` keys when present:
 |-----|-----------------------------|
 | `bar` | Right side of a horizontal bar. Receives `plugin` when declared. |
 | `background` | A desktop-widget grid cell. Receives `plugin` when declared. |
-| `wallpaper-transition` | Full-screen wallpaper replacement while wallpaper changes. Declare `property var transition`; it receives `{ oldWallpaper, newWallpaper, duration }`. It also receives `plugin` when declared. The built-in slide is disabled while this component is active. |
+| `wallpaper-transition` | Full-screen wallpaper replacement while wallpaper changes. Declare `property var transition`; it receives `{ oldSource, newSource, oldWallpaper, newWallpaper, duration }`, where `oldSource` and `newSource` are preloaded `Image` texture providers for `ShaderEffect`. It also receives `plugin` when declared. The built-in slide is disabled while this component is active. |
 | `lockscreen` | Full-screen layer behind the unlock card. Declare `property var lockContext` to inspect the lock state, and `property var plugin` for manifest data. |
 | `settings` | Embedded on the plugin's card in the Settings app. Receives `plugin` when declared. Its `implicitHeight` controls the expanded page height. |
 

@@ -28,6 +28,7 @@ PanelWindow {
 
 	// Wallpaper transition configuration
 	property bool isTransitioning: false
+	property bool pluginTransitionPending: false
 	property var transitionPlugin: {
 		var _rescan = PluginRegistry.count
 		var disabled = cfg && cfg.disabledPlugins ? cfg.disabledPlugins : []
@@ -82,24 +83,27 @@ PanelWindow {
 	function startWallpaperTransition() {
 		if (isTransitioning) return
 
-		transitionLayer.transition = {
-			oldWallpaper: persist.lastWallpaper,
-			newWallpaper: currentWallpaper,
-			duration: transitionDuration
-		}
-		isTransitioning = true
-		if (transitionPlugin !== null) {
-			pluginTransitionTimer.restart()
-			return
+		var usePluginTransition = transitionPlugin !== null
+		if (usePluginTransition) {
+			isTransitioning = true
+			pluginTransitionPending = true
 		}
 
-		// Set up old wallpaper image at current parallax position
+		// These are texture providers for transition plugins as well as the
+		// built-in slide effect. Set them before selecting either implementation.
 		oldWallpaperImage.source = persist.lastWallpaper
+		newWallpaperImage.source = currentWallpaper
+		if (usePluginTransition) {
+			tryStartPluginTransition()
+			return
+		}
+		isTransitioning = true
+
+		// Set up old wallpaper image at current parallax position
 		oldWallpaperImage.x = parallaxX
 		oldWallpaperImage.opacity = 1
 
 		// Set up new wallpaper starting from left (off-screen) with parallax offset
-		newWallpaperImage.source = currentWallpaper
 		newWallpaperImage.x = parallaxX - bgWindow.width
 		newWallpaperImage.opacity = 1
 
@@ -112,11 +116,29 @@ PanelWindow {
 		slideInAnim.start()
 	}
 
+	function tryStartPluginTransition() {
+		if (!pluginTransitionPending
+			|| oldWallpaperImage.status !== Image.Ready
+			|| newWallpaperImage.status !== Image.Ready)
+			return
+
+		pluginTransitionPending = false
+		transitionLayer.transition = {
+			oldSource: oldWallpaperImage,
+			newSource: newWallpaperImage,
+			oldWallpaper: persist.lastWallpaper,
+			newWallpaper: currentWallpaper,
+			duration: transitionDuration
+		}
+		pluginTransitionTimer.restart()
+	}
+
 	function finishWallpaperTransition() {
 		wallpaperImage.source = currentWallpaper
 		persist.lastWallpaper = currentWallpaper
 		oldWallpaperImage.source = ""
 		newWallpaperImage.source = ""
+		pluginTransitionPending = false
 		isTransitioning = false
 	}
 
@@ -131,7 +153,8 @@ PanelWindow {
 		id: oldWallpaperImage
 		fillMode: Image.PreserveAspectCrop
 		asynchronous: true
-		visible: isTransitioning
+		visible: isTransitioning && transitionPlugin === null
+		onStatusChanged: bgWindow.tryStartPluginTransition()
 
 		width: parent.width * (1 + parallaxStrength)
 		height: parent.height * (1 + parallaxStrength)
@@ -146,7 +169,8 @@ PanelWindow {
 		id: newWallpaperImage
 		fillMode: Image.PreserveAspectCrop
 		asynchronous: true
-		visible: isTransitioning
+		visible: isTransitioning && transitionPlugin === null
+		onStatusChanged: bgWindow.tryStartPluginTransition()
 
 		width: parent.width * (1 + parallaxStrength)
 		height: parent.height * (1 + parallaxStrength)

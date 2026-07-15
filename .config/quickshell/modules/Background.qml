@@ -35,14 +35,10 @@ PanelWindow {
 		var disabled = cfg && cfg.disabledPlugins ? cfg.disabledPlugins : []
 		var plugins = PluginRegistry.byKind("wallpaper-transition")
 		var selected = cfg ? cfg.wallpaperTransitionPlugin : ""
+		if (selected === "") return null
 		for (var i = 0; i < plugins.length; i++) {
 			if (plugins[i].id === selected && disabled.indexOf(plugins[i].id) === -1)
 				return plugins[i]
-		}
-		if (selected !== "") return null
-		for (var j = 0; j < plugins.length; j++) {
-			if (disabled.indexOf(plugins[j].id) === -1)
-				return plugins[j]
 		}
 		return null
 	}

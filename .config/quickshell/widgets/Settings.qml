@@ -122,6 +122,7 @@ FloatingWindow {
 			property bool wallpaperParallax: true
 			property real wallpaperParallaxStrength: 0.1
 			property int wallpaperTransitionDuration: 600
+			property string wallpaperTransitionPlugin: ""
 			// Launcher settings
 			property string launcherPreset: "default"
 			property int launcherWidth: 400

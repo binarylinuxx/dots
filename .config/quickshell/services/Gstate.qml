@@ -5,6 +5,7 @@ QtObject {
     property bool appsOpen: false
     property bool settingsOpen: false
     property bool sidebarOpen: false
+    property string activePluginSidebar: ""
     property bool screenshotOpen: false
     property bool powerMenuOpen: false
     property bool dndEnabled: false

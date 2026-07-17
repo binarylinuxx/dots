@@ -70,8 +70,32 @@ PanelWindow {
 		visible: barWindow.verticalBar
 	}
 
-	// Plugin bar items — right-anchored, sits just left of SystemTray.
-	// Tracks tray width so there's no hardcoded gap.
+	// Left-positioned plugin bar items.
+	Row {
+		id: leftPluginBarRow
+		anchors.left: parent.left
+		anchors.leftMargin: 8
+		anchors.verticalCenter: parent.verticalCenter
+		visible: !barWindow.verticalBar
+		spacing: 6
+
+		Repeater {
+			model: {
+				var all = PluginRegistry.byKind("bar")
+				var disabled = (cfg && cfg.disabledPlugins) ? cfg.disabledPlugins : []
+				return all.filter(function(p) {
+					return p.kindData.position === "left" && disabled.indexOf(p.id) === -1
+				})
+			}
+			delegate: Loader {
+				anchors.verticalCenter: parent.verticalCenter
+				source: modelData.kindData.componentUrl
+				onLoaded: if (item) item.plugin = modelData
+			}
+		}
+	}
+
+	// Right-positioned plugin bar items sit just left of SystemTray.
 	Row {
 		id: pluginBarRow
 		anchors.right: parent.right
@@ -84,7 +108,9 @@ PanelWindow {
 			model: {
 				var all = PluginRegistry.byKind("bar")
 				var disabled = (cfg && cfg.disabledPlugins) ? cfg.disabledPlugins : []
-				return all.filter(function(p) { return disabled.indexOf(p.id) === -1 })
+				return all.filter(function(p) {
+					return p.kindData.position !== "left" && disabled.indexOf(p.id) === -1
+				})
 			}
 			delegate: Loader {
 				anchors.verticalCenter: parent.verticalCenter

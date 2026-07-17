@@ -4953,6 +4953,10 @@ FloatingWindow {
 											if (item && "plugin" in item) {
 												item.plugin = PluginRegistry.get(pluginCard.id)
 											}
+											if (item && "shellConfig" in item) item.shellConfig = configAdapter
+											if (item && "saveShellConfig" in item) {
+												item.saveShellConfig = function() { saveConfig() }
+											}
 										}
 										Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 									}

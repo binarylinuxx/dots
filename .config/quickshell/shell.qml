@@ -356,6 +356,19 @@ ShellRoot {
 		id: barWindow
 	}
 	Sidebar {}
+	Repeater {
+		model: {
+			var _rescan = PluginRegistry.count
+			var disabled = cfg && cfg.disabledPlugins ? cfg.disabledPlugins : []
+			return PluginRegistry.byKind("sidebar").filter(function(plugin) {
+				return disabled.indexOf(plugin.id) === -1
+			})
+		}
+		delegate: Loader {
+			source: modelData.kindData.componentUrl
+			onLoaded: if (item && "plugin" in item) item.plugin = modelData
+		}
+	}
 	NightLight {}
 	AudioOsd {}
 	Background {

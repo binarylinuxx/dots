@@ -4,22 +4,18 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
-import Quickshell.Wayland
 import qs.widgets
 import qs.services
 
-PanelWindow {
+Item {
 	id: root
-
-	exclusionMode: ExclusionMode.Ignore
-	WlrLayershell.layer: WlrLayer.Overlay
-	WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-	color: "transparent"
-
-	anchors { top: true; left: true; bottom: true; right: true }
+	anchors.fill: parent
+	z: 600
+	focus: visible
 
 	property bool firstStartFileExists: false
 	visible: firstStartFileExists
+	property Item surface: setupSurface
 
 	FileView {
 		id: firstStartFile
@@ -118,8 +114,10 @@ PanelWindow {
 	}
 
 	Rectangle {
+		id: setupSurface
 		anchors.fill: parent
-		color: col.background
+		// Setup is an input-owning modal and intentionally covers bar and frame.
+		color: "transparent"
 
 		ColumnLayout {
 			anchors.fill: parent

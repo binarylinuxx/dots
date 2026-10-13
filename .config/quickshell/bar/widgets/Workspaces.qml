@@ -1,8 +1,10 @@
 import qs.services
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import QtQuick.Shapes
 import Quickshell
+import Quickshell.Widgets
 
 Item {
     id: root
@@ -10,12 +12,41 @@ Item {
     anchors.bottomMargin: 0
 
     // Get workspace count from config, default to 10
-    property int wsCount: cfg ? cfg.workspaceCount : 10
+    property int wsCount: Hyprland.isZwwm ? Hyprland.workspaceIds.length : (cfg ? cfg.workspaceCount : 10)
+    function workspaceId(index) { return Hyprland.isZwwm ? Hyprland.workspaceIds[index] : index + 1 }
+    function workspaceName(index) {
+        if (index < 0 || index >= wsCount) return ""
+        return Hyprland.isZwwm ? Hyprland.workspaces[index]?.name || String(workspaceId(index)) : String(index + 1)
+    }
+    function isActive(index) { return Hyprland.activeWorkspaceIds.indexOf(workspaceId(index)) >= 0 }
+    readonly property int activeIndex: Hyprland.isZwwm ? Hyprland.workspaceIds.indexOf(Hyprland.activeWorkspaceId) : Hyprland.activeWorkspaceId - 1
     property bool dynamicWs: cfg ? cfg.dynamicWorkspaces : false
     property string wsStyle: cfg ? cfg.workspaceStyle : "dots"
     property int moduleRadius: cfg ? Math.max(8, Math.round(cfg.barRadius * 0.7)) : 14
     property string fontFamily: cfg ? cfg.fontFamily : "Rubik"
     property bool vertical: false   // set true for left/right bar
+
+    readonly property var workspaceApps: {
+        // Track desktop-entry updates as well as window/tag changes.
+        const entries = DesktopEntries.applications.values
+        const apps = {}
+        const seen = {}
+        const clients = Hyprland.clients.slice().sort((a, b) => Number(b.activated) - Number(a.activated))
+        for (const client of clients) {
+            const id = client.workspace?.id
+            if (!id) continue
+            const appId = client.className || ""
+            const entry = appId ? DesktopEntries.heuristicLookup(appId) : null
+            const key = String(entry?.id || appId || "unknown").toLowerCase()
+            if (!apps[id]) { apps[id] = []; seen[id] = new Set() }
+            if (seen[id].has(key) || apps[id].length >= 2) continue
+            seen[id].add(key)
+            apps[id].push({ appId: appId, icon: entry?.icon || appId || "application-x-executable" })
+        }
+        return apps
+    }
+    function appsForWorkspace(id) { return workspaceApps[id] || [] }
+    onWorkspaceAppsChanged: metaballCanvas.requestPaint()
 
     // Helper function to check if workspace has windows
     function workspaceHasWindows(wsId) {
@@ -25,8 +56,8 @@ Item {
     // Store occupied state for each workspace
     property var occupiedStates: {
         let states = []
-        for (let i = 1; i <= wsCount; i++) {
-            states.push(workspaceHasWindows(i))
+        for (let i = 0; i < wsCount; i++) {
+            states.push(workspaceHasWindows(workspaceId(i)))
         }
         return states
     }
@@ -39,8 +70,8 @@ Item {
 
     function computeStates() {
         let states = []
-        for (let i = 1; i <= wsCount; i++) {
-            states.push(workspaceHasWindows(i))
+        for (let i = 0; i < wsCount; i++) {
+            states.push(workspaceHasWindows(workspaceId(i)))
         }
         return states
     }
@@ -99,7 +130,7 @@ Item {
                 let currentGroup = null
 
                 for (let i = 0; i < root.wsCount; i++) {
-                    let occupied = root.workspaceHasWindows(i + 1)
+                    let occupied = root.workspaceHasWindows(root.workspaceId(i))
 
                     if (occupied) {
                         if (currentGroup === null) {
@@ -151,8 +182,9 @@ Item {
 
                 // Draw small dots for all workspaces
                 for (let i = 0; i < root.wsCount; i++) {
-                    let occupied = root.workspaceHasWindows(i + 1)
+                    let occupied = root.workspaceHasWindows(root.workspaceId(i))
                     let pos = i * cellSize + cellSize / 2
+                    if (root.appsForWorkspace(root.workspaceId(i)).length > 0) continue
                     
                     if (occupied) {
                         ctx.fillStyle = col.surfaceContainer
@@ -184,8 +216,8 @@ Item {
                     height: wsStyle === "bars" ? 16 : 29
                     radius: wsStyle === "bars" ? 4 : moduleRadius
                     color: {
-                        let isActive = Hyprland.activeWorkspaceId === (index + 1)
-                        let occupied = root.workspaceHasWindows(index + 1)
+                        let isActive = root.isActive(index)
+                        let occupied = root.workspaceHasWindows(root.workspaceId(index))
                         
                         if (isActive) return "transparent"
                         if (occupied) return col.secondaryContainer
@@ -194,14 +226,14 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text: index + 1
-                        visible: wsStyle === "numbers"
+                        text: root.workspaceName(index)
+                        visible: wsStyle === "numbers" && root.appsForWorkspace(root.workspaceId(index)).length === 0
                         font.pixelSize: 12
                         font.family: root.fontFamily
                         font.weight: 700
                         color: {
-                            let isActive = Hyprland.activeWorkspaceId === (index + 1)
-                            let occupied = root.workspaceHasWindows(index + 1)
+                            let isActive = root.isActive(index)
+                            let occupied = root.workspaceHasWindows(root.workspaceId(index))
                             
                             if (isActive) return "transparent"
                             if (occupied) return col.onSecondaryContainer
@@ -214,10 +246,10 @@ Item {
                         width: 4
                         height: parent.height - 4
                         radius: 2
-                        visible: wsStyle === "bars"
+                        visible: wsStyle === "bars" && root.appsForWorkspace(root.workspaceId(index)).length === 0
                         color: {
-                            let isActive = Hyprland.activeWorkspaceId === (index + 1)
-                            let occupied = root.workspaceHasWindows(index + 1)
+                            let isActive = root.isActive(index)
+                            let occupied = root.workspaceHasWindows(root.workspaceId(index))
                             
                             if (isActive) return "transparent"
                             if (occupied) return col.onSecondaryContainer
@@ -259,15 +291,15 @@ Item {
                         onEntered: hoverIndicator.opacity = 0.3
                         onExited: hoverIndicator.opacity = 0
                         onClicked: {
-                            Hyprland.dispatch("workspace " + (index + 1))
+                            Hyprland.dispatch("workspace " + root.workspaceId(index))
                         }
                         onWheel: wheel => {
                             if (wheel.angleDelta.y > 0) {
-                                if (Hyprland.activeWorkspaceId > 1) {
+                                if (root.activeIndex > 0) {
                                     Hyprland.dispatch("workspace -1")
                                 }
                             } else if (wheel.angleDelta.y < 0) {
-                                if (Hyprland.activeWorkspaceId < root.wsCount) {
+                                if (root.activeIndex < root.wsCount - 1) {
                                     Hyprland.dispatch("workspace +1")
                                 }
                             }
@@ -280,10 +312,11 @@ Item {
         // Active workspace indicator with trail effect
         Item {
             id: activeIndicatorContainer
+            visible: root.activeIndex >= 0
             anchors.fill: parent
             z: 10
 
-            property real targetPos: (Hyprland.activeWorkspaceId - 1) * 29 + 3
+            property real targetPos: root.activeIndex * 29 + 3
             // keep legacy alias for horizontal
             property real targetX: !root.vertical ? targetPos : 3
             property real targetY:  root.vertical ? targetPos : 3
@@ -346,13 +379,13 @@ Item {
                     height: 8
                     radius: 4
                     color: col.onPrimary
-                    visible: wsStyle === "dots"
+                    visible: wsStyle === "dots" && root.appsForWorkspace(Hyprland.activeWorkspaceId).length === 0
                 }
 
                 Text {
                     anchors.centerIn: parent
-                    text: Hyprland.activeWorkspaceId || "1"
-                    visible: wsStyle === "numbers"
+                    text: root.workspaceName(root.activeIndex)
+                    visible: wsStyle === "numbers" && root.appsForWorkspace(Hyprland.activeWorkspaceId).length === 0
                     font.pixelSize: 12
                     font.family: root.fontFamily
                     font.weight: 700
@@ -365,7 +398,49 @@ Item {
                     height: 14
                     radius: 2
                     color: col.onPrimary
-                    visible: wsStyle === "bars"
+                    visible: wsStyle === "bars" && root.appsForWorkspace(Hyprland.activeWorkspaceId).length === 0
+                }
+            }
+        }
+
+        // Keep the icon column above the active capsule while leaving input
+        // handling on the existing tag cells below it.
+        Grid {
+            anchors.centerIn: parent
+            z: 11
+            columns: root.vertical ? 1 : root.wsCount
+            rows: root.vertical ? root.wsCount : 1
+
+            Repeater {
+                model: root.wsCount
+                Item {
+                    id: iconCell
+                    width: 29
+                    height: 29
+                    readonly property var apps: root.appsForWorkspace(root.workspaceId(index))
+                    readonly property bool active: root.isActive(index)
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 1
+                        Repeater {
+                            model: iconCell.apps
+                            IconImage {
+                                required property var modelData
+                                implicitSize: iconCell.apps.length > 1 ? 11 : 18
+                                width: implicitSize
+                                height: implicitSize
+                                source: Quickshell.iconPath(modelData.icon, true)
+                                    || Quickshell.iconPath("application-x-executable", true)
+                                    || Qt.resolvedUrl("workspace-app-fallback.svg")
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    colorization: 1
+                                    colorizationColor: iconCell.active ? col.onPrimary : col.onSecondaryContainer
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -8,6 +8,7 @@ import PluginManager
 PanelWindow {
 	id: bgWindow
 	WlrLayershell.layer: WlrLayer.Background
+	WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 	exclusionMode: ExclusionMode.Ignore
 	WlrLayershell.namespace: "quickshell:background"
 	anchors {
@@ -17,6 +18,7 @@ PanelWindow {
 		right: true
 	}
 	color: "transparent"
+	mask: Region {}
 
 	// Config-driven properties with fallbacks
 	property bool enableParallax: cfg ? cfg.wallpaperParallax : true

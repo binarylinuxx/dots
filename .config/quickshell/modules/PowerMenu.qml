@@ -2,35 +2,24 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import qs.services
 
-PanelWindow {
+Item {
 	id: powerMenu
+	anchors.fill: parent
+	z: 500
 	readonly property bool showing: Gstate.powerMenuOpen
 	property int selectedIndex: 0
 	property string fontFamily: cfg ? cfg.fontFamily : "Rubik"
 
 	visible: showing
-	exclusionMode: ExclusionMode.Ignore
-	WlrLayershell.layer: WlrLayer.Overlay
-	WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-	color: "transparent"
-
-	anchors {
-		top: true
-		left: true
-		bottom: true
-		right: true
-	}
+	focus: showing
 
 	onShowingChanged: {
 		if (showing) selectedIndex = 0
 	}
 
-	contentItem {
-		focus: true
-		Keys.onPressed: event => {
+	Keys.onPressed: event => {
 			if (event.key === Qt.Key_Escape) {
 				Gstate.powerMenuOpen = false
 			} else if (event.key === Qt.Key_Left) {
@@ -46,7 +35,6 @@ PanelWindow {
 					}
 				}
 			}
-		}
 	}
 
 	// Button definitions
@@ -68,6 +56,8 @@ PanelWindow {
 		id: execProcess
 	}
 
+	// This modal intentionally overlaps the bar and frame so its backdrop covers
+	// every client-visible pixel while it owns keyboard focus.
 	// ── Background: wallpaper + dark overlay ──
 	Image {
 		id: wallpaperBg
@@ -86,7 +76,7 @@ PanelWindow {
 	// ── Click outside to close ──
 	MouseArea {
 		anchors.fill: parent
-		onClicked: powerMenu.showing = false
+		onClicked: Gstate.powerMenuOpen = false
 	}
 
 	// ── Buttons grid ──

@@ -4,25 +4,39 @@ import Quickshell.Hyprland as QSHyprland
 import qs.services
 import qs.widgets
 
-Scope {
+Item {
     id: taskbarRoot
+	anchors.fill: parent
+	z: 300
     property bool isOpen: false
-    signal close()
+	property Item surface: taskbarPanel
+
+	function close() {
+		isOpen = false
+	}
     
-    // Sliding sidebar from right
-    LazyLoader {
-        active: taskbarRoot.isOpen
+    readonly property string panelEdge: Gstate.barEdge === "right" ? "left" : "right"
+    readonly property real panelReveal: isOpen ? 1 : 0
+
+    // The window list slides from its actual free edge rather than assuming
+    // the right side remains available when the bar moves vertically.
+    Item {
+        visible: taskbarRoot.isOpen || panelReveal > 0
         
-        PopupWindow {
+        Item {
             id: sidebar
-            visible: false
-            
-            color: "transparent"
+            anchors.fill: parent
             
             Rectangle {
+				id: taskbarPanel
                 width: 350
-                height: sidebar.screen.height
-                color: col.background
+				height: Math.max(0, sidebar.height - Gstate.topInset - Gstate.bottomInset)
+				y: Gstate.topInset
+				x: taskbarRoot.panelEdge === "left"
+					? Gstate.leftInset - width + taskbarRoot.panelReveal * width
+					: sidebar.width - Gstate.rightInset - taskbarRoot.panelReveal * width
+				color: "transparent"
+				Behavior on x { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
             
             Column {
                 anchors.fill: parent
@@ -130,14 +144,6 @@ Scope {
             }
         }
             
-            QSHyprland.HyprlandFocusGrab {
-                windows: [sidebar]
-                active: sidebar.visible
-                
-                onCleared: {
-                    taskbarRoot.close()
-                }
-            }
-        }
-    }
+	}
+	}
 }

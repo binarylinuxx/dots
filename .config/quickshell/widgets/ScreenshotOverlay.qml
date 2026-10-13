@@ -1,38 +1,16 @@
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
 import qs.services
 import qs.widgets
 
-PanelWindow {
-    id: root
-
-    visible: Gstate.screenshotOpen
-    implicitWidth: screen.width
-    implicitHeight: screen.height
-    color: "transparent"
-    focusable: true
-    exclusiveZone: 0
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "blxshell:screenshot-overlay"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-
-    anchors {
-        top: true
-        bottom: true
-        left: true
-        right: true
-    }
-
-    margins {
-        top: root.barPosition === "top" ? -root.reservedBarHeight : 0
-        bottom: root.barPosition === "bottom" ? -root.reservedBarHeight : 0
-        left: root.barPosition === "left" ? -root.reservedBarWidth : 0
-        right: root.barPosition === "right" ? -root.reservedBarWidth : 0
-    }
+Item {
+	id: root
+	anchors.fill: parent
+	z: 500
+	visible: Gstate.screenshotOpen
+	focus: visible
 
     property string selectedMode: "region"
     property real frameX: 0
@@ -41,9 +19,6 @@ PanelWindow {
     property real frameH: 0
     readonly property real minFrameW: 220
     readonly property real minFrameH: 130
-    readonly property string barPosition: cfg ? (cfg.barPosition || "bottom") : "bottom"
-    readonly property real reservedBarWidth: cfg ? (cfg.barWidth || 46) : 46
-    readonly property real reservedBarHeight: cfg ? (cfg.barHeight || 35) : 35
 
     onVisibleChanged: {
         if (visible) {
@@ -53,13 +28,13 @@ PanelWindow {
     }
 
     function resetFrame() {
-        if (screen.width <= 0 || screen.height <= 0)
+		if (width <= 0 || height <= 0)
             return
 
-        frameW = Math.min(screen.width * 0.56, 760)
-        frameH = Math.min(screen.height * 0.30, 320)
-        frameX = (screen.width - frameW) / 2
-        frameY = (screen.height - frameH) / 2 - 48
+        frameW = Math.min((width - Gstate.leftInset - Gstate.rightInset) * 0.56, 760)
+        frameH = Math.min((height - Gstate.topInset - Gstate.bottomInset) * 0.30, 320)
+        frameX = Gstate.leftInset + (width - Gstate.leftInset - Gstate.rightInset - frameW) / 2
+        frameY = Gstate.topInset + (height - Gstate.topInset - Gstate.bottomInset - frameH) / 2 - 48
         clampFrame()
     }
 
@@ -68,10 +43,10 @@ PanelWindow {
     }
 
     function clampFrame() {
-        frameW = Math.max(minFrameW, Math.min(frameW, screen.width))
-        frameH = Math.max(minFrameH, Math.min(frameH, screen.height))
-        frameX = Math.max(0, Math.min(frameX, screen.width - frameW))
-        frameY = Math.max(0, Math.min(frameY, screen.height - frameH))
+		frameW = Math.max(minFrameW, Math.min(frameW, width))
+		frameH = Math.max(minFrameH, Math.min(frameH, height))
+        frameX = Math.max(Gstate.leftInset, Math.min(frameX, width - Gstate.rightInset - frameW))
+        frameY = Math.max(Gstate.topInset, Math.min(frameY, height - Gstate.bottomInset - frameH))
     }
 
     function regionGeometry() {
@@ -87,8 +62,8 @@ PanelWindow {
         if (mode === "fullscreen") {
             frameX = 0
             frameY = 0
-            frameW = screen.width
-            frameH = screen.height
+			frameW = width
+			frameH = height
         } else if (mode === "window") {
             fetchActiveWindowGeometry()
         } else {
@@ -138,8 +113,8 @@ PanelWindow {
         if (mode === "fullscreen") {
             frameX = 0
             frameY = 0
-            frameW = screen.width
-            frameH = screen.height
+			frameW = width
+			frameH = height
         }
         close()
 
@@ -193,6 +168,8 @@ PanelWindow {
         onWidthChanged: if (root.visible) root.resetFrame()
         onHeightChanged: if (root.visible) root.resetFrame()
 
+        // The dimmer intentionally covers the whole output; only the movable
+        // selection frame avoids reserved shell edges.
         Rectangle {
             anchors.fill: parent
             color: col ? col.background : "#101010"

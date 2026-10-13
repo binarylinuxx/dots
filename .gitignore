@@ -60,6 +60,8 @@ autocommit
 # Quickshell generated
 .config/quickshell/Colors.json
 .config/quickshell/plugins/
+.config/quickshell/zwwm/build/
+.config/quickshell/qml/BlxShell/Zwwm/
 
 # GTK generated
 .config/gtk-3.0/colors.css

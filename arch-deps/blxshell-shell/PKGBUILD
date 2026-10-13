@@ -12,6 +12,13 @@ depends=(
 	fish
 	ghostty
 	starship
+	# native zwwm QML plugin build/runtime
+	cmake
+	pkgconf
+	qt6-base
+	qt6-declarative
+	wayland
+	wayland-protocols
 	# fonts
 	ttf-jetbrains-mono-nerd
 	ttf-material-symbols-variable-git

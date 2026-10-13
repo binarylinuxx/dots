@@ -84,6 +84,13 @@ this single option(which you can actually do urself):
 
 restart the browser after rebuilding.
 
+## zwwm compatibility
+
+The shell includes a native C++ Wayland plugin for zwwm tags, window state,
+workspace switching and taskbar activation. The installer builds it; the Nix
+wrapper includes it automatically. See [zwwm plugin setup and API](.config/quickshell/zwwm/README.md)
+for development builds and protocol requirements.
+
 ## Shell Components
 
 | Component | Description |

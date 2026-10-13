@@ -1,11 +1,8 @@
 import QtQuick
 import QtQuick.Shapes
-import Quickshell
-import Quickshell.Wayland
 
-PanelWindow {
-    id: screenCorner
-    WlrLayershell.layer: WlrLayer.Bottom
+Item {
+	id: screenCorner
 
     // Enum-like property for corner direction
     property int cornerDirection: ScreenCorner.TopLeft
@@ -29,11 +26,6 @@ PanelWindow {
     width: cornerWidth
     height: cornerHeight
 
-    // PanelWindow properties
-    exclusiveZone: 0
-    //aboveWindows: true
-    color: "transparent"
-    focusable: false
 
     // Helper properties for cleaner code
     property bool isTopLeft: cornerDirection === ScreenCorner.CornerDirection.TopLeft
@@ -45,13 +37,8 @@ PanelWindow {
     property bool isLeft: isTopLeft || isBottomLeft
     property bool isRight: isTopRight || isBottomRight
 
-    // Set anchors based on corner direction
-    anchors {
-        top: isTop
-        bottom: isBottom
-        left: isLeft
-        right: isRight
-    }
+	x: isLeft ? 0 : parent.width - width
+	y: isTop ? 0 : parent.height - height
 
     // Shape for drawing the corner
     Shape {

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="ext_zwwm_manager_v1">
+  <copyright>Copyright 2026 binarylinuxx</copyright>
+  <interface name="ext_zwwm_manager_v1" version="6">
+    <enum name="snapshot_type">
+      <entry name="status" value="0"/><entry name="outputs" value="1"/>
+      <entry name="toplevels" value="2"/><entry name="tags" value="3"/>
+      <entry name="layers" value="4"/><entry name="cameras" value="5"/>
+      <entry name="keyboard" value="6"/><entry name="live" value="7" since="6"/>
+    </enum>
+    <enum name="event_mask" bitfield="true">
+      <entry name="ready" value="1"/><entry name="config" value="2"/>
+      <entry name="tag" value="4"/><entry name="window" value="8"/>
+      <entry name="layer" value="16"/><entry name="output" value="32"/>
+      <entry name="shutdown" value="64"/><entry name="camera" value="128" since="6"/>
+      <entry name="keyboard" value="256" since="6"/>
+    </enum>
+    <request name="destroy" type="destructor"/>
+    <request name="get_snapshot"><arg name="id" type="new_id" interface="ext_zwwm_snapshot_v1"/><arg name="type" type="uint" enum="snapshot_type"/></request>
+    <request name="reload"><arg name="id" type="new_id" interface="ext_zwwm_result_v1"/></request>
+    <request name="rebuild_switch_shaders" since="2"><arg name="id" type="new_id" interface="ext_zwwm_result_v1"/></request>
+    <request name="dispatch"><arg name="id" type="new_id" interface="ext_zwwm_result_v1"/><arg name="action" type="string"/><arg name="argument" type="string"/></request>
+    <request name="subscribe"><arg name="id" type="new_id" interface="ext_zwwm_subscription_v1"/><arg name="events" type="uint" enum="event_mask"/></request>
+    <request name="set_cursor" since="3"><arg name="id" type="new_id" interface="ext_zwwm_result_v1"/><arg name="theme" type="string"/><arg name="size" type="uint"/></request>
+  </interface>
+  <interface name="ext_zwwm_snapshot_v1" version="1">
+    <request name="destroy" type="destructor"/>
+    <event name="status"><arg name="protocol_version" type="uint"/><arg name="outputs" type="uint"/><arg name="toplevels" type="uint"/><arg name="layers" type="uint"/></event>
+    <event name="output">
+      <arg name="connector" type="string"/><arg name="id_hi" type="uint"/><arg name="id_lo" type="uint"/>
+      <arg name="x" type="int"/><arg name="y" type="int"/>
+      <arg name="logical_width" type="uint"/><arg name="logical_height" type="uint"/>
+      <arg name="physical_width" type="uint"/><arg name="physical_height" type="uint"/>
+      <arg name="refresh_millihz" type="uint"/><arg name="scale_per_mille" type="uint"/>
+      <arg name="transform" type="uint"/><arg name="bit_depth" type="uint"/>
+      <arg name="enabled" type="uint"/><arg name="mode_count" type="uint"/>
+    </event>
+    <event name="mode"><arg name="width" type="uint"/><arg name="height" type="uint"/><arg name="refresh_millihz" type="uint"/><arg name="preferred" type="uint"/></event>
+    <event name="toplevel">
+      <arg name="id_hi" type="uint"/><arg name="id_lo" type="uint"/><arg name="app_id" type="string"/><arg name="title" type="string"/>
+      <arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/>
+      <arg name="x" type="int"/><arg name="y" type="int"/><arg name="width" type="int"/><arg name="height" type="int"/><arg name="state" type="uint"/>
+    </event>
+    <event name="tag"><arg name="connector" type="string"/><arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/><arg name="active" type="uint"/></event>
+    <event name="layer">
+      <arg name="id_hi" type="uint"/><arg name="id_lo" type="uint"/><arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/>
+      <arg name="namespace_name" type="string"/><arg name="layer" type="uint"/><arg name="priority" type="int"/><arg name="exclusive_zone" type="int"/>
+      <arg name="blur_radius" type="uint"/><arg name="opacity_millionths" type="uint"/><arg name="mapped" type="uint"/>
+    </event>
+    <event name="camera"><arg name="connector" type="string"/><arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/><arg name="tag" type="uint"/><arg name="x" type="string"/><arg name="y" type="string"/><arg name="zoom" type="string"/><arg name="active" type="uint"/></event>
+    <event name="keyboard"><arg name="layout" type="string"/><arg name="group" type="uint"/></event>
+    <event name="done"/>
+    <event name="failed"><arg name="message" type="string"/></event>
+  </interface>
+  <interface name="ext_zwwm_result_v1" version="1">
+    <request name="destroy" type="destructor"/>
+    <event name="succeeded"><arg name="message" type="string"/></event>
+    <event name="failed"><arg name="message" type="string"/></event>
+  </interface>
+  <interface name="ext_zwwm_subscription_v1" version="1">
+    <request name="destroy" type="destructor"/>
+    <event name="event"><arg name="name" type="string"/></event>
+  </interface>
+</protocol>

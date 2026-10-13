@@ -1,23 +1,20 @@
 import Quickshell
-import Quickshell.Wayland
-import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Layouts
 import qs.services
 
-PanelWindow {
-    id: weatherDetailWindow
+Item {
+	id: weatherDetailWindow
+	anchors.fill: parent
+	z: 300
+	property Item surface: panel
 
-    anchors.left: true
-    anchors.top: true
-    exclusiveZone: 0
-    color: "transparent"
-
-    implicitWidth:  Gstate.weatherDetailOpen ? panel.width  : 1
-    implicitHeight: Gstate.weatherDetailOpen ? panel.height : 1
-
-    // Slide-in from left
-    property real slideX: Gstate.weatherDetailOpen ? 0 : -(panel.width + 24)
+    readonly property string panelEdge: Gstate.barEdge === "left" ? "right" : "left"
+    // Reveal from the actual free edge opposite a vertical bar.
+    property real slideX: {
+        const openX = panelEdge === "left" ? Gstate.leftInset : width - Gstate.rightInset - panel.width
+        return Gstate.weatherDetailOpen ? openX : (panelEdge === "left" ? Gstate.leftInset - panel.width : width - Gstate.rightInset)
+    }
     Behavior on slideX {
         NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
     }
@@ -27,30 +24,16 @@ PanelWindow {
         NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
     }
 
-    HyprlandFocusGrab {
-        windows: [weatherDetailWindow]
-        active: Gstate.weatherDetailOpen
-        onCleared: Gstate.weatherDetailOpen = false
-    }
-
     Rectangle {
         id: panel
         x: weatherDetailWindow.slideX
-        y: 0
+        y: Gstate.topInset
         // width driven by content column; height driven by children
         width: 520
-        height: content.implicitHeight + 40  // 40 = top+bottom margins
+        height: Math.min(content.implicitHeight + 40, weatherDetailWindow.height - Gstate.topInset - Gstate.bottomInset)
         opacity: weatherDetailWindow.panelOpacity
-        color: col?.surfaceContainer || "#1f2019"
+        color: "transparent"
         radius: 20
-
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-            border.width: 1
-            border.color: col?.outlineVariant || "#393b30"
-            radius: parent.radius
-        }
 
         ColumnLayout {
             id: content

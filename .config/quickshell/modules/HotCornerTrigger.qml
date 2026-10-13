@@ -1,21 +1,14 @@
 import qs.services
 import Quickshell
-import Quickshell.Wayland
 import QtQuick
 import qs.widgets
 
-PanelWindow {
-    id: root
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.namespace: "quickshell:hotcorner"
-    exclusionMode: ExclusionMode.Ignore
-
-    anchors.top: true
-    anchors.left: true
+Item {
+	id: root
+	z: 200
 
     width: hitSize
     height: hitSize
-    color: "transparent"
 
     // Configuration
     property int hitSize: 48

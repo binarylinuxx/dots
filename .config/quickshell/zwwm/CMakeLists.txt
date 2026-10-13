@@ -1,0 +1,36 @@
+cmake_minimum_required(VERSION 3.21)
+project(blxshell_zwwm LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 20)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Qml)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(WAYLAND REQUIRED IMPORTED_TARGET wayland-client)
+pkg_check_modules(PROTOCOLS REQUIRED wayland-protocols)
+pkg_get_variable(WAYLAND_PROTOCOLS_DIR wayland-protocols pkgdatadir)
+find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
+qt_standard_project_setup(REQUIRES 6.5)
+
+set(generated)
+foreach(protocol ext-zwwm-manager-v1 zwwm-tags-unstable-v1 zwwm-window-manager-v1 xdg-shell)
+    if(protocol STREQUAL "xdg-shell")
+        set(xml "${WAYLAND_PROTOCOLS_DIR}/stable/xdg-shell/xdg-shell.xml")
+    else()
+        set(xml "${CMAKE_CURRENT_SOURCE_DIR}/protocols/${protocol}.xml")
+    endif()
+    set(header "${CMAKE_CURRENT_BINARY_DIR}/${protocol}-client-protocol.h")
+    set(code "${CMAKE_CURRENT_BINARY_DIR}/${protocol}-protocol.c")
+    add_custom_command(OUTPUT "${header}" COMMAND "${WAYLAND_SCANNER}" client-header "${xml}" "${header}" DEPENDS "${xml}" VERBATIM)
+    add_custom_command(OUTPUT "${code}" COMMAND "${WAYLAND_SCANNER}" private-code "${xml}" "${code}" DEPENDS "${xml}" VERBATIM)
+    list(APPEND generated "${header}" "${code}")
+endforeach()
+
+qt_add_qml_module(blxshell_zwwm
+    URI BlxShell.Zwwm VERSION 1.0
+    OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/BlxShell/Zwwm"
+    SOURCES zwwm.cpp zwwm.hpp ${generated}
+)
+target_include_directories(blxshell_zwwm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(blxshell_zwwm PRIVATE Qt6::Core Qt6::Qml PkgConfig::WAYLAND)
+set_target_properties(blxshell_zwwm blxshell_zwwmplugin PROPERTIES INSTALL_RPATH "$ORIGIN")
+set(INSTALL_QML_PREFIX "lib/qml" CACHE STRING "QML module install directory")
+install(TARGETS blxshell_zwwm blxshell_zwwmplugin LIBRARY DESTINATION "${INSTALL_QML_PREFIX}/BlxShell/Zwwm")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/BlxShell/Zwwm/qmldir" "${CMAKE_CURRENT_BINARY_DIR}/BlxShell/Zwwm/blxshell_zwwm.qmltypes" DESTINATION "${INSTALL_QML_PREFIX}/BlxShell/Zwwm")

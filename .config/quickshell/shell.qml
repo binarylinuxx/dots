@@ -11,6 +11,7 @@ import qs.launcher
 import qs.notifications
 import qs.services
 import PluginManager
+import BlxShell.Blob
 
 ShellRoot {
 	id: shellRoot
@@ -227,6 +228,13 @@ ShellRoot {
 			return 250  // normal
 		}
 	}
+	// Keep all shell-relative surfaces on one resolved bar/frame contract.
+	Binding { target: Gstate; property: "barPosition"; value: cfg.barPosition || (cfg.barOnTop ? "top" : "bottom") }
+	Binding { target: Gstate; property: "barPreset"; value: cfg.barPreset || "horizontal" }
+	Binding { target: Gstate; property: "barHeight"; value: cfg.barHeight }
+	Binding { target: Gstate; property: "barWidth"; value: cfg.barWidth }
+	Binding { target: Gstate; property: "barGap"; value: cfg.barGap }
+	Binding { target: Gstate; property: "barFloating"; value: cfg.barFloating }
 
 	// Sync nightLightEnabled into runtime state. Settings owns persistent writes.
 	Binding { target: Gstate; property: "nightLightEnabled"; value: cfg.nightLightEnabled }
@@ -349,45 +357,120 @@ ShellRoot {
 	// Inhibit idle while recording (if enabled in settings)
 	IdleInhibitor {
 		enabled: cfg.idleInhibitRecording && ScreenRecorder.recording
-		window: barWindow
+		window: shellSurface
 	}
 
-	Bar {
-		id: barWindow
-	}
-	Sidebar {}
-	Repeater {
-		model: {
-			var _rescan = PluginRegistry.count
-			var disabled = cfg && cfg.disabledPlugins ? cfg.disabledPlugins : []
-			return PluginRegistry.byKind("sidebar").filter(function(plugin) {
-				return disabled.indexOf(plugin.id) === -1
+	// The one visible shell surface. All ordinary shell UI is content in this
+	// window; the only other PanelWindows are transparent edge reservations.
+	PanelWindow {
+		id: shellSurface
+		screen: Quickshell.screens.length ? Quickshell.screens[0] : null
+		readonly property bool modalInputActive: Gstate.appsOpen || Gstate.screenshotOpen || Gstate.powerMenuOpen || Gstate.weatherDetailOpen || firstLaunch.visible
+		readonly property int frameThickness: 15
+		readonly property int frameRadius: cfg ? cfg.screenCornerSize : 25
+		readonly property bool fullscreenActive: Hyprland.fullscreenOutputs.indexOf(screen ? screen.name : "") >= 0
+		visible: !fullscreenActive
+		Binding { target: Gstate; property: "frameThickness"; value: shellSurface.frameThickness }
+		anchors { top: true; bottom: true; left: true; right: true }
+		exclusionMode: ExclusionMode.Ignore
+		color: "transparent"
+		// Only visible controls and intentional modal backdrops receive pointer
+		// events. The unused fullscreen area remains click-through to clients.
+		mask: Region {
+			regions: [
+				Region { item: barWindow },
+				Region { item: Gstate.sidebarOpen ? sidebar.surface : emptyInput },
+				Region {
+					x: 0
+					y: 0
+					width: shellSurface.modalInputActive ? shellSurface.width : 0
+					height: shellSurface.modalInputActive ? shellSurface.height : 0
+				},
+				Region { item: notifications.surface.visible ? notifications.surface : emptyInput }
+			]
+		}
+		// The shared shell stays above ordinary clients and unmaps in fullscreen.
+		WlrLayershell.layer: WlrLayer.Top
+		WlrLayershell.keyboardFocus: modalInputActive ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+		onModalInputActiveChanged: {
+			if (!modalInputActive)
+				return
+			Qt.callLater(() => {
+				if (Gstate.appsOpen) launcher.forceActiveFocus()
+				else if (Gstate.screenshotOpen) screenshot.forceActiveFocus()
+				else if (Gstate.powerMenuOpen) powerMenu.forceActiveFocus()
+				else if (Gstate.weatherDetailOpen) weatherDetail.forceActiveFocus()
+				else if (firstLaunch.visible) firstLaunch.forceActiveFocus()
 			})
 		}
-		delegate: Loader {
-			source: modelData.kindData.componentUrl
-			onLoaded: if (item && "plugin" in item) item.plugin = modelData
+
+		BlobGroup { id: blobGroup; color: col ? col.surface : "#1c1b1f"; smoothing: 20 }
+		// Extend past the screen so the visible frame is a rounded inner cutout,
+		// rather than a square box clipped to the root's edges.
+		Blob {
+			id: blobFrame
+			group: blobGroup
+			frame: true
+			anchors.fill: parent
+			anchors.margins: -50
+			radius: shellSurface.frameRadius
+			borderLeft: shellSurface.frameThickness - anchors.margins
+			borderRight: shellSurface.frameThickness - anchors.margins
+			borderTop: shellSurface.frameThickness - anchors.margins
+			borderBottom: shellSurface.frameThickness - anchors.margins
+		}
+		Bar { id: barWindow }
+		Sidebar { id: sidebar; bar: barWindow }
+		NightLight {}
+		AudioOsd { id: audioOsd }
+		Launcher { id: launcher }
+		Notifications { id: notifications }
+		ScreenshotOverlay { id: screenshot }
+		WeatherDetail { id: weatherDetail }
+		PowerMenu { id: powerMenu }
+		FirstLaunch { id: firstLaunch }
+		Item { id: emptyInput; width: 0; height: 0 }
+
+		// The frame renders this bounded set of connected surface backgrounds.
+		// Keep this group below the renderer limit of sixteen normal members.
+		Blob { group: blobGroup; x: barWindow.x; y: barWindow.y; width: barWindow.width; height: barWindow.height; radius: barWindow.barRadius; topLeftRadius: barWindow.blobTopLeftRadius; topRightRadius: barWindow.blobTopRightRadius; bottomRightRadius: barWindow.blobBottomRightRadius; bottomLeftRadius: barWindow.blobBottomLeftRadius }
+		Blob { group: blobGroup; x: sidebar.surface.x; y: sidebar.surface.y; width: Gstate.sidebarOpen ? sidebar.surface.width : 0; height: Gstate.sidebarOpen ? sidebar.surface.height : 0; radius: sidebar.surface.radius }
+		Blob { group: blobGroup; x: weatherDetail.surface.x; y: weatherDetail.surface.y; width: Gstate.weatherDetailOpen ? weatherDetail.surface.width : 0; height: Gstate.weatherDetailOpen ? weatherDetail.surface.height : 0; radius: weatherDetail.surface.radius }
+		// The notification component exposes only its adaptive visible stack, so
+		// this member and the input mask never reserve its old fixed popup area.
+		Blob { group: blobGroup; x: notifications.surface.x; y: notifications.surface.y; width: notifications.surface.visible ? notifications.surface.width : 0; height: notifications.surface.visible ? notifications.surface.height : 0; radius: notifications.surface.radius }
+		Blob { group: blobGroup; x: launcher.surface.x; y: launcher.surface.y; width: launcher.visible ? launcher.surface.width : 0; height: launcher.visible ? launcher.surface.height : 0; radius: launcher.surface.radius }
+		Blob { group: blobGroup; x: audioOsd.surface.x; y: audioOsd.surface.y; width: audioOsd.surface.visible ? audioOsd.surface.width : 0; height: audioOsd.surface.visible ? audioOsd.surface.height : 0; radius: audioOsd.surface.width / 2 }
+		Blob { group: blobGroup; x: 0; y: 0; width: firstLaunch.visible ? shellSurface.width : 0; height: firstLaunch.visible ? shellSurface.height : 0; radius: 0 }
+
+		// Sidebar plugins remain content in the shared shell surface.
+		Repeater {
+			model: {
+				var _rescan = PluginRegistry.count
+				var disabled = cfg && cfg.disabledPlugins ? cfg.disabledPlugins : []
+				return PluginRegistry.byKind("sidebar").filter(function(plugin) {
+					return disabled.indexOf(plugin.id) === -1
+				})
+			}
+			delegate: Loader {
+				source: modelData.kindData.componentUrl
+				onLoaded: if (item && "plugin" in item) item.plugin = modelData
+			}
 		}
 	}
-	NightLight {}
-	AudioOsd {}
-	Background {
-		id: background
-	}
-	BackgroundClock {
-		id: backgroundGrid
-	}
-	
-	HotCornerTrigger {
-		onTriggered: backgroundGrid.toggleEditMode()
-	}
 
-	Launcher {}
-	Notifications {}
+	Background { id: background }
+
+	// Settings is a separate application window, not a shell Blob surface.
 	Settings {}
-	ScreenshotOverlay {}
-	WeatherDetail {}
-	FirstLaunch {}
+	// Desktop widgets are a non-interactive background-layer surface, below clients.
+	BackgroundClock { id: backgroundGrid }
+	FrameExclusion { edge: "top"; thickness: shellSurface.frameThickness; screen: shellSurface.screen; enabled: shellSurface.visible }
+	FrameExclusion { edge: "bottom"; thickness: shellSurface.frameThickness; screen: shellSurface.screen; enabled: shellSurface.visible }
+	FrameExclusion { edge: "left"; thickness: shellSurface.frameThickness; screen: shellSurface.screen; enabled: shellSurface.visible }
+	FrameExclusion { edge: "right"; thickness: shellSurface.frameThickness; screen: shellSurface.screen; enabled: shellSurface.visible }
+	// Reserve the resolved bar edge, not the raw position setting.
+	EdgeExclusion { edge: barWindow.barEdge; bar: barWindow; screen: shellSurface.screen; enabled: shellSurface.visible }
 
 	// ── Lockscreen ──
 	LockContext {
@@ -428,11 +511,6 @@ ShellRoot {
 		}
 	}
 
-	// ── Power Menu ──
-	PowerMenu {
-		id: powerMenu
-	}
-
 	// IPC handler: `qs ipc call powermenu toggle`
 	IpcHandler {
 		target: "powermenu"
@@ -447,27 +525,6 @@ ShellRoot {
 
 		function hide(): void {
 			Gstate.powerMenuOpen = false;
-		}
-	}
-
-	// IPC handler: `qs ipc call grid toggle`
-	IpcHandler {
-		target: "grid"
-
-		function toggle(): void {
-			backgroundGrid.toggleEditMode();
-		}
-
-		function enable(): void {
-			backgroundGrid.setEditMode(true);
-		}
-
-		function disable(): void {
-			backgroundGrid.setEditMode(false);
-		}
-
-		function isEditMode(): bool {
-			return backgroundGrid.editMode;
 		}
 	}
 

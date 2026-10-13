@@ -1,55 +1,48 @@
 import Quickshell
-import Quickshell.Wayland
 import QtQuick
 import qs.bar.widgets
 import qs.widgets
 import qs.services
 import PluginManager
 
-PanelWindow {
+Item {
 	id: barWindow
-	WlrLayershell.layer: WlrLayer.Bottom
+	z: 100
+	signal taskbarToggled()
 
-	property int barHeight: cfg ? cfg.barHeight : 35
-	property int barWidth: cfg && cfg.barWidth ? cfg.barWidth : 46
+	property int barHeight: Gstate.barHeight
+	property int barWidth: Gstate.barWidth
 	property int barRadius: cfg ? cfg.barRadius : 20
-	property int barGap: cfg ? cfg.barGap : 5
-	property bool barFloating: cfg ? cfg.barFloating : false
-	property string barPosition: cfg ? (cfg.barPosition || (cfg.barOnTop ? "top" : "bottom")) : "top"
-	property string barPreset: cfg ? (cfg.barPreset || "horizontal") : "horizontal"
-	property bool verticalBar: barPreset.indexOf("vertical") === 0 || barPosition === "left" || barPosition === "right"
-	property bool barOnTop: !verticalBar && (barPosition === "top" || (cfg ? cfg.barOnTop : true))
+	property int barGap: Gstate.barGap
+	property bool barFloating: Gstate.barFloating
+	property string barPosition: Gstate.barPosition
+	property string barPreset: Gstate.barPreset
+	property bool verticalBar: Gstate.verticalBar
+	property string barEdge: Gstate.barEdge
+	property bool barOnTop: barEdge === "top"
 	property int cornerSize: cfg ? cfg.screenCornerSize : 25
 	property int dockedRadius: barRadius
+	readonly property int blobTopLeftRadius: barFloating ? barRadius : (verticalBar ? (barEdge === "left" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
+	readonly property int blobTopRightRadius: barFloating ? barRadius : (verticalBar ? (barEdge === "right" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
+	readonly property int blobBottomRightRadius: barFloating ? barRadius : (verticalBar ? (barEdge === "right" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
+	readonly property int blobBottomLeftRadius: barFloating ? barRadius : (verticalBar ? (barEdge === "left" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
 
-	anchors {
-		top: verticalBar || barOnTop
-		bottom: verticalBar || !barOnTop
-		left: !verticalBar || barPosition === "left"
-		right: !verticalBar || barPosition === "right"
-	}
+	x: verticalBar ? (barEdge === "left" ? (barFloating ? barGap : 0) : parent.width - barWidth - (barFloating ? barGap : 0)) : (barFloating ? barGap : 0)
+	y: verticalBar ? (barFloating ? barGap : 0) : (barOnTop ? (barFloating ? barGap : 0) : parent.height - barHeight - (barFloating ? barGap : 0))
+	width: verticalBar ? barWidth : parent.width - (barFloating ? barGap * 2 : 0)
+	height: verticalBar ? parent.height - (barFloating ? barGap * 2 : 0) : barHeight
 
-	margins {
-		top: barFloating ? barGap : 0
-		bottom: barFloating ? barGap : 0
-		left: barFloating ? barGap : 0
-		right: barFloating ? barGap : 0
-	}
-
-	implicitHeight: verticalBar ? 1 : barHeight
-	implicitWidth: verticalBar ? barWidth : 1
-	color: barFloating ? "transparent" : "black"
-
+	// BlobGroup draws the contiguous outer panel; this item retains only content.
 	Rectangle {
 		id: panelBackground
 		anchors.fill: parent
-		color: col.background
+		color: "transparent"
 
 		// Docked vertical bars round their side corners; floating bars round all corners.
-		topLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
-		topRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (barOnTop ? dockedRadius : 0))
-		bottomLeftRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "left" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
-		bottomRightRadius: barFloating ? barRadius : (verticalBar ? (barPosition === "right" ? dockedRadius : 0) : (!barOnTop ? dockedRadius : 0))
+		topLeftRadius: barWindow.blobTopLeftRadius
+		topRightRadius: barWindow.blobTopRightRadius
+		bottomLeftRadius: barWindow.blobBottomLeftRadius
+		bottomRightRadius: barWindow.blobBottomRightRadius
 	}
 
 	Workspaces {
@@ -120,29 +113,4 @@ PanelWindow {
 		}
 	}
 
-	// Screen corners
-	ScreenCorner {
-		cornerDirection: ScreenCorner.TopLeft
-		cornerWidth: cornerSize; cornerHeight: cornerSize
-		cornerColor: col.background
-		visible: cfg ? (cfg.screenCorners && !barFloating) : true
-	}
-	ScreenCorner {
-		cornerDirection: ScreenCorner.TopRight
-		cornerWidth: cornerSize; cornerHeight: cornerSize
-		cornerColor: col.background
-		visible: cfg ? (cfg.screenCorners && !barFloating) : true
-	}
-	ScreenCorner {
-		cornerDirection: ScreenCorner.BottomLeft
-		cornerWidth: cornerSize; cornerHeight: cornerSize
-		cornerColor: col.background
-		visible: cfg ? (cfg.screenCorners && !barFloating) : true
-	}
-	ScreenCorner {
-		cornerDirection: ScreenCorner.BottomRight
-		cornerWidth: cornerSize; cornerHeight: cornerSize
-		cornerColor: col.background
-		visible: cfg ? (cfg.screenCorners && !barFloating) : true
-	}
 }

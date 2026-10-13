@@ -20,6 +20,15 @@ Singleton {
     property var clients: []
     property var monitors: []
     property var focusedMonitor: ({ activeWorkspace: { id: activeWorkspaceId } })
+    property var zwwm: null
+    readonly property bool isZwwm: zwwm !== null && zwwm.available
+    readonly property var workspaceIds: isZwwm ? zwwm.tags.map(tag => tag.id) : []
+    readonly property var activeWorkspaceIds: isZwwm ? zwwm.activeTags : [activeWorkspaceId]
+    readonly property var fullscreenOutputs: monitors.filter(monitor => clients.some(client =>
+        client.fullscreen && !client.hidden
+        && String(client.output) === String(monitor.id)
+        && client.workspace?.id === monitor.activeWorkspace?.id
+    )).map(monitor => monitor.name)
 
     property var _requestQueue: []
     property string _activeRequest: ""
@@ -30,6 +39,20 @@ Singleton {
     signal stateChanged()
 
     Component.onCompleted: {
+        if (Quickshell.env("BLXSHELL_COMPOSITOR") === "zwwm" || !instanceSignature) {
+            const component = Qt.createComponent(Qt.resolvedUrl("Zwwm.qml"))
+            if (component.status === Component.Ready) {
+                zwwm = component.createObject(root)
+                if (zwwm) {
+                    zwwm.stateChanged.connect(root.applyZwwmState)
+                    zwwm.commandFailed.connect(message => console.warn("Zwwm:", message))
+                    applyZwwmState()
+                }
+            } else {
+                console.warn("Zwwm plugin unavailable:", component.errorString())
+            }
+            return
+        }
         if (!eventSocketPath || !commandSocketPath) {
             console.warn("HyprlandService: missing Hyprland IPC environment")
             return
@@ -43,10 +66,43 @@ Singleton {
     onActiveWindowAddressChanged: updateClientActivation()
 
     function refresh() {
+        if (zwwm) { zwwm.refresh(); return }
         refreshTimer.restart()
     }
 
+    function applyZwwmState() {
+        ready = zwwm.ready
+        activeWorkspaceId = zwwm.activeTags.length ? Number(zwwm.activeTags[0]) : 0
+        clients = zwwm.clients
+        monitors = zwwm.monitors
+        activeWindowAddress = (clients.find(client => client.activated) || {}).address || ""
+        workspaces = zwwm.tags.map(tag => ({
+            id: tag.id, name: tag.name,
+            windows: clients.filter(client => client.workspace.id === tag.id).length
+        }))
+        stateChanged()
+    }
+
     function dispatch(command) {
+        if (zwwm) {
+            const text = String(command).trim()
+            if (text.indexOf("workspace ") === 0) {
+                const target = text.slice(10).trim()
+                let id = Number(target)
+                if (target === "+1" || target === "-1") {
+                    const index = workspaceIds.indexOf(activeWorkspaceId)
+                    id = workspaceIds[index + (target === "+1" ? 1 : -1)]
+                }
+                if (id !== undefined && workspaceIds.indexOf(id) >= 0)
+                    zwwm.setActiveTags([id])
+            } else if (text.indexOf("focuswindow address:") === 0) {
+                zwwm.activateClient(text.slice(20))
+            } else {
+                const separator = text.indexOf(" ")
+                zwwm.dispatch(separator < 0 ? text : text.slice(0, separator), separator < 0 ? "" : text.slice(separator + 1))
+            }
+            return
+        }
         const ipcCommand = mapLegacyDispatch(command)
         if (ipcCommand)
             request("dispatch", ipcCommand)
@@ -164,6 +220,9 @@ Singleton {
                 title: client.title || "Untitled",
                 className: client.class || "",
                 workspace: client.workspace || { id: 0, name: "" },
+                output: String(client.monitor ?? ""),
+                fullscreen: Number(client.fullscreen || 0) > 0,
+                hidden: client.hidden === true,
                 activated: activeWindowAddress !== "" && client.address === activeWindowAddress
             }))
             ready = true
@@ -174,11 +233,15 @@ Singleton {
     }
 
     function updateClientActivation() {
+        if (zwwm) return
         clients = clients.map(client => ({
             address: client.address,
             title: client.title,
             className: client.className,
             workspace: client.workspace,
+            output: client.output,
+            fullscreen: client.fullscreen,
+            hidden: client.hidden,
             activated: activeWindowAddress !== "" && client.address === activeWindowAddress
         }))
         stateChanged()

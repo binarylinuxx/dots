@@ -1,498 +1,365 @@
+import QtQuick
 import Quickshell
 import Quickshell.Widgets
-import Quickshell.Services.Notifications
-import QtQuick
-import QtQuick.Layouts
 import qs.services
 
-PanelWindow {
-	id: notificationsWindow
-	property int xwidth: 400
-	property int ywidth: 430
-	property int defaultTimeout: 5000
+Item {
+    id: root
 
-	// Delegate to the shared NotificationService singleton
-	property var knownNotifications: NotificationService.knownNotifications
-	property var notificationOrder: NotificationService.notificationOrder
-	property int currentExpiringIndex: NotificationService.currentExpiringIndex
+    anchors.fill: parent
+    z: 250
 
-	readonly property bool shouldShow: !NotificationService.dndEnabled && NotificationService.trackedNotifications.values.length > 0
+    property int maximumVisible: 3
+    property int defaultTimeout: 7000
+    readonly property int outerMargin: 10
+    readonly property int frameGap: 2
+    readonly property string notificationEdge: Gstate.barEdge === "right" ? "left" : "right"
+    readonly property real stackWidth: Math.min(390, Math.max(0, width - Gstate.leftInset - Gstate.rightInset - outerMargin * 2))
+    readonly property real maximumStackHeight: Math.max(0, height - Gstate.topInset - Gstate.bottomInset - outerMargin * 2)
+    readonly property var entries: NotificationService.trackedNotifications.values.slice(0, maximumVisible)
+    readonly property bool shouldShow: !NotificationService.dndEnabled && entries.length > 0
+    property Item surface: notificationStack
 
-	visible: true
-	width: shouldShow ? xwidth : 1
-	height: shouldShow ? ywidth : 1
+    visible: shouldShow
 
-	anchors {
-		top: true
-		right: true
-	}
-	margins {
-		right: 0
-		top: 0
-	}
-	color: "transparent"
+    Component.onCompleted: NotificationService.markAllAsKnown()
+    onVisibleChanged: if (visible) NotificationService.markAllAsKnown()
 
-	Component.onCompleted: {
-		NotificationService.markAllAsKnown()
-	}
+    Item {
+        id: notificationStack
 
-	onVisibleChanged: {
-		if (visible) NotificationService.markAllAsKnown()
-	}
+        x: root.notificationEdge === "left" ? Gstate.leftInset + root.frameGap : root.width - Gstate.rightInset - width - root.frameGap
+        y: Gstate.barEdge === "bottom"
+            ? root.height - Gstate.bottomInset - height - 2
+            : Gstate.topInset + 2
+        width: root.stackWidth
+        height: root.shouldShow ? Math.min(stack.contentHeight + root.outerMargin * 2, root.maximumStackHeight) : 0
+        visible: height > 0
+        property real radius: 25
 
-	function cleanupNotificationTracking(notificationId) {
-		NotificationService.cleanupNotificationTracking(notificationId)
-	}
+        Behavior on height { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
 
-	function canNotificationExpire(notificationId) {
-		return NotificationService.canNotificationExpire(notificationId)
-	}
+        ListView {
+            id: stack
 
-	function notificationExpirationComplete(notificationId) {
-		NotificationService.notificationExpirationComplete(notificationId)
-	}
+            anchors.fill: parent
+            anchors.margins: root.outerMargin
+            anchors.rightMargin: 0
+            clip: true
+            interactive: false
+            spacing: 8
+            model: root.entries
 
-	ClippingRectangle {
-		width: xwidth
-		height: ywidth
-		radius: 25
-		color: "transparent"
+            add: Transition {
+                NumberAnimation { properties: "x,y"; duration: Gstate.animDuration; easing.type: Easing.OutCubic }
+            }
+            move: Transition {
+                NumberAnimation { properties: "x,y"; duration: Gstate.animDuration; easing.type: Easing.OutCubic }
+            }
+            displaced: Transition {
+                NumberAnimation { properties: "x,y"; duration: Gstate.animDuration; easing.type: Easing.OutCubic }
+            }
 
-		ColumnLayout {
-			anchors.fill: parent
-			anchors.margins: 5
+            delegate: Item {
+                id: card
 
-			ListView {
-				id: notifsBG
-				width: xwidth - 10
-				height: ywidth - 10
-				clip: true
-				model: NotificationService.trackedNotifications.values
-				spacing: 5
+                required property var modelData
+                width: stack.width
+                property real reveal: 0
+                property real swipeOffset: 0
+                property real entryOffset: (root.notificationEdge === "right" ? 1 : -1) * stack.width * (1 - reveal)
+                property real removalHeight: 1
+                property bool swiped: false
+                property bool expanded: false
+                property bool dismissed: false
+                property int elapsedTime: 0
+                property string notificationId: modelData && modelData.id ? modelData.id.toString() : ""
+                readonly property int timeout: modelData && modelData.expireTimeout > 0 ? modelData.expireTimeout : root.defaultTimeout
+                readonly property bool paused: hover.hovered || gesture.pressed
 
-				add: Transition {
-					NumberAnimation {
-						properties: "x"
-						from: notifsBG.width
-						to: 0
-						duration: 400
-						easing.type: Easing.OutCubic
-					}
-				}
+                implicitHeight: Math.max(76, content.implicitHeight + 24) * removalHeight
+                height: implicitHeight
+                x: entryOffset + swipeOffset
+                opacity: reveal
+                clip: true
 
-				remove: Transition {
-					NumberAnimation {
-						properties: "x"
-						to: notifsBG.width
-						duration: Gstate.animDuration
-						easing.type: Easing.InCubic
-					}
-				}
+                Component.onCompleted: {
+                    const trackingValue = NotificationService.knownNotifications[notificationId]
+                    if (trackingValue && trackingValue.toString().startsWith("NEW_"))
+                        NotificationService.knownNotifications[notificationId] = Date.now()
+                    reveal = 1
+                }
 
-				displaced: Transition {
-					NumberAnimation {
-						properties: "y"
-						duration: Gstate.animDuration
-						easing.type: Easing.OutQuart
-					}
-				}
+                Behavior on entryOffset { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
+                Behavior on swipeOffset {
+                    enabled: !gesture.pressed
+                    NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
+                }
+                Behavior on opacity { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
+                Behavior on implicitHeight { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
+                Behavior on y { NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic } }
 
-				delegate: Rectangle {
-					id: notificationRect
-					width: notifsBG.width
-					height: 100
-					radius: 20
-					color: col.background
-					border.width: 0
-					opacity: 1.0
+                ListView.onRemove: {
+                    ListView.delayRemove = true
+                    card.swiped = true
+                    card.swipeOffset = card.swipeOffset < 0 ? -stack.width : stack.width
+                    card.removalHeight = 0
+                    removeAfterSlide.restart()
+                }
 
-					property var parentWindow: notificationsWindow
-					property bool shouldAnimate: false
-					property string notificationId: (modelData && modelData.id) ? modelData.id.toString() : ""
-					property bool isExpiring: false
-					property real timeProgress: 0.0
-					property int totalDuration: modelData && modelData.expireTimeout > 0 ?
-						(modelData.expireTimeout * 1000) : notificationsWindow.defaultTimeout
-					property int elapsedTime: 0
+                Rectangle {
+                    anchors.fill: parent
+                    radius: notificationStack.radius
+                    color: card.modelData.urgency > 1 ? col.errorContainer : col.surfaceContainer
+                }
 
-					states: [
-						State {
-							name: "hovered"
-							when: mouseArea.containsMouse && !isExpiring
-							PropertyChanges {
-								target: notificationRect
-								x: -5
-							}
-						},
-						State {
-							name: "expiring"
-							when: isExpiring
-						}
-					]
+                HoverHandler { id: hover }
 
-					transitions: Transition {
-						NumberAnimation {
-							properties: "x"
-							duration: Gstate.animDuration
-							easing.type: Easing.OutQuart
-						}
-					}
+                Item {
+                    id: content
 
-					SequentialAnimation {
-						id: slideInAnimation
-						running: false
+                    z: 2
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    implicitHeight: Math.max(iconWell.height, textColumn.implicitHeight)
 
-						PropertyAction {
-							target: notificationRect
-							property: "x"
-							value: notifsBG.width
-						}
+                    Item {
+                        id: iconWell
 
-						NumberAnimation {
-							target: notificationRect
-							property: "x"
-							to: 0
-							duration: 400
-							easing.type: Easing.OutCubic
-						}
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 54
+                        height: width
 
-						ScriptAction {
-							script: {
-								if (!progressTimer.running) progressTimer.start()
-								if (!autoExpireTimer.running) autoExpireTimer.start()
-							}
-						}
-					}
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: card.modelData.urgency > 1 ? col.error : col.primaryContainer
+                        }
 
-					SequentialAnimation {
-						id: expireAnimation
-						running: false
+                        IconImage {
+                            id: appIcon
 
-						ScriptAction {
-							script: {
-								notificationRect.isExpiring = true
-							}
-						}
+                            anchors.centerIn: parent
+                            implicitSize: 38
+                            visible: (card.modelData.image || card.modelData.appIcon || "").length > 0
+                            source: card.modelData.image || Quickshell.iconPath(card.modelData.appIcon, "application-x-executable")
+                        }
 
-						NumberAnimation {
-							target: notificationRect
-							property: "x"
-							to: notifsBG.width
-							duration: 400
-							easing.type: Easing.InCubic
-						}
+                        Text {
+                            anchors.centerIn: parent
+                            visible: !appIcon.visible || appIcon.status === Image.Error
+                            text: "notifications"
+                            color: card.modelData.urgency > 1 ? col.onError : col.onPrimaryContainer
+                            font.family: "Material Symbols Rounded"
+                            font.pixelSize: 34
+                        }
+                    }
 
-						ScriptAction {
-							script: {
-								try {
-									if (modelData) {
-										notificationRect.parentWindow.cleanupNotificationTracking(notificationRect.notificationId)
-										notificationRect.parentWindow.notificationExpirationComplete(notificationRect.notificationId)
-										modelData.expire()
-									}
-								} catch (error) {
-									console.error("Error expiring notification:", error)
-									notificationRect.parentWindow.notificationExpirationComplete(notificationRect.notificationId)
-								}
-							}
-						}
-					}
+                    Column {
+                        id: textColumn
 
-					Component.onCompleted: {
-						if (notificationId) {
-							let trackingValue = NotificationService.knownNotifications[notificationId]
-							let isNew = trackingValue && trackingValue.toString().startsWith("NEW_")
-							shouldAnimate = isNew
+                        anchors.left: iconWell.right
+                        anchors.right: expandButton.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 8
+                        spacing: 2
 
-							if (shouldAnimate) {
-								NotificationService.knownNotifications[notificationId] = Date.now()
-								slideInAnimation.start()
-							} else {
-								startTimersDelayed.start()
-							}
-						} else {
-							startTimersDelayed.start()
-						}
-					}
+                        Text {
+                            width: parent.width
+                            text: card.modelData.appName || "System"
+                            color: col.onSurfaceVariant
+                            elide: Text.ElideRight
+                            font.family: cfg.fontFamily
+                            font.pixelSize: Math.max(9, cfg.fontSize - 5)
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 0.7
+                        }
 
-					Timer {
-						id: startTimersDelayed
-						interval: 50
-						repeat: false
-						onTriggered: {
-							if (!progressTimer.running) progressTimer.start()
-							if (!autoExpireTimer.running) autoExpireTimer.start()
-						}
-					}
+                        Text {
+                            width: parent.width
+                            text: card.modelData.summary || "Notification"
+                            color: col.onSurface
+                            elide: Text.ElideRight
+                            font.family: cfg.fontFamily
+                            font.pixelSize: Math.max(13, cfg.fontSize)
+                            font.weight: Font.Black
+                        }
 
-					Timer {
-						id: progressTimer
-						interval: 100
-						running: false
-						repeat: true
-						triggeredOnStart: false
-						onTriggered: {
-							if (notificationRect.isExpiring) {
-								stop()
-								return
-							}
-							notificationRect.elapsedTime += interval
-							notificationRect.timeProgress = notificationRect.elapsedTime / notificationRect.totalDuration
-						}
-					}
+                        Text {
+                            id: bodyText
 
-					Timer {
-						id: autoExpireTimer
-						interval: notificationRect.totalDuration
-						running: false
-						repeat: false
-						triggeredOnStart: false
-						onTriggered: {
-							if (notificationRect.isExpiring) return
+                            width: parent.width
+                            visible: text.length > 0
+                            text: card.modelData.body || ""
+                            color: col.onSurfaceVariant
+                            elide: card.expanded ? Text.ElideNone : Text.ElideRight
+                            maximumLineCount: card.expanded ? 0 : 2
+                            wrapMode: Text.WordWrap
+                            font.family: cfg.fontFamily
+                            font.pixelSize: Math.max(10, cfg.fontSize - 3)
+                        }
 
-							if (parentWindow.canNotificationExpire(notificationRect.notificationId)) {
-								progressTimer.stop()
-								expireAnimation.start()
-							} else {
-								autoExpireTimer.interval = 500
-								autoExpireTimer.start()
-							}
-						}
-					}
+                        Flow {
+                            width: parent.width
+                            visible: actionRepeater.count > 1
+                            spacing: 6
 
-					ColumnLayout {
-						id: contentLayout
-						anchors.fill: parent
-						anchors.margins: 10
-						anchors.bottomMargin: 13
-						spacing: 8
+                            Repeater {
+                                id: actionRepeater
+                                model: card.modelData.actions || []
 
-						RowLayout {
-							Layout.fillWidth: true
-							spacing: 8
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    width: Math.min(parent.width, Math.max(72, actionLabel.implicitWidth + 18))
+                                    height: 24
+                                    radius: height / 2
+                                    color: actionHover.containsMouse ? col.secondaryContainer : col.surfaceContainerHigh
 
-							ClippingRectangle {
-								id: iconContainer
-								width: 32
-								height: 32
-								radius: 80
-								color: col.surfaceContainerHigh
-								visible: modelData && (modelData.image || modelData.appIcon)
+                                    Text {
+                                        id: actionLabel
 
-								Image {
-									id: notificationIcon
-									anchors.centerIn: parent
-									width: 32
-									height: 32
-									fillMode: Image.PreserveAspectFit
-									smooth: true
+                                        anchors.centerIn: parent
+                                        width: parent.width - 18
+                                        text: modelData.text || modelData.identifier || "Action"
+                                        color: actionHover.containsMouse ? col.onSecondaryContainer : col.onSurface
+                                        elide: Text.ElideRight
+                                        font.family: cfg.fontFamily
+                                        font.pixelSize: Math.max(9, cfg.fontSize - 4)
+                                        font.weight: Font.DemiBold
+                                    }
 
-									source: {
-										if (modelData) {
-											if (modelData.image && modelData.image !== "")
-												return modelData.image
-											else if (modelData.appIcon && modelData.appIcon !== "")
-												return modelData.appIcon
-										}
-										return ""
-									}
+                                    MouseArea {
+                                        id: actionHover
 
-									Rectangle {
-										anchors.fill: parent
-										radius: 4
-										color: col.primary
-										visible: parent.status === Image.Error || parent.status === Image.Null
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onPressed: mouse => mouse.accepted = true
+                                        onClicked: modelData.invoke()
+                                    }
+                                }
+                            }
+                        }
+                    }
 
-										Text {
-											anchors.centerIn: parent
-											text: {
-												let appName = (modelData && modelData.appName) || "?"
-												return appName.charAt(0).toUpperCase()
-											}
-											font.pixelSize: 14
-											font.weight: Font.Bold
-											font.family: cfg ? cfg.fontFamily : "Rubik"
-											color: col.onPrimary
-										}
-									}
-								}
-							}
+                    Item {
+                        id: expandButton
 
-							Rectangle {
-								id: appNameBadge
-								width: appNameText.width + 16
-								height: 24
-								radius: 50
-								color: col.primary
+                        z: 2
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        width: 24
+                        height: width
+                        visible: bodyText.truncated || card.expanded
 
-								Text {
-									id: appNameText
-									text: (modelData && modelData.appName) || "Unknown"
-									font.pixelSize: 12
-									font.weight: Font.Bold
-									font.family: cfg ? cfg.fontFamily : "Rubik"
-									anchors.centerIn: parent
-									color: col.onPrimary
-								}
-							}
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 20
+                            height: width
+                            radius: width / 2
+                            color: expandHover.containsMouse ? col.surfaceContainerHighest : col.primaryContainer
 
-							Item { Layout.fillWidth: true }
+                            Behavior on color { ColorAnimation { duration: Gstate.animDuration } }
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            text: card.expanded ? "expand_less" : "expand_more"
+                            color: col.onPrimaryContainer
+                            font.family: "Material Symbols Rounded"
+                            font.pixelSize: 17
+                        }
+                        MouseArea {
+                            id: expandHover
 
-							Rectangle {
-								id: timestampBadge
-								width: 55
-								height: 24
-								color: col.surfaceContainer
-								radius: 12
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onPressed: mouse => mouse.accepted = true
+                            onClicked: card.expanded = !card.expanded
+                        }
+                    }
+                }
 
-								Text {
-									text: Qt.formatTime(new Date(), "hh:mm")
-									font.pixelSize: 14
-									font.weight: 700
-									font.family: cfg ? cfg.fontFamily : "Rubik"
-									anchors.centerIn: parent
-									color: col.onSurfaceVariant
-								}
-							}
-						}
+                MouseArea {
+                    id: gesture
 
-						Text {
-							id: summaryText
-							Layout.fillWidth: true
-							text: (modelData && modelData.summary) || "No Summary"
-							font.pixelSize: 16
-							font.weight: Font.Bold
-							font.family: cfg ? cfg.fontFamily : "Rubik"
-							color: col.onSurface
-							elide: Text.ElideRight
-							maximumLineCount: 1
-						}
+                    anchors.fill: parent
+                    z: 1
+                    acceptedButtons: Qt.LeftButton
+                    property real pressX: 0
+                    property bool wasDragged: false
 
-						Text {
-							id: bodyText
-							Layout.fillWidth: true
-							Layout.fillHeight: true
-							text: (modelData && modelData.body) || "No content"
-							font.pixelSize: 14
-							font.family: cfg ? cfg.fontFamily : "Rubik"
-							color: col.onSurfaceVariant
-							wrapMode: Text.Wrap
-							maximumLineCount: 3
-							elide: Text.ElideRight
-						}
-					}
+                    onPressed: mouse => {
+                        pressX = mouse.x
+                        wasDragged = false
+                    }
+                    onPositionChanged: mouse => {
+                        if (!pressed)
+                            return
+                        card.swipeOffset = mouse.x - pressX
+                        wasDragged = Math.abs(card.swipeOffset) > 6
+                    }
+                    onReleased: {
+                        if (Math.abs(card.swipeOffset) > card.width * 0.32) {
+                            card.swiped = true
+                            card.swipeOffset = card.swipeOffset < 0 ? -stack.width : stack.width
+                            dismissAfterSwipe.restart()
+                        } else {
+                            card.swipeOffset = 0
+                        }
+                    }
+                    onClicked: {
+                        if (wasDragged || card.swiped)
+                            return
+                        const actions = card.modelData.actions || []
+                        if (actions.length === 1)
+                            actions[0].invoke()
+                    }
+                }
 
-					MouseArea {
-						id: mouseArea
-						anchors.fill: parent
-						hoverEnabled: true
-						acceptedButtons: Qt.LeftButton | Qt.RightButton
+                Timer {
+                    id: expiry
 
-						drag.target: notificationRect
-						drag.axis: Drag.XAxis
-						drag.minimumX: 0
-						drag.maximumX: notificationRect.width * 1.5
+                    interval: 50
+                    running: !card.modelData.resident && !card.dismissed && !card.paused
+                    repeat: true
+                    onTriggered: {
+                        card.elapsedTime += interval
+                        if (card.elapsedTime < card.timeout)
+                            return
+                        card.dismissed = true
+                        card.swiped = true
+                        card.swipeOffset = stack.width
+                        dismissAfterSwipe.restart()
+                    }
+                }
 
-						property bool wasDragged: false
+                Timer {
+                    id: dismissAfterSwipe
 
-						onEntered: {
-							if (!notificationRect.isExpiring) {
-								autoExpireTimer.stop()
-								progressTimer.stop()
-							}
-						}
+                    interval: 190
+                    onTriggered: {
+                        NotificationService.cleanupNotificationTracking(card.notificationId)
+                        card.modelData.dismiss()
+                    }
+                }
 
-						onExited: {
-							if (!notificationRect.isExpiring && !drag.active) {
-								autoExpireTimer.interval = notificationRect.totalDuration - notificationRect.elapsedTime
-								if (autoExpireTimer.interval > 0) {
-									autoExpireTimer.start()
-									progressTimer.start()
-								}
-							}
-						}
+                Timer {
+                    id: removeAfterSlide
 
-						onPressed: wasDragged = false
+                    interval: Gstate.animDuration
+                    onTriggered: card.ListView.delayRemove = false
+                }
 
-						onPositionChanged: {
-							if (drag.active) wasDragged = true
-						}
-
-						onReleased: {
-							if (wasDragged) {
-								if (notificationRect.x > notificationRect.width * 0.4) {
-									autoExpireTimer.stop()
-									progressTimer.stop()
-									expireAnimation.start()
-								} else {
-									snapBackAnimation.start()
-								}
-							}
-						}
-
-						onClicked: function(mouse) {
-							if (wasDragged || notificationRect.isExpiring) return
-
-							if (mouse.button === Qt.LeftButton) {
-								try {
-									autoExpireTimer.stop()
-									progressTimer.stop()
-									NotificationService.currentExpiringIndex = -1
-									dismissAnimation.start()
-								} catch (error) {
-									console.error("Error dismissing notification: " + error)
-								}
-							} else if (mouse.button === Qt.RightButton) {
-								NotificationService.dismissAll()
-							}
-						}
-
-						NumberAnimation {
-							id: snapBackAnimation
-							target: notificationRect
-							property: "x"
-							to: 0
-							duration: Gstate.animDuration
-							easing.type: Easing.OutBounce
-						}
-					}
-
-					SequentialAnimation {
-						id: dismissAnimation
-
-						NumberAnimation {
-							target: notificationRect
-							property: "x"
-							to: -notifsBG.width
-							duration: Gstate.animDuration
-							easing.type: Easing.InCubic
-						}
-
-						ScriptAction {
-							script: {
-								try {
-									notificationRect.parentWindow.cleanupNotificationTracking(notificationRect.notificationId)
-									modelData.dismiss()
-								} catch (error) {
-									console.error("Error dismissing notification: " + error)
-								}
-							}
-						}
-					}
-
-					Connections {
-						target: modelData
-						function onClosed(reason) {
-							try {
-								autoExpireTimer.stop()
-								progressTimer.stop()
-							} catch (error) {
-								console.error("Error in onClosed handler: " + error)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+                Connections {
+                    target: card.modelData
+                    function onClosed() {
+                        expiry.stop()
+                    }
+                }
+            }
+        }
+    }
 }

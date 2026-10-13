@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="zwwm_window_manager_v1">
+  <copyright>Copyright 2026 binarylinuxx. SPDX-License-Identifier: BSD-3-Clause</copyright>
+  <interface name="zwwm_window_manager_v1" version="2">
+    <request name="destroy" type="destructor"/>
+    <request name="create_configuration"><arg name="id" type="new_id" interface="zwwm_configuration_v1"/></request>
+    <event name="revision"><arg name="revision" type="uint"/></event>
+    <enum name="window_action"><entry name="focus" value="0"/><entry name="close" value="1"/><entry name="raise" value="2"/><entry name="floating" value="3"/><entry name="fullscreen" value="4"/><entry name="hidden" value="5"/></enum>
+    <enum name="change" bitfield="true"><entry name="window" value="1"/><entry name="output" value="2"/><entry name="tag" value="4"/><entry name="config" value="8"/><entry name="camera" value="16"/><entry name="keyboard" value="32"/><entry name="session" value="64"/></enum>
+    <request name="get_state" since="2"><arg name="id" type="new_id" interface="zwwm_window_state_v1"/></request>
+    <request name="claim_policy" since="2"><arg name="id" type="new_id" interface="zwwm_window_result_v1"/></request>
+    <request name="release_policy" since="2"/>
+    <request name="window_action" since="2"><arg name="id" type="new_id" interface="zwwm_window_result_v1"/><arg name="window_hi" type="uint"/><arg name="window_lo" type="uint"/><arg name="action" type="uint" enum="window_action"/><arg name="enabled" type="uint"/></request>
+    <request name="assign_window" since="2"><arg name="id" type="new_id" interface="zwwm_window_result_v1"/><arg name="window_hi" type="uint"/><arg name="window_lo" type="uint"/><arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/><arg name="tag" type="uint"/></request>
+    <request name="select_tag" since="2"><arg name="id" type="new_id" interface="zwwm_window_result_v1"/><arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/><arg name="tag" type="uint"/></request>
+    <request name="dispatch" since="2"><arg name="id" type="new_id" interface="zwwm_window_result_v1"/><arg name="action" type="string"/><arg name="argument" type="string"/></request>
+    <event name="changed" since="2"><arg name="serial" type="uint"/><arg name="changes" type="uint" enum="change"/></event>
+    <event name="pointer_motion" since="2"><arg name="time" type="uint"/><arg name="window_hi" type="uint"/><arg name="window_lo" type="uint"/><arg name="x" type="int"/><arg name="y" type="int"/></event>
+    <event name="pointer_button" since="2"><arg name="time" type="uint"/><arg name="button" type="uint"/><arg name="state" type="uint"/><arg name="window_hi" type="uint"/><arg name="window_lo" type="uint"/></event>
+    <event name="binding" since="2"><arg name="name" type="string"/><arg name="time" type="uint"/><arg name="state" type="uint"/><arg name="code" type="uint"/></event>
+    <event name="touch" since="2"><arg name="time" type="uint"/><arg name="id" type="int"/><arg name="state" type="uint"/><arg name="x" type="int"/><arg name="y" type="int"/></event>
+    <event name="gesture" since="2"><arg name="kind" type="uint"/><arg name="phase" type="uint"/><arg name="fingers" type="uint"/><arg name="time_hi" type="uint"/><arg name="time_lo" type="uint"/><arg name="dx" type="fixed"/><arg name="dy" type="fixed"/><arg name="scale" type="fixed"/><arg name="angle" type="fixed"/><arg name="cancelled" type="uint"/><arg name="device" type="string"/><arg name="output" type="string"/></event>
+    <event name="window_request" since="2"><arg name="window_hi" type="uint"/><arg name="window_lo" type="uint"/><arg name="kind" type="uint"/><arg name="value" type="uint"/><arg name="input_serial" type="uint"/><arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/></event>
+  </interface>
+  <interface name="zwwm_configuration_v1" version="1">
+    <enum name="shader_role"><entry name="window" value="0"/><entry name="border" value="1"/><entry name="background" value="2"/></enum>
+    <request name="destroy" type="destructor"/>
+    <request name="set_integer"><arg name="name" type="string"/><arg name="value" type="int"/></request>
+    <request name="set_boolean"><arg name="name" type="string"/><arg name="value" type="uint"/></request>
+    <request name="set_string"><arg name="name" type="string"/><arg name="value" type="string"/></request>
+    <request name="clear_bindings"/>
+    <request name="add_binding"><arg name="modifiers" type="string"/><arg name="key" type="string"/><arg name="action" type="string"/><arg name="argument" type="string"/></request>
+    <request name="clear_window_rules"/>
+    <request name="add_window_rule"><arg name="app_id" type="string"/><arg name="title" type="string"/><arg name="floating" type="int"/><arg name="opacity" type="int"/><arg name="window_shader" type="string"/><arg name="border_shader" type="string"/></request>
+    <request name="clear_layer_rules"/>
+    <request name="add_layer_rule"><arg name="name_space" type="string"/><arg name="blur_radius" type="uint"/><arg name="opacity" type="uint"/><arg name="ignore_alpha" type="uint"/></request>
+    <request name="set_output"><arg name="connector" type="string"/><arg name="scale_per_mille" type="uint"/><arg name="transform" type="uint"/></request>
+    <request name="clear_outputs"/><request name="clear_shaders"/>
+    <request name="define_shader"><arg name="name" type="string"/><arg name="role" type="uint" enum="shader_role"/><arg name="source" type="string"/></request>
+    <request name="shader_integer"><arg name="shader" type="string"/><arg name="name" type="string"/><arg name="value" type="int"/></request>
+    <request name="shader_boolean"><arg name="shader" type="string"/><arg name="name" type="string"/><arg name="value" type="uint"/></request>
+    <request name="shader_color"><arg name="shader" type="string"/><arg name="name" type="string"/><arg name="rgba" type="uint"/></request>
+    <request name="shader_colors"><arg name="shader" type="string"/><arg name="name" type="string"/><arg name="rgba" type="array"/></request>
+    <request name="shader_vector"><arg name="shader" type="string"/><arg name="name" type="string"/><arg name="components" type="array"/></request>
+    <request name="commit"><arg name="id" type="new_id" interface="zwwm_configuration_result_v1"/></request>
+    <event name="base_revision"><arg name="revision" type="uint"/></event>
+  </interface>
+  <interface name="zwwm_configuration_result_v1" version="1"><request name="destroy" type="destructor"/><event name="applied"><arg name="revision" type="uint"/></event><event name="failed"><arg name="message" type="string"/></event></interface>
+  <interface name="zwwm_window_result_v1" version="1"><request name="destroy" type="destructor"/><event name="done"/><event name="failed"><arg name="message" type="string"/></event></interface>
+  <interface name="zwwm_window_state_v1" version="1">
+    <enum name="window_state" bitfield="true"><entry name="mapped" value="1"/><entry name="focused" value="2"/><entry name="floating" value="4"/><entry name="fullscreen" value="8"/><entry name="modal" value="16"/><entry name="hidden" value="32"/></enum>
+    <request name="destroy" type="destructor"/>
+    <event name="output"><arg name="id_hi" type="uint"/><arg name="id_lo" type="uint"/><arg name="connector" type="string"/><arg name="x" type="int"/><arg name="y" type="int"/><arg name="width" type="uint"/><arg name="height" type="uint"/><arg name="tag" type="uint"/></event>
+    <event name="window">
+      <arg name="id_hi" type="uint"/><arg name="id_lo" type="uint"/><arg name="output_hi" type="uint"/><arg name="output_lo" type="uint"/><arg name="tag" type="uint"/>
+      <arg name="state" type="uint" enum="window_state"/><arg name="app_id" type="string"/><arg name="title" type="string"/><arg name="parent_hi" type="uint"/><arg name="parent_lo" type="uint"/>
+      <arg name="x" type="int"/><arg name="y" type="int"/><arg name="width" type="uint"/><arg name="height" type="uint"/>
+      <arg name="min_width" type="int"/><arg name="min_height" type="int"/><arg name="max_width" type="int"/><arg name="max_height" type="int"/>
+    </event>
+    <event name="session_locked"><arg name="locked" type="uint"/></event>
+    <event name="done"><arg name="serial" type="uint"/></event>
+  </interface>
+</protocol>

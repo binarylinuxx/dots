@@ -4,7 +4,6 @@ Jinja2 template rendering for color configs.
 
 import os
 import re
-import time
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, BaseLoader
 
@@ -30,57 +29,9 @@ TEMPLATE_OUTPUTS = {
     "zwm_colors.lua": ["~/.config/zwm/colors.lua"],
 }
 
-ZEN_WABI_TEMPLATES = {
-    "zen-wabi-vars.json": "matugen-vars.json",
-    "zen-wabi-userChrome.css": "userChrome.css",
-    "zen-wabi-userContent.css": "userContent.css",
-    "zen-wabi-userstyles.css": "matugen-userstyles.css",
-}
-
-
 def expand_path(path: str) -> Path:
     """Expand ~ and env vars in path."""
     return Path(os.path.expanduser(os.path.expandvars(path)))
-
-
-def zen_wabi_palette(colors: dict) -> dict[str, str]:
-    """Map Material roles to zen-wabi's eight-color palette contract."""
-    return {
-        "accent": colors.get("primary", {}).get("hex", "#89b4fa"),
-        "bg": colors.get("background", {}).get("hex", "#111318"),
-        "bg_dark": colors.get("surface", {}).get("hex", "#1b1b1f"),
-        "bg_light": colors.get("surface_container_high", {}).get("hex", "#2f3036"),
-        "fg": colors.get("on_background", {}).get("hex", "#e4e1e9"),
-        "fg_light": colors.get("on_surface_variant", {}).get("hex", "#c7c5d0"),
-        "secondary": colors.get("secondary", {}).get("hex", "#c8c2dc"),
-        "tertiary": colors.get("tertiary", {}).get("hex", "#efb8c8"),
-    }
-
-
-def discover_zen_chrome_dirs() -> list[Path]:
-    """Find Zen profile chrome dirs for zen-wabi compatible outputs."""
-    dirs = []
-    forced = os.environ.get("ZEN_PROFILE_DIR") or os.environ.get("BLXSHELL_ZEN_PROFILE_DIR")
-    if forced:
-        profile = expand_path(forced)
-        dirs.append(profile if profile.name == "chrome" else profile / "chrome")
-
-    for base in [XDG_CONFIG / "zen", Path.home() / ".zen"]:
-        if not base.exists():
-            continue
-        for profile in base.iterdir():
-            chrome = profile / "chrome"
-            if chrome.is_dir():
-                dirs.append(chrome)
-
-    unique = []
-    seen = set()
-    for path in dirs:
-        key = str(path.expanduser())
-        if key not in seen:
-            seen.add(key)
-            unique.append(path)
-    return unique
 
 
 def convert_matugen_syntax(template_content: str) -> str:
@@ -163,8 +114,6 @@ def render_template(
         colors=colors,
         image=image_path,
         mode=mode,
-        generated_at=time.time_ns(),
-        **zen_wabi_palette(colors),
     )
 
 
@@ -192,17 +141,6 @@ def render_all(
                 results[output_path] = rendered
         except Exception as e:
             print(f"Error rendering {template_name}: {e}")
-
-    for chrome_dir in discover_zen_chrome_dirs():
-        for template_name, output_name in ZEN_WABI_TEMPLATES.items():
-            template_path = TEMPLATES_DIR / template_name
-            if not template_path.exists():
-                continue
-
-            try:
-                results[str(chrome_dir / output_name)] = render_template(template_name, colors, image_path, mode)
-            except Exception as e:
-                print(f"Error rendering {template_name}: {e}")
 
     return results
 

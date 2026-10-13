@@ -1,6 +1,4 @@
 import Quickshell
-import Quickshell.Wayland
-import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 import Quickshell.Widgets
 import Quickshell.Io
@@ -11,8 +9,11 @@ import qs.widgets
 import qs.services
 import PluginManager
 
-Scope {
-    id: sidebarRoot
+Item {
+	id: sidebarRoot
+	anchors.fill: parent
+	property Item surface: panel
+	property Item bar: null
 
     function refreshSinkList() {
         if (!sinkListProc.running)
@@ -33,39 +34,38 @@ Scope {
         objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
     }
 
-    PanelWindow {
+    Item {
         id: sidebarWindow
+        anchors.fill: parent
+        z: 300
 
-        anchors.right: true
-        anchors.top: true
-        anchors.bottom: true
-        margins.right: 5
-        exclusiveZone: 0
+        // Use the shared resolved insets, not the bar's local geometry.
+		readonly property string barEdge: Gstate.barEdge
+        // The panel must meet the opposite frame edge for the SDF union to join.
+        readonly property real edgeMargin: 0
+        readonly property string sidebarEdge: barEdge === "right" ? "left" : "right"
+        // Overlap frame-only edges; merely touching their inner boundary leaves a seam.
+        readonly property real frameJoin: Gstate.frameThickness + 12
+        readonly property real topInset: Gstate.topInset - (barEdge === "top" ? 0 : frameJoin) + edgeMargin
+        readonly property real bottomInset: Gstate.bottomInset - (barEdge === "bottom" ? 0 : frameJoin) + edgeMargin
+        readonly property real leftInset: Gstate.leftInset + edgeMargin
+        readonly property real rightInset: Gstate.rightInset + edgeMargin
 
-        implicitWidth: Gstate.sidebarOpen ? 400 : 1
-        color: "transparent"
-
-        readonly property string barPos: cfg ? cfg.barPosition : "bottom"
-        readonly property int edgeMargin: 5
-
-        property real panelX: Gstate.sidebarOpen ? 0 : 400
-        Behavior on panelX {
+        property real panelReveal: Gstate.sidebarOpen ? 1 : 0
+        Behavior on panelReveal {
             NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
-        }
-
-        HyprlandFocusGrab {
-            windows: [sidebarWindow]
-            active: Gstate.sidebarOpen
-            onCleared: Gstate.sidebarOpen = false
         }
 
         Rectangle {
             id: panel
             width: 400
-            x: sidebarWindow.panelX
-            y: sidebarWindow.edgeMargin
-            height: sidebarWindow.height - sidebarWindow.edgeMargin * 2
-            color: col.surface
+            x: sidebarWindow.sidebarEdge === "left"
+                ? -width + sidebarWindow.panelReveal * (width + sidebarWindow.leftInset)
+                : sidebarWindow.width - sidebarWindow.rightInset - width
+                    + (1 - sidebarWindow.panelReveal) * (width + sidebarWindow.rightInset)
+            y: sidebarWindow.topInset
+            height: Math.max(0, sidebarWindow.height - sidebarWindow.topInset - sidebarWindow.bottomInset)
+            color: "transparent"
             radius: 20
             clip: true
 

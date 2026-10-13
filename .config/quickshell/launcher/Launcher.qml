@@ -8,12 +8,16 @@ import Quickshell.Hyprland
 import qs.widgets
 import qs.services
 
-PanelWindow {
+Item {
 	id: root
-	exclusiveZone: 0
+	anchors.fill: parent
+	z: 300
 	property bool isWallpaperBrowserMode: isWallhavenMode || isPexelsMode
-	width: isWallpaperBrowserMode ? 1220 : (cfg ? cfg.launcherWidth + 20 : 420)
-	height: isWallpaperBrowserMode ? 700 : (cfg ? cfg.launcherHeight : 540)
+	property Item surface: mainContainer
+	readonly property real availableX: Gstate.leftInset
+	readonly property real availableY: Gstate.topInset
+	readonly property real availableWidth: Math.max(0, width - Gstate.leftInset - Gstate.rightInset)
+	readonly property real availableHeight: Math.max(0, height - Gstate.topInset - Gstate.bottomInset)
 
 	Behavior on width {
 		NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
@@ -21,9 +25,8 @@ PanelWindow {
 	Behavior on height {
 		NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }
 	}
-	color: "transparent"
 	visible: Gstate.appsOpen
-	focusable: true
+	focus: visible
 
 	// Settings from config
 	readonly property int launcherWidth: cfg ? cfg.launcherWidth : 400
@@ -702,8 +705,9 @@ PanelWindow {
 		width: isWallpaperBrowserMode ? 1200 : launcherWidth
 		height: getContainerHeight()
 		radius: launcherRadius
-		color: col.background
-		anchors.centerIn: parent
+		color: "transparent"
+		x: root.availableX + (root.availableWidth - width) / 2
+		y: root.availableY + (root.availableHeight - height) / 2
 
 		Behavior on width {
 			NumberAnimation { duration: Gstate.animDuration; easing.type: Easing.OutCubic }

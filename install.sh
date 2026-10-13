@@ -28,7 +28,7 @@ readonly LOG_FILE="/tmp/blxshell_install_$(date +%Y%m%d_%H%M%S).log"
 readonly BLXSHELL_HOME="$HOME/.local/blxshell"
 readonly USER_BIN_DIR="$HOME/.local/bin"
 readonly PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-font-googlesans" "blxshell-font-bitcount")
-readonly OPENSUSE_PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-fonts" "gcc-c++" "python3-devel")
+readonly OPENSUSE_PACKAGES=("blxshell-quickshell-git" "blxshell-shell" "blxshell-audio" "blxshell-hyprland" "blxshell-fonts" "gcc-c++" "python3-devel" "cmake" "pkgconf-pkg-config" "qt6-base-devel" "qt6-declarative-devel" "wayland-devel" "wayland-protocols-devel")
 readonly OBS_REPO_URL="https://download.opensuse.org/repositories/home:binarylinuxx:blxshell/openSUSE_Tumbleweed/"
 readonly OBS_REPO_ALIAS="home_binarylinuxx_blxshell"
 
@@ -367,6 +367,13 @@ install_blxshell_runtime() {
     # These are local/generated development artifacts, not part of the runtime.
     rm -rf "$BLXSHELL_HOME/.ruff_cache" "$BLXSHELL_HOME/.obsidian" "$BLXSHELL_HOME/col_gen/.venv"
     rm -f "$BLXSHELL_HOME"/*_grim.png "$BLXSHELL_HOME"/shot-*.png
+
+    info "Building zwwm Wayland plugin..."
+    cmake -S "$BLXSHELL_HOME/zwwm" -B "$BLXSHELL_HOME/zwwm/build" \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$BLXSHELL_HOME" \
+        -DINSTALL_QML_PREFIX=qml || return 1
+    cmake --build "$BLXSHELL_HOME/zwwm/build" --parallel || return 1
+    cmake --install "$BLXSHELL_HOME/zwwm/build" || return 1
 
     success "blxshell runtime installed"
 }

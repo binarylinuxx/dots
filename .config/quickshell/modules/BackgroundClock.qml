@@ -9,15 +9,13 @@ import qs.widgets
 import qs.services
 
 PanelWindow {
-    id: root
-    WlrLayershell.layer: editMode ? WlrLayer.Overlay : WlrLayer.Background
-    WlrLayershell.keyboardFocus: editMode ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "quickshell:backgroundGrid"
-
-    width: screen.width
-    height: screen.height
-    color: "transparent"
+	id: root
+	anchors { top: true; bottom: true; left: true; right: true }
+	color: "transparent"
+	exclusionMode: ExclusionMode.Ignore
+	WlrLayershell.layer: WlrLayer.Background
+	WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+	mask: Region {}
 
     // Export edit mode state for external control
     property bool editMode: false
@@ -29,17 +27,12 @@ PanelWindow {
     property color dotColor: col?.primary || "#adc6ff"
     property string fontFamily: cfg ? cfg.fontFamily : "Rubik"
 
-    // Bar exclusive zone — offset the usable grid area
-    property bool barOnTop: cfg ? cfg.barOnTop : true
-    property int barHeight: cfg ? cfg.barHeight : 35
-    property int barGap: cfg && cfg.barFloating ? cfg.barGap : 0
-    property int barExclusion: barHeight + barGap
-
-    // Usable area for the grid (full screen minus bar)
-    property real gridAreaX: 0
-    property real gridAreaY: barOnTop ? barExclusion : 0
-    property real gridAreaWidth: root.width
-    property real gridAreaHeight: root.height - barExclusion
+    // This remains an independent background-layer surface, but its grid uses
+    // the same physical frame/bar insets as foreground shell content.
+    property real gridAreaX: Gstate.leftInset
+    property real gridAreaY: Gstate.topInset
+	property real gridAreaWidth: Math.max(0, root.width - Gstate.leftInset - Gstate.rightInset)
+    property real gridAreaHeight: Math.max(0, root.height - Gstate.topInset - Gstate.bottomInset)
 
     // Cell dimensions based on usable area
     property real cellWidth: gridAreaWidth / gridColumns

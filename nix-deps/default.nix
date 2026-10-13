@@ -32,6 +32,7 @@ in {
           find "$out/share/blxshell" -name '__pycache__' -type d -prune -exec rm -rf {} +
           find "$out/share/blxshell" \( -name '*_grim.png' -o -name 'shot-*.png' \) -delete
           rm -rf "$out/share/blxshell/qml/PluginManager"
+          rm -rf "$out/share/blxshell/qml/BlxShell/Zwwm" "$out/share/blxshell/zwwm/build"
 
           printf '%s\n' '#!/bin/bash' 'exec blxshell-col-gen "$@"' \
             > "$out/share/blxshell/col_gen/generate"
@@ -41,6 +42,30 @@ in {
 
           runHook postInstall
         '';
+      };
+
+      blxshell-blob = pkgs.stdenv.mkDerivation {
+        pname = "blxshell-blob";
+        version = "0-unstable";
+        src = ../.config/quickshell/blob;
+        dontWrapQtApps = true;
+
+        nativeBuildInputs = with pkgs; [ cmake ninja pkg-config ];
+        buildInputs = with pkgs; [ qt6.qtbase qt6.qtdeclarative qt6.qtshadertools ];
+        cmakeFlags = [
+          "-DCMAKE_BUILD_TYPE=Release"
+          "-DINSTALL_QML_PREFIX=share/qml"
+        ];
+      };
+
+      blxshell-zwwm = pkgs.stdenv.mkDerivation {
+        pname = "blxshell-zwwm";
+        version = "0-unstable";
+        src = ../.config/quickshell/zwwm;
+        dontWrapQtApps = true;
+        nativeBuildInputs = with pkgs; [ cmake ninja pkg-config wayland-scanner ];
+        buildInputs = with pkgs; [ qt6.qtbase qt6.qtdeclarative wayland wayland-protocols ];
+        cmakeFlags = [ "-DCMAKE_BUILD_TYPE=Release" ];
       };
 
       blxshell-quickshell-git = pkgs.stdenv.mkDerivation {
@@ -123,14 +148,14 @@ in {
         runtimeInputs = [
           blxshell-quickshell-git
           blxshell-col-gen
-          pkgs.curl
           pkgs.playerctl
+		  pkgs.curl
           pkgs.procps
           pkgs.pulseaudio
         ];
 
         text = ''
-          QML_IMPORT_PATH="${blxshell-plugin-manager}/share/blxshell/qml"
+          QML_IMPORT_PATH="${blxshell-zwwm}/lib/qml:${blxshell-blob}/lib/qml:${blxshell-plugin-manager}/share/blxshell/qml"
           export QML_IMPORT_PATH
           LD_LIBRARY_PATH="${blxshell-plugin-manager}/share/blxshell/qml/PluginManager''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
           export LD_LIBRARY_PATH
@@ -149,7 +174,6 @@ in {
           theme dynamic   Re-apply dynamic colors from current wallpaper
           theme <name>    Apply a bundled static theme while keeping wallpaper
           theme list      List bundled static themes
-          zen-bridge      Install zen-wabi bridge files into a Zen profile
           lock            Lock screen
           powermenu       Toggle the powermenu
           help            Show this message
@@ -195,10 +219,6 @@ in {
                 exec blxshell-col-gen static "$@"
               fi
               ;;
-            zen-bridge)
-              shift 2>/dev/null || true
-              exec ${blxshell-runtime}/share/blxshell/col_gen/install-zen-wabi-bridge "$@"
-              ;;
             lock)
               exec qs -p "$SHELL_QML" ipc call lockscreen lock
               ;;
@@ -223,6 +243,8 @@ in {
           blxshell
           blxshell-col-gen
           blxshell-plugin-manager
+          blxshell-blob
+          blxshell-zwwm
           blxshell-runtime
           fonts.blxshell-custom-fonts
           scripts.blxshell-scripts
@@ -236,6 +258,8 @@ in {
         blxshell-col-gen
         blxshell-greeter-launcher
         blxshell-plugin-manager
+        blxshell-blob
+        blxshell-zwwm
         blxshell-quickshell-git
         blxshell-runtime;
       inherit (fonts)
@@ -277,6 +301,7 @@ in {
         blxshell-greeter-launcher
         blxshell-plugin-manager
         blxshell-quickshell-git
+        blxshell-zwwm
         blxshell-runtime
         blxshell-scripts
         blxshell-shell
@@ -293,7 +318,7 @@ in {
     let pkgs = nixpkgs.legacyPackages.${system};
     in {
       default = pkgs.mkShell {
-        packages = with pkgs; [ cmake ninja python3 python3Packages.pillow qt6.qtbase qt6.qtdeclarative qt6.qtshadertools uv ];
+        packages = with pkgs; [ cmake ninja pkg-config wayland wayland-scanner wayland-protocols python3 python3Packages.pillow qt6.qtbase qt6.qtdeclarative qt6.qtshadertools uv ];
         QML_IMPORT_PATH = "$PWD/.config/quickshell/qml";
       };
     });

@@ -5,20 +5,10 @@ import QtQuick.Shapes 1.0
 import QtQuick.Effects
 import qs.services
 
-// Fullscreen overlay that draws a colored border frame around the screen.
-PanelWindow {
-    id: root
-
-    anchors.top: true
-    anchors.left: true
-    anchors.right: true
-    exclusionMode: ExclusionMode.Ignore
-    implicitHeight: screen ? screen.height : 1080
-    focusable: false
-    color: "transparent"
-    WlrLayershell.layer: WlrLayer.Top
-
-    mask: Region {}
+// Content-only frame for the single shell surface.
+Item {
+	id: root
+	anchors.fill: parent
 
     readonly property int thickness: 15
 

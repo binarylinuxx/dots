@@ -3,9 +3,11 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.Pipewire
+import qs.services
 
-Scope {
-  id: root
+Item {
+	id: root
+	anchors.fill: parent
 
   PwObjectTracker {
     objects: [Pipewire.defaultAudioSink ]
@@ -21,6 +23,7 @@ Scope {
   }
 
   property bool shouldShowOsd: false
+	property Item surface: osdSurface
   property int integerVolume: Pipewire.defaultAudioSink?.audio.volume * 100
 
   Timer {
@@ -29,21 +32,19 @@ Scope {
     onTriggered: root.shouldShowOsd = false
   }
 
-  LazyLoader {
-    active: root.shouldShowOsd
-
-    PanelWindow {
-      anchors.right: true
-      margins.right: 5
-      exclusiveZone: 0
-      width: 50
-      height: screen.height / 3
-      color: "transparent"
+   Item {
+       id: osdSurface
+      visible: root.shouldShowOsd
+       x: parent.width - Gstate.rightInset - width - 5
+       y: Gstate.topInset + Math.max(0, (parent.height - Gstate.topInset - Gstate.bottomInset - height) / 2)
+       width: 50
+       height: Math.max(0, Math.min(parent.height / 3, parent.height - Gstate.topInset - Gstate.bottomInset))
+      z: 400
       Rectangle {
         id: mainBox
         anchors.fill: parent
         radius: 50
-        color: col.background
+         color: "transparent"
         ColumnLayout {
           anchors {
             fill: parent
@@ -109,6 +110,5 @@ Scope {
           }
         }
       }
-    }
   }
 }

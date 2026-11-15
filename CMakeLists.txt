@@ -60,7 +60,8 @@ add_dependencies(blxshell-core blxshell-shaders)
 # Shaders are found in the build tree while developing, or in
 # <prefix>/share/blxshell when installed.
 target_compile_definitions(blxshell-core PRIVATE
-  BLXSHELL_BUILD_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+  BLXSHELL_BUILD_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+  BLXSHELL_SOURCE_WALLPAPER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/wallpapers")
 # vw props are designated initializers that omit defaulted fields on purpose.
 set(BLXSHELL_WARNINGS -Wall -Wextra -Wpedantic
   -Wno-missing-designated-field-initializers -Wno-missing-field-initializers)
@@ -77,3 +78,5 @@ target_compile_options(blxshell-greeter PRIVATE ${BLXSHELL_WARNINGS})
 
 install(TARGETS blxshell blxshell-greeter RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(FILES ${BLXSHELL_SHADERS} DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell")
+# The default wallpaper, for the shell and the greeter alike.
+install(FILES wallpapers/runix-m3.png DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/wallpapers")

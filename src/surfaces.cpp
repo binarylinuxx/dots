@@ -49,23 +49,45 @@ std::string home() {
   return value != nullptr ? value : ".";
 }
 
+// The wallpaper that ships with blxshell: <prefix>/share/blxshell/wallpapers,
+// or the source tree while developing. The greeter finds it the same way.
+std::string default_wallpaper() {
+  static const std::string path = [] {
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    std::error_code error;
+    const auto executable = fs::read_symlink("/proc/self/exe", error);
+    if (!error) candidates.push_back(executable.parent_path().parent_path() / "share" / "blxshell" / "wallpapers");
+#ifdef BLXSHELL_SOURCE_WALLPAPER_DIR
+    candidates.emplace_back(BLXSHELL_SOURCE_WALLPAPER_DIR);
+#endif
+    for (const auto& directory : candidates)
+      if (fs::exists(directory / "runix-m3.png", error)) return (directory / "runix-m3.png").string();
+    return std::string();
+  }();
+  return path;
+}
+
 std::string read_wallpaper_path() {
   std::ifstream input(home() + "/.local/state/blxshell/wallpaper");
   std::string path;
   std::getline(input, path);
-  if (path.empty()) path = home() + "/.local/wallpapers/Nocturne-of-Steel-and-Glass.png";
+  // Until one is picked, and when the picked one is gone, the default.
+  std::error_code error;
+  if (path.empty() || !std::filesystem::exists(path, error)) path = default_wallpaper();
   return path;
 }
 
-// Regenerates the colour scheme from a new wallpaper, with ~/shell's Matugen
-// settings; the scheme file watcher picks up the result.
+// Regenerates the colour scheme from a new wallpaper, with the user's Matugen
+// config when there is one; the scheme file watcher picks up the result.
 void generate_scheme(const std::string& wallpaper) {
   const std::string state = home() + "/.local/state/blxshell";
   if (config().theme_source == "colour") {
     vw::spawn({"sh", "-c",
                "command -v matugen >/dev/null || exit 0; mkdir -p \"$2\" && "
                "tmp=\"$2/matugen-colours.json.$$\"; "
-               "matugen color hex \"$1\" -c \"$HOME/.config/matugen/config.toml\" -m \"$3\" "
+               "file=\"$HOME/.config/matugen/config.toml\"; [ -f \"$file\" ] && found=1; "
+               "matugen color hex \"$1\" ${found:+-c} ${found:+\"$file\"} -m \"$3\" "
                "-t \"$4\" --contrast \"$5\" -j hex > \"$tmp\" && "
                "mv \"$tmp\" \"$2/matugen-colours.json\" || rm -f \"$tmp\"",
                "sh", config().theme_seed, state, config().matugen_mode, config().scheme_type(),
@@ -75,7 +97,8 @@ void generate_scheme(const std::string& wallpaper) {
   vw::spawn({"sh", "-c",
              "command -v matugen >/dev/null || exit 0; mkdir -p \"$2\" && "
              "tmp=\"$2/matugen-colours.json.$$\"; "
-             "matugen image \"$1\" -c \"$HOME/.config/matugen/config.toml\" -m \"$3\" "
+             "file=\"$HOME/.config/matugen/config.toml\"; [ -f \"$file\" ] && found=1; "
+               "matugen image \"$1\" ${found:+-c} ${found:+\"$file\"} -m \"$3\" "
              "-t \"$4\" --contrast \"$5\" --prefer \"$6\" -j hex > \"$tmp\" && "
              "mv \"$tmp\" \"$2/matugen-colours.json\" || rm -f \"$tmp\"",
              "sh", wallpaper, state, config().matugen_mode, config().scheme_type(),

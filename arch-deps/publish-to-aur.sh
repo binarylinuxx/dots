@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # ============================================================================
-# AUR Publishing Script for blxshell Metapackages
+# AUR Publishing Script for blxshell (Vellum) and its packages
 # ============================================================================
 # This script automates publishing/updating all blxshell packages to the AUR
 # ============================================================================
@@ -17,13 +17,14 @@ readonly NC='\033[0m'
 
 # Configuration
 readonly PACKAGES=(
-    "blxshell-shell"
-    "blxshell-hyprland"
-    "blxshell-audio"
+    "vw-git"
+    "blxshell-git"
     "blxshell-font-bitcount"
     "blxshell-font-googlesans"
     "blxshell-fonts"
-    "blxshell-complete"
+    "blxshell-shell"
+    "blxshell-audio"
+    "blxshell-hyprland"
 )
 
 readonly AUR_DIR="/tmp/aur_publish_$$"

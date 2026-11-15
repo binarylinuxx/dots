@@ -11,7 +11,7 @@
 
 set -eo pipefail
 
-readonly OBS_PROJECT="home:binarylinuxx:blxshell"
+readonly OBS_PROJECT="${OBS_PROJECT:?set OBS_PROJECT to your own OBS project, e.g. home:you:blxshell}"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly WORK_DIR="/tmp/obs_publish_$$"
 AUTO_YES=false
@@ -52,10 +52,11 @@ trap cleanup EXIT
 # ============================================================================
 
 ALL_PACKAGES=(
+    vw
+    blxshell
     blxshell-shell
     blxshell-audio
     blxshell-hyprland
-    blxshell-quickshell-git
     blxshell-fonts
     blxshell-font-bitcount
     blxshell-font-googlesans

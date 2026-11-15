@@ -1,0 +1,4 @@
+# format: url dest_filename
+# vw, and zwwm for zwayland (built into libvw); bump both commits together
+https://github.com/binarylinuxx/vw/archive/6892f4eeb6934ff2500fb16cb1314cf2152cf0a6.tar.gz vw-6892f4e.tar.gz
+https://github.com/zwwmWM/zwwm/archive/1912b91d325e039a21b1c17f87ed16b26d755689.tar.gz zwwm-1912b91.tar.gz

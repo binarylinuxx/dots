@@ -3,8 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    # To build against a local vw checkout instead:
-    #   nix build --override-input vw path:/home/blx/vw
     vw = {
       url = "github:binarylinuxx/vw";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -16,8 +14,6 @@
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in {
-      # vw.lib.mkShell brings cmake, clang, glslc and vw (linked into the
-      # binary); the package is blxshell alone.
       packages = forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};

@@ -1,17 +1,17 @@
 # Maintainer: Nir Rudov <nrw58886@gmail.com>
 
 pkgname=blxshell-audio
-pkgver=1.0
+pkgver=2.0
 pkgrel=1
 pkgdesc='Blxshell Audio Dependencies (pipewire, controls, visualizers)'
 arch=(any)
 url='https://github.com/binarylinuxx/dots'
 license=(custom)
 depends=(
-  cava
-  pavucontrol-qt
-  wireplumber
+  pipewire
   pipewire-pulse
-  libdbusmenu-gtk3
-  playerctl
+  wireplumber
+  # volume right click
+  pavucontrol
+  cava
 )

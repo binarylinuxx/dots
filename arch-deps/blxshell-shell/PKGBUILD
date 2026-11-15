@@ -1,9 +1,9 @@
 # Maintainer: Nir Rudov <nrw58886@gmail.com>
 
 pkgname=blxshell-shell
-pkgver=1.0
+pkgver=2.0
 pkgrel=1
-pkgdesc='Blxshell Shell Dependencies (terminal, shell, fonts, theming)'
+pkgdesc='Blxshell shell dependencies (terminal, prompt, fonts, theming)'
 arch=(any)
 url='https://github.com/binarylinuxx/dots'
 license=(custom)
@@ -12,22 +12,9 @@ depends=(
 	fish
 	ghostty
 	starship
-	# native zwwm QML plugin build/runtime
-	cmake
-	pkgconf
-	qt6-base
-	qt6-declarative
-	wayland
-	wayland-protocols
-	# fonts
+	# monospace and emoji
 	ttf-jetbrains-mono-nerd
-	ttf-material-symbols-variable-git
-	ttf-readex-pro
-	ttf-rubik-vf
 	ttf-twemoji
-	otf-space-grotesk
-	# col_gen dependencies (Material You color generation)
-	uv
-	python
-	python-pillow
+	# colours from the wallpaper
+	matugen
 )

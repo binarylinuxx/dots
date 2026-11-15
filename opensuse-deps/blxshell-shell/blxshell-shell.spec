@@ -14,7 +14,7 @@
 #
 
 Name:           blxshell-shell
-Version:        1.0
+Version:        2.0
 Release:        1
 Summary:        Blxshell Shell Dependencies (terminal, shell, fonts, theming)
 License:        custom
@@ -37,23 +37,20 @@ Requires:       blxshell-font-readex-pro
 Requires:       blxshell-font-rubik
 Requires:       blxshell-font-space-grotesk
 
-# col_gen dependencies (Material You color generation)
-# NOTE: uv has no zypper package — installed via install.sh using astral.sh installer
-Requires:       python313
-Requires:       python313-Pillow
+# colours from the wallpaper
+Requires:       matugen
 
 %description
 Metapackage pulling in all shell, terminal and font dependencies for blxshell.
 
-Includes fish shell, ghostty terminal, starship prompt, all required fonts,
-and Python dependencies for the col_gen Material You color generator.
-
-Note: uv (Python project manager) is installed separately via the blxshell
-installer script as it has no openSUSE package.
+Includes fish shell, ghostty terminal, starship prompt, the fonts and
+matugen for colours from the wallpaper.
 
 %files
 # metapackage — no files
 
 %changelog
+* Sat Nov 14 2026 Nir Rudov <nrw58886@gmail.com> - 2.0-1
+- For Vellum: matugen instead of the Python colour generator
 * Fri Mar 13 2026 Nir Rudov <nrw58886@gmail.com> - 1.0-1
 - Initial openSUSE package

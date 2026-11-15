@@ -3,7 +3,7 @@
 pkgname=blxshell-font-bitcount
 _fontname=ttf-bitcount-single-variable
 pkgver=1.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Blxshell Font: Bitcount Single variable pixel fonts (Prop + Grid variants)"
 arch=('any')
 url="https://github.com/petrvanblokland/TYPETR-Bitcount"
@@ -17,8 +17,8 @@ source=(
   "BitcountGridSingle[CRSV,ELSH,ELXP,slnt,wght].ttf::https://github.com/petrvanblokland/TYPETR-Bitcount/raw/main/fonts/ttf/variable/BitcountGridSingle%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf"
 )
 
-sha256sums=('SKIP' 'SKIP') 
-
+sha256sums=('2247723922994c8e7fc51b984b633395ae85c7755c3cbf0dec0ca0b1dd49fabb'
+            '8267d9a46a13933cda30dc5b1aa1c1f5a242a0aff5de1840de7c056cc3ab49dd')
 package() {
   install -Dm644 *.ttf -t "$pkgdir/usr/share/fonts/ttf/"
 }

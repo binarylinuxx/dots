@@ -1,0 +1,47 @@
+# Maintainer: Nir Rudov <nrw58886@gmail.com>
+
+# vw: C++23 Wayland widget library with its own Vulkan renderer.
+# zwwm's source provides zwayland (vw's Wayland bindings), built into libvw.
+pkgname=vw-git
+pkgver=r0
+pkgrel=1
+pkgdesc='C++23 Wayland widget library with its own Vulkan renderer'
+arch=(x86_64 aarch64)
+url='https://github.com/binarylinuxx/vw'
+license=(BSD-3-Clause)
+depends=(
+  cairo fontconfig freetype2 glib2 gtk3 harfbuzz libpipewire librsvg libwebp
+  libxkbcommon pam pango quickjs vulkan-icd-loader wayland
+  # vw's public headers include nlohmann/json.hpp
+  nlohmann-json
+)
+makedepends=(clang cmake git ninja pkgconf shaderc stb vulkan-headers wayland-protocols)
+provides=(vw)
+conflicts=(vw)
+source=(
+  'vw::git+https://github.com/binarylinuxx/vw.git'
+  'zwwm::git+https://github.com/zwwmWM/zwwm.git'
+)
+sha256sums=('SKIP' 'SKIP')
+
+pkgver() {
+  cd vw
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  CC=clang CXX=clang++ cmake -S vw -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DZWAYLAND_ROOT="$srcdir/zwwm" \
+    -DVW_WITH_LUA=OFF \
+    -DVW_BUILD_EXAMPLES=OFF
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  # zwwm's protocol files come along from the zwayland build; zwwm owns them.
+  rm -rf "$pkgdir/usr/share/zwwm"
+  install -Dm644 vw/LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}

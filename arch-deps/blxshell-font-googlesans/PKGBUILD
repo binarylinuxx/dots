@@ -3,7 +3,7 @@
 pkgname=blxshell-font-googlesans
 _fontname=ttf-google-sans-flex
 pkgver=1.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Blxshell Font: Google Sans Flex variable typeface"
 arch=('any')
 url="https://fonts.google.com/specimen/Google+Sans+Flex"
@@ -12,10 +12,9 @@ depends=('fontconfig')
 provides=("$_fontname")
 conflicts=("$_fontname")
 
-source=("https://github.com/LineageOS/android_external_google-fonts_google-sans-flex/blob/lineage-23.0/GoogleSansFlex-Regular.ttf")
+source=("https://github.com/LineageOS/android_external_google-fonts_google-sans-flex/raw/lineage-23.0/GoogleSansFlex-Regular.ttf")
 
-sha256sums=('SKIP')  
-
+sha256sums=('2510a8b7a24beb1fe8163e9a49813ccfe96b5453444b9443d42665ca4fa320c9')
 package() {
     install -Dm644 *.ttf -t "$pkgdir/usr/share/fonts/ttf/"
 }

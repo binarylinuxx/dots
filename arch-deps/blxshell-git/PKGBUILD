@@ -1,0 +1,44 @@
+# Maintainer: Nir Rudov <nrw58886@gmail.com>
+
+# blxshell "Vellum": the desktop shell and its greetd login screen, on vw.
+pkgname=blxshell-git
+pkgver=r0
+pkgrel=1
+pkgdesc='Material You desktop shell for zwwm and Hyprland, in C++ on vw'
+arch=(x86_64 aarch64)
+url='https://github.com/binarylinuxx/dots'
+license=(GPL-3.0-only)
+depends=(vw-git blxshell-fonts)
+makedepends=(clang cmake git ninja shaderc)
+optdepends=(
+  'matugen: colours from the wallpaper'
+  'networkmanager: network module'
+  'bluez: Bluetooth module'
+  'upower: battery module'
+  'power-profiles-daemon: power profile module'
+  'gpu-screen-recorder: screen recorder'
+  'greetd: blxshell-greeter login screen'
+  'hyprland: compositor (or zwwm)'
+)
+provides=(blxshell)
+conflicts=(blxshell)
+source=('dots::git+https://github.com/binarylinuxx/dots.git')
+sha256sums=('SKIP')
+
+pkgver() {
+  cd dots
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  # Builds against the installed vw (find_package), not a checkout.
+  CC=clang CXX=clang++ VW_SOURCE_DIR= cmake -S dots -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 dots/LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}

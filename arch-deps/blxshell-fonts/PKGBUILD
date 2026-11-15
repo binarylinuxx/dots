@@ -1,13 +1,17 @@
 # Maintainer: Nir Rudov <nrw58886@gmail.com>
 
 pkgname=blxshell-fonts
-pkgver=1.0
+pkgver=2.0
 pkgrel=1
-pkgdesc='Blxshell Custom Fonts Bundle (Bitcount, Google Sans)'
+pkgdesc='Blxshell fonts: Google Sans Flex, Rubik, Material Symbols and the rest'
 arch=(any)
 url='https://github.com/binarylinuxx/dots'
 license=(custom)
 depends=(
-  blxshell-font-bitcount
   blxshell-font-googlesans
+  blxshell-font-bitcount
+  ttf-rubik-vf
+  ttf-material-symbols-variable-git
+  ttf-readex-pro
+  otf-space-grotesk
 )

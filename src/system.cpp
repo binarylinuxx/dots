@@ -179,6 +179,7 @@ bool hyprland_window_fresh = false;
 // Two blocking Hyprland requests: once per compositor event, not per frame.
 std::optional<std::vector<Workspace>> hyprland_workspaces;
 std::optional<nlohmann::json> zwwm_toplevels_cache;
+std::optional<nlohmann::json> zwwm_outputs_cache;
 
 // A snapshot is a blocking round trip to the compositor: at most one per
 // change, not several per frame.
@@ -187,12 +188,32 @@ const nlohmann::json& zwwm_toplevels() {
   return *zwwm_toplevels_cache;
 }
 
+const nlohmann::json& zwwm_outputs() {
+  if (!zwwm_outputs_cache) zwwm_outputs_cache = vw::zwwm::snapshot(vw::zwwm::Snapshot::outputs);
+  return *zwwm_outputs_cache;
+}
+
+// A window as large as an output covers it, whatever the compositor's flags
+// say; some zwwm builds never set the fullscreen bit.
+bool covers_an_output(const nlohmann::json& toplevel) {
+  const int width = toplevel.value("width", 0);
+  const int height = toplevel.value("height", 0);
+  for (const auto& output : zwwm_outputs()) {
+    if (!output.is_object() || output.value("enabled", 1U) == 0) continue;
+    const int output_width = static_cast<int>(output.value("logical_width", 0U));
+    const int output_height = static_cast<int>(output.value("logical_height", 0U));
+    if (output_width > 0 && width >= output_width && height >= output_height) return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 void invalidate_window() {
   hyprland_window_fresh = false;
   hyprland_workspaces.reset();
   zwwm_toplevels_cache.reset();
+  zwwm_outputs_cache.reset();
 }
 
 std::vector<Workspace> workspaces() {
@@ -280,6 +301,21 @@ std::optional<Window> active_window() {
 }
 
 bool fullscreen() {
+  try {
+    if (!halley::available() && vw::zwwm::available()) {
+      // zwwm reports focus only for whatever holds the keyboard, which may be
+      // the shell's own popup rather than a window. It gives at most one
+      // window per output the whole screen, so the fullscreen bit (8) on any
+      // window that is not hidden (32) is enough.
+      for (const auto& toplevel : zwwm_toplevels()) {
+        const unsigned state = toplevel.value("state", 0U);
+        if ((state & 1U) == 0 || (state & 32U) != 0) continue;  // unmapped or hidden
+        if ((state & 8U) != 0 || covers_an_output(toplevel)) return true;
+      }
+      return false;
+    }
+  } catch (const std::exception&) {
+  }
   const auto window = active_window();
   return window && window->fullscreen;
 }

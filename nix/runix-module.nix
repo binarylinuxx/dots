@@ -210,7 +210,9 @@ in
             };
           };
         });
-        default = null;
+        # Without a theme zwwm has no cursor to draw.
+        default = { package = pkgs.adwaita-icon-theme; name = "Adwaita"; size = 24; };
+        defaultText = lib.literalExpression ''{ package = pkgs.adwaita-icon-theme; name = "Adwaita"; size = 24; }'';
         description = "The pointer on the login screen, like home-manager's home.pointerCursor.";
       };
 
@@ -262,6 +264,9 @@ in
       # Seats, sessions and the system bus, as every Runix Wayland session has.
       runix.wayland.enable = lib.mkDefault true;
 
+      # One login screen: the greeter replaces SDDM, which is then not built.
+      runix.desktop.sddm.enable = false;
+
       runix.groups.greeter.gid = uid;
       runix.users.greeter = {
         inherit uid;
@@ -301,8 +306,6 @@ in
           check = "test -e ${synced}";
         };
 
-        # One login screen: the greeter takes over from Runix's SDDM.
-        sddm = mkIf config.runix.desktop.enable { enable = lib.mkForce false; };
       };
     })
   ];

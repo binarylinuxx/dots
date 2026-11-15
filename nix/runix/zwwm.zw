@@ -1,0 +1,63 @@
+-- zwwm, set up for blxshell.
+--
+-- Runix copies this to ~/.config/zwwm/config.zw once, for users who have no
+-- zwwm configuration yet. It is yours from then on: edit it freely, and it is
+-- never overwritten. The full reference is /etc/xdg/zwwm/config.zw from the
+-- zwwm package, and `blxshell help` lists the shell's commands.
+
+TERMINAL = "ghostty"
+MOD = "Mod4"
+
+-- The shell: bar, launcher, notifications, wallpaper and lock screen.
+exec-sh-on-startup = ["blxshell"]
+
+-- Applications and windows.
+bind = $MOD, Return, exec, $TERMINAL
+bind = $MOD, Q, killactive, ""
+bind = $MOD, F, togglefloating, ""
+bind = $MOD, M, toggle-fullscreen, ""
+bind = $MOD, Tab, focus, ""
+bind = $MOD, Left, focus, "left"
+bind = $MOD, Right, focus, "right"
+bind = $MOD, Up, focus, "up"
+bind = $MOD, Down, focus, "down"
+bind = $MOD, scrollback, zoomin, ""
+bind = $MOD, scrollforward, zoomout, ""
+bind = $MOD, R, reload, ""
+bind = "Mod4+Shift", Escape, exit, ""
+
+-- blxshell.
+bind = $MOD, Space, exec, "blxshell launcher"
+bind = $MOD, D, exec, "blxshell launcher"
+bind = $MOD, L, exec, "blxshell lock"
+bind = $MOD, P, exec, "blxshell powermenu"
+bind = $MOD, W, exec, "blxshell wallpapers"
+bind = $MOD, S, exec, "blxshell settings"
+bind = $MOD, B, exec, "blxshell sidebar"
+
+-- Tags, zwwm's workspaces.
+bind = $MOD, "1", tag, "1"
+bind = $MOD, "2", tag, "2"
+bind = $MOD, "3", tag, "3"
+bind = $MOD, "4", tag, "4"
+bind = $MOD, "5", tag, "5"
+bind = $MOD, "6", tag, "6"
+bind = $MOD, "7", tag, "7"
+bind = $MOD, "8", tag, "8"
+bind = $MOD, "9", tag, "9"
+bind = "Mod4+Shift", "1", movetotag, "1"
+bind = "Mod4+Shift", "2", movetotag, "2"
+bind = "Mod4+Shift", "3", movetotag, "3"
+bind = "Mod4+Shift", "4", movetotag, "4"
+bind = "Mod4+Shift", "5", movetotag, "5"
+bind = "Mod4+Shift", "6", movetotag, "6"
+bind = "Mod4+Shift", "7", movetotag, "7"
+bind = "Mod4+Shift", "8", movetotag, "8"
+bind = "Mod4+Shift", "9", movetotag, "9"
+
+-- blxshell draws one full-screen surface. ignore-alpha keeps the desktop
+-- behind its transparent middle sharp instead of blurring all of it.
+layer-rule = {
+   match = { namespace = "blxshell" }
+   set = { blur = true blur-radius = 4 ignore-alpha = 50 }
+}

@@ -33,6 +33,7 @@
 #include <string_view>
 #include <vector>
 
+#include "net.hpp"
 #include "blob.hpp"
 #include "config.hpp"
 #include "draw.hpp"
@@ -596,7 +597,7 @@ int main(int argc, char** argv) {
   }
   app.on_event(greetd::event_fd(), react)
       .on_event(blx::colours_event_fd(), blx::reload_colours)
-      .on_event(vw::network::event_fd(), vw::network::drain_events)
+      .on_event(blx::net::event_fd(), blx::net::drain_events)
       .on_event(vw::upower::event_fd(), vw::upower::drain_events)
       .on_event(vw::bluetooth::event_fd(), vw::bluetooth::drain_events);
   return app.run();

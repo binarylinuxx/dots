@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "net.hpp"
 #include "config.hpp"
 #include "draw.hpp"
 #include "parts.hpp"
@@ -89,13 +90,13 @@ struct StatusText {
 
 StatusText status_text(const std::string& kind) {
   if (kind == "wifi") {
-    const auto status = vw::network::status();
+    const auto status = net::status();
     const bool wired = status.primary == vw::network::Kind::wired;
     const bool wifi = status.primary == vw::network::Kind::wifi;
     return {wired ? "cable" : wifi ? "wifi" : "wifi_off", "Network",
             wired ? "Wired connection" : wifi ? std::format("{}% signal", status.strength) : "Disconnected",
             wifi ? "wifi_off" : "wifi",
-            [on = status.wifi_enabled] { vw::network::set_wifi_enabled(!on); }};
+            [on = status.wifi_enabled] { net::set_wifi_enabled(!on); }};
   }
   if (kind == "bluetooth") {
     const auto adapter = vw::bluetooth::adapter();
@@ -198,7 +199,7 @@ void status_content(vw::Ui& ui, const std::string& kind, float x, float y) {
     const float rx = x + width - 12 - 78;
     ui.rectangle({.width = 78, .height = 24, .radius = 12, .color = c.surface_container, .place = {.x = rx, .y = y + 70},
                   .input = {.on_click = [](const vw::ClickEvent&) {
-                              scanning = vw::network::scan();
+                              scanning = net::scan();
                               scan_started = Clock::now();
                             },
                             .hover = vw::Hover{.color = c.surface_container_high, .duration = 0.12F}}});
@@ -206,7 +207,7 @@ void status_content(vw::Ui& ui, const std::string& kind, float x, float y) {
     draw::glyph(ui, "refresh", rx + (78 - label_width) / 2 + 7.5F, y + 82, 15, c.primary);
     draw::text_middle(ui, "Reload", rx + (78 - label_width) / 2 + 18, y + 82,
                       {.size = 10, .color = c.primary, .family = font::display});
-    const auto points = vw::network::access_points();
+    const auto points = net::access_points();
     const float list_y = y + 102;
     const float list_height = y + height - list_y;
     if (points.empty()) {
@@ -223,8 +224,8 @@ void status_content(vw::Ui& ui, const std::string& kind, float x, float y) {
                      ui.rectangle({.width = width - 20, .height = 31, .radius = 8,
                                    .color = point.active ? c.primary_container : with_alpha(c.surface_container_high, 0),
                                    .input = {.on_click = [point](const vw::ClickEvent&) {
-                                               if (point.active) vw::network::disconnect_wifi();
-                                               else vw::network::connect(point.ssid);
+                                               if (point.active) net::disconnect_wifi();
+                                               else net::connect(point.ssid);
                                              },
                                              .hover = point.active ? std::nullopt
                                                                    : std::optional(vw::Hover{.color = c.surface_container_high,
@@ -333,7 +334,7 @@ Panel status_panel(const Screen& screen) {
   static std::string displayed;
   if (!kind.empty() && kind != displayed) {
     displayed = kind;
-    if (kind == "wifi") vw::network::scan();
+    if (kind == "wifi") net::scan();
   }
   const float reveal = static_cast<float>(vw::animate("status.reveal", kind.empty() ? 0 : 1,
                                                       {.duration = 0.18, .easing = vw::Easing::out_cubic}));

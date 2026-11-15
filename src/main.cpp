@@ -16,6 +16,7 @@
 #include <iostream>
 #include <string_view>
 
+#include "net.hpp"
 #include "config.hpp"
 #include "ipc.hpp"
 #include "quickshare.hpp"
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
       }))
       .on_event(blx::services_event_fd(), counted("services", blx::drain_services))
       .on_event(vw::tray::event_fd(), counted("tray", vw::tray::drain_events))
-      .on_event(vw::network::event_fd(), counted("network", vw::network::drain_events))
+      .on_event(blx::net::event_fd(), counted("network", blx::net::drain_events))
       .on_event(vw::upower::event_fd(), counted("upower", vw::upower::drain_events))
       .on_event(vw::bluetooth::event_fd(), counted("bluetooth", vw::bluetooth::drain_events))
       .on_event(vw::brightness::event_fd(), counted("brightness", vw::brightness::drain_events))

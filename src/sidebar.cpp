@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "net.hpp"
 #include "config.hpp"
 #include "draw.hpp"
 #include "notify.hpp"
@@ -543,7 +544,7 @@ void draw_brightness(vw::Ui& ui, float x, float y, float w) {
 
 void draw_toggles(vw::Ui& ui, float x, float y, float w) {
   draw::rect(ui, x, y, w, toggles_height(), utility_radius_large, colours().surface_container);
-  const auto network = vw::network::status();
+  const auto network = net::status();
   const auto adapter = vw::bluetooth::adapter();
   const auto source = vw::pipewire::default_source();
   const bool wifi = network.wifi_enabled;
@@ -572,7 +573,7 @@ void draw_toggles(vw::Ui& ui, float x, float y, float w) {
     if (settings.sidebar_tile_wifi) {
       draw_tile(ui, "wifi", tile_x, row_y, wide, wifi ? "wifi" : "wifi_off", wifi, "Wi-Fi",
                 !wifi ? "Off" : network.ssid.empty() ? "On" : network.ssid,
-                [wifi] { vw::network::set_wifi_enabled(!wifi); });
+                [wifi] { net::set_wifi_enabled(!wifi); });
       tile_x += wide + utility_small;
     }
     if (settings.sidebar_tile_bluetooth)

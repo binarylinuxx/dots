@@ -7,6 +7,7 @@
 #include <functional>
 #include <string>
 
+#include "net.hpp"
 #include "config.hpp"
 #include "draw.hpp"
 #include "parts.hpp"
@@ -143,7 +144,7 @@ void status_pill(vw::Ui& ui, const Screen& screen, float left) {
   if (config().bar_pills)
     draw::rect(ui, left, centre_y - pill_height / 2, status_width(), pill_height, pill_height / 2, c.surface_container);
 
-  const auto network = vw::network::status();
+  const auto network = net::status();
   std::string wifi = "wifi_off";
   if (network.primary == vw::network::Kind::wired) wifi = "cable";
   else if (network.primary == vw::network::Kind::wifi)
@@ -206,7 +207,7 @@ void status_pill(vw::Ui& ui, const Screen& screen, float left) {
            }
            if (kind == "quickshare" || kind == "widgets") return;
            if (click.button == 273) {  // right click: the quick action
-             if (kind == "wifi") vw::network::set_wifi_enabled(!vw::network::status().wifi_enabled);
+             if (kind == "wifi") net::set_wifi_enabled(!net::status().wifi_enabled);
              else if (kind == "bluetooth") {
                if (const auto adapter = vw::bluetooth::adapter())
                  vw::bluetooth::set_powered(!adapter->powered);

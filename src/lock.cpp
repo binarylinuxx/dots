@@ -10,6 +10,7 @@
 #include <format>
 #include <string>
 
+#include "net.hpp"
 #include "blob.hpp"
 #include "config.hpp"
 #include "draw.hpp"
@@ -94,7 +95,7 @@ void draw_status(vw::Ui& ui, float right) {
     draw::glyph(ui, "bluetooth", x, y, 20, c.text);
     x -= 30;
   }
-  const auto network = vw::network::status();
+  const auto network = net::status();
   const bool wired = network.primary == vw::network::Kind::wired;
   draw::glyph(ui, wired ? "cable" : network.wifi_enabled ? "wifi" : "wifi_off", x, y, 20, c.text);
 }

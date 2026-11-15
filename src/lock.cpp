@@ -13,6 +13,7 @@
 #include "blob.hpp"
 #include "config.hpp"
 #include "draw.hpp"
+#include "lockpage.hpp"
 #include "notify.hpp"
 #include "parts.hpp"
 #include "services.hpp"
@@ -28,7 +29,7 @@ namespace {
 using Clock = std::chrono::steady_clock;
 
 constexpr const char* password_id = "lock-password";
-constexpr float sheet_height = 312;
+constexpr float sheet_height = lock_sheet_height;
 constexpr float sheet_width = 560;
 
 struct LockState {
@@ -205,64 +206,20 @@ void draw_sheet(vw::Ui& ui, float width, float height, float reveal, bool failed
 
 }  // namespace
 
-void lock_session() {
-  Shell& state = shell();
-  state.locked = true;
-  state.launcher_open = false;
-  state.power_pinned = false;
-  state.quick_share_open = false;
-  state.sidebar_reveal = 0;
-  state.stack_reveal = 0;
-  const int entrances = lock_state().entrances + 1;
-  lock_state() = {};
-  lock_state().entrances = entrances;
-}
-
-void lock_surface(vw::Ui& ui) {
-  if (!shell().locked) return;
-  ui.session_lock({.on_unlock = [] {
-    shell().locked = false;
-    close_sheet();
-  }});
-  ui.lock_surface();
-
+void draw_lock_page(vw::Ui& ui, const LockPage& page) {
   const Colours& c = colours();
   const Config& settings = config();
-  LockState& state = lock_state();
-  const vw::LockSurfaceContext context = vw::lock_surface_context();
-  const auto width = static_cast<float>(context.width);
-  const auto height = static_cast<float>(context.height);
-
-  const bool failed = vw::session_authentication_failed();
-  if (failed && !state.was_failed) {
-    state.failed_at = Clock::now();
-    state.last_input = Clock::now();
-  }
-  state.was_failed = failed;
-  // Idle: the sheet goes back down and takes what was typed with it.
-  if (state.sheet && Clock::now() - state.last_input > std::chrono::seconds(30)) close_sheet();
-
-  ui.keyboard([](const vw::KeyEvent& key) {
-    if (key.name == "Escape") {
-      close_sheet();
-      return true;
-    }
-    // The first key only raises the sheet (a habitual space or Enter must
-    // not land in the password); keys reach the field once it is up.
-    if (!lock_state().sheet) {
-      open_sheet();
-      return true;
-    }
-    // Holding the activation key: its repeats are not typing either.
-    if (key.repeat && Clock::now() - lock_state().opened_at < std::chrono::milliseconds(800)) return true;
-    lock_state().last_input = Clock::now();
-    return false;
-  });
+  const float width = page.width;
+  const float height = page.height;
+  const float reveal = page.reveal;
+  const float intro = page.intro;
 
   // Fully opaque first, whatever the wallpaper does: nothing behind a lock
   // screen may ever show.
   ui.rectangle({.width = width, .height = height, .color = c.surface,
-                .input = {.on_click = [](const vw::ClickEvent&) { open_sheet(); }}});
+                .input = {.on_click = [click = page.on_click](const vw::ClickEvent&) {
+                  if (click) click();
+                }}});
   blob::Group group(with_alpha(c.surface, std::clamp(settings.lock_tint, 0.0F, 1.0F)), 1);
   group.shadows(false);
   if (apply_lock_frost(group)) {
@@ -270,15 +227,6 @@ void lock_surface(vw::Ui& ui) {
     group.draw(ui, width, height);
   }
 
-  const float reveal = std::clamp(static_cast<float>(vw::animate("lock.sheet", state.sheet ? 1 : 0, motion::bounce())), 0.0F, 1.0F);
-  // Entrance: the page comes up out of solid surface while the clock drops
-  // into place. The opaque base above is never part of it.
-  const float intro = settings.wallpaper_transition == "none"
-                          ? 1.0F
-                          : std::clamp(static_cast<float>(vw::animate(
-                                           std::format("lock.intro.{}", state.entrances), 1,
-                                           {.duration = 0.9, .initial = 0, .easing = vw::Easing::out_expo})),
-                                       0.0F, 1.0F);
   const float centre = width / 2;
 
   if (settings.lock_show_status && reveal < 0.99F) draw_status(ui, width - 36);
@@ -316,7 +264,7 @@ void lock_surface(vw::Ui& ui) {
   y += 40 + 16;
 
   // The rest leaves room for the sheet.
-  if (reveal < 0.2F) {
+  if (page.session_widgets && reveal < 0.2F) {
     if (settings.lock_show_notifications) {
       const float next = draw_notifications(ui, centre, y);
       if (next > y) y = next + 16;
@@ -325,11 +273,80 @@ void lock_surface(vw::Ui& ui) {
   }
 
   // The hint sinks as the sheet comes up.
-  if (reveal < 0.6F) {
-    const std::string hint = "Press any key to unlock";
-    const float hint_width = chip_width("lock", hint);
-    chip(ui, centre - hint_width / 2, height - 72 + reveal * 80, "lock", hint);
+  if (reveal < 0.6F && !page.hint.empty()) {
+    const float hint_width = chip_width(page.hint_glyph, page.hint);
+    chip(ui, centre - hint_width / 2, height - 72 + reveal * 80, page.hint_glyph, page.hint);
   }
+  if (intro < 0.999F)
+    ui.rectangle({.width = width, .height = height, .color = with_alpha(c.surface, 1 - intro), .place = {.x = 0, .y = 0}});
+
+}
+
+void lock_session() {
+  Shell& state = shell();
+  state.locked = true;
+  state.launcher_open = false;
+  state.power_pinned = false;
+  state.quick_share_open = false;
+  state.sidebar_reveal = 0;
+  state.stack_reveal = 0;
+  const int entrances = lock_state().entrances + 1;
+  lock_state() = {};
+  lock_state().entrances = entrances;
+}
+
+void lock_surface(vw::Ui& ui) {
+  if (!shell().locked) return;
+  ui.session_lock({.on_unlock = [] {
+    shell().locked = false;
+    close_sheet();
+  }});
+  ui.lock_surface();
+
+  const Config& settings = config();
+  LockState& state = lock_state();
+  const vw::LockSurfaceContext context = vw::lock_surface_context();
+  const auto width = static_cast<float>(context.width);
+  const auto height = static_cast<float>(context.height);
+
+  const bool failed = vw::session_authentication_failed();
+  if (failed && !state.was_failed) {
+    state.failed_at = Clock::now();
+    state.last_input = Clock::now();
+  }
+  state.was_failed = failed;
+  // Idle: the sheet goes back down and takes what was typed with it.
+  if (state.sheet && Clock::now() - state.last_input > std::chrono::seconds(30)) close_sheet();
+
+  ui.keyboard([](const vw::KeyEvent& key) {
+    if (key.name == "Escape") {
+      close_sheet();
+      return true;
+    }
+    // The first key only raises the sheet (a habitual space or Enter must
+    // not land in the password); keys reach the field once it is up.
+    if (!lock_state().sheet) {
+      open_sheet();
+      return true;
+    }
+    // Holding the activation key: its repeats are not typing either.
+    if (key.repeat && Clock::now() - lock_state().opened_at < std::chrono::milliseconds(800)) return true;
+    lock_state().last_input = Clock::now();
+    return false;
+  });
+
+  const float reveal = std::clamp(static_cast<float>(vw::animate("lock.sheet", state.sheet ? 1 : 0, motion::bounce())), 0.0F, 1.0F);
+  // Entrance: the page comes up out of solid surface while the clock drops
+  // into place. The opaque base is never part of it.
+  const float intro = settings.wallpaper_transition == "none"
+                          ? 1.0F
+                          : std::clamp(static_cast<float>(vw::animate(
+                                           std::format("lock.intro.{}", state.entrances), 1,
+                                           {.duration = 0.9, .initial = 0, .easing = vw::Easing::out_expo})),
+                                       0.0F, 1.0F);
+  draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .intro = intro,
+                      .hint = "Press any key to unlock", .hint_glyph = "lock", .session_widgets = true,
+                      .on_click = [] { open_sheet(); }});
 
   // A short decaying shake on a wrong password.
   const float since = std::chrono::duration<float>(Clock::now() - state.failed_at).count();
@@ -338,8 +355,6 @@ void lock_surface(vw::Ui& ui) {
     shake = std::sin(since * 42) * 12 * (1 - since / 0.45F);
     vw::request_animation_continuation();
   }
-  if (intro < 0.999F)
-    ui.rectangle({.width = width, .height = height, .color = with_alpha(c.surface, 1 - intro), .place = {.x = 0, .y = 0}});
   // Drawn (and focused) even while hidden below the edge, so it is ready the
   // moment the sheet is raised; keys only reach it once raised (see above).
   draw_sheet(ui, width, height, reveal, failed, shake);

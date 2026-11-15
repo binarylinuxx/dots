@@ -36,6 +36,7 @@
 #include "blob.hpp"
 #include "config.hpp"
 #include "draw.hpp"
+#include "lockpage.hpp"
 #include "shapes.hpp"
 #include "style.hpp"
 #include "surfaces.hpp"
@@ -234,7 +235,6 @@ void submit(const std::string& text) {
 
 // --- drawing ----------------------------------------------------------------
 
-float blend(float from, float to, float t) { return from + (to - from) * t; }
 
 float chip_width(const std::string& glyph, const std::string& label) {
   return draw::measure(label, 15, vw::weight::medium, font::utility) + 32 + (glyph.empty() ? 0 : 26);
@@ -255,27 +255,6 @@ void chip(vw::Ui& ui, float x, float y, const std::string& glyph, const std::str
   if (on_click)
     draw::state_layer(ui, x, y, width, height, height / 2, c.text,
                       {.on_click = [on_click](const vw::ClickEvent&) { on_click(); }});
-}
-
-void draw_status(vw::Ui& ui, float right) {
-  const Colours& c = colours();
-  float x = right;
-  const float y = 40;
-  if (const auto battery = vw::upower::display_device(); battery && battery->percentage > 0) {
-    const std::string label = std::format("{}%", std::lround(battery->percentage));
-    x -= draw::measure(label, 15, vw::weight::medium, font::utility);
-    draw::text_middle(ui, label, x, y, {.size = 15, .color = c.text, .weight = vw::weight::medium, .family = font::utility});
-    x -= 16;
-    draw::glyph(ui, battery->percentage < 20 ? "battery_alert" : "battery_full", x, y, 22, c.text);
-    x -= 30;
-  }
-  if (const auto adapter = vw::bluetooth::adapter(); adapter && adapter->powered) {
-    draw::glyph(ui, "bluetooth", x, y, 20, c.text);
-    x -= 30;
-  }
-  const auto network = vw::network::status();
-  const bool wired = network.primary == vw::network::Kind::wired;
-  draw::glyph(ui, wired ? "cable" : network.wifi_enabled ? "wifi" : "wifi_off", x, y, 20, c.text);
 }
 
 // Restart and power off, top left: a greeter is where you turn the machine off.
@@ -386,8 +365,6 @@ void draw_sheet(vw::Ui& ui, float width, float height, float reveal, float shake
 }
 
 void draw_greeter(vw::Ui& ui, float width, float height) {
-  const Colours& c = colours();
-  const Config& settings = config();
   Greeter& g = greeter();
 
   // Idle: the sheet goes back down and takes what was typed with it.
@@ -414,53 +391,15 @@ void draw_greeter(vw::Ui& ui, float width, float height) {
       },
       vw::Keyboard::exclusive);
 
-  // Opaque first; the frosted wallpaper over it when there is one.
-  ui.rectangle({.width = width, .height = height, .color = c.surface,
-                .input = {.on_click = [](const vw::ClickEvent&) { open_sheet(); }}});
-  blob::Group group(with_alpha(c.surface, std::clamp(settings.lock_tint, 0.0F, 1.0F)), 1);
-  group.shadows(false);
-  if (apply_lock_frost(group)) {
-    group.frame({-8, -8, 2, 2, {}});
-    group.draw(ui, width, height);
-  }
-
   const float reveal = std::clamp(static_cast<float>(vw::animate("greeter.sheet", g.sheet ? 1 : 0, motion::bounce())), 0.0F, 1.0F);
   const float intro = std::clamp(static_cast<float>(vw::animate("greeter.intro", 1, {.duration = 0.9, .initial = 0, .easing = vw::Easing::out_expo})), 0.0F, 1.0F);
-  const float centre = width / 2;
 
-  if (reveal < 0.99F) {
-    if (settings.lock_show_status) draw_status(ui, width - 36);
-    draw_power(ui);
-  }
-
-  // The clock, as on the lock screen.
-  const std::string time = system::format_time(settings.lock_clock_format);
-  const auto colon = time.find(':');
-  const bool stacked = settings.lock_clock_style == "stacked" && colon != std::string::npos;
-  const float base = static_cast<float>(std::clamp(settings.lock_clock_size, 48, 260)) * (stacked ? 1.6F : 1.0F);
-  const float size = blend(base, base * 0.42F, reveal);
-  const float line = size * 0.86F;
-  const float room = height - sheet_height;
-  float y = blend(height * 0.05F, std::max(24.0F, room * 0.1F), reveal) - (1 - intro) * 96;
-  if (stacked) {
-    draw::text_centered(ui, time.substr(0, colon), centre, y + line / 2,
-                        {.size = size, .color = c.primary, .weight = vw::weight::black, .family = font::display});
-    draw::text_centered(ui, time.substr(colon + 1), centre, y + line * 1.5F,
-                        {.size = size, .color = mix(c.primary, c.tertiary, 0.7F), .weight = vw::weight::black, .family = font::display});
-    y += line * 2;
-  } else {
-    draw::text_centered(ui, time, centre, y + line / 2, {.size = size, .color = c.primary, .weight = vw::weight::black, .family = font::display});
-    y += line;
-  }
-  y += 16;
-  const std::string date = system::format_time(settings.lock_date_format);
-  chip(ui, centre - chip_width("", date) / 2, y, "", date);
-
-  if (reveal < 0.6F) {
-    const std::string hint = g.users.empty() ? "No users to log in" : "Press any key to log in";
-    const float hint_width = chip_width("login", hint);
-    chip(ui, centre - hint_width / 2, height - 72 + reveal * 80, "login", hint);
-  }
+  // The lock screen itself: the login screen is the same page, so logging in
+  // looks exactly like unlocking.
+  draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .intro = intro,
+                      .hint = g.users.empty() ? "No users to log in" : "Press any key to log in",
+                      .hint_glyph = "login", .session_widgets = false, .on_click = [] { open_sheet(); }});
+  if (reveal < 0.99F) draw_power(ui);
 
   // A short decaying shake on a wrong password.
   const float since = std::chrono::duration<float>(Clock::now() - g.failed_at).count();
@@ -469,8 +408,6 @@ void draw_greeter(vw::Ui& ui, float width, float height) {
     shake = std::sin(since * 42) * 12 * (1 - since / 0.45F);
     vw::request_animation_continuation();
   }
-  if (intro < 0.999F)
-    ui.rectangle({.width = width, .height = height, .color = with_alpha(c.surface, 1 - intro), .place = {.x = 0, .y = 0}});
   draw_sheet(ui, width, height, reveal, shake);
 }
 

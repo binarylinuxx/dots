@@ -1,6 +1,6 @@
 # Hyprland Configuration
 
-Modular Hyprland configuration for blxshell with Quickshell integration.
+Modular Hyprland configuration for blxshell for blxshell, the vw shell.
 
 ## Structure
 
@@ -41,7 +41,7 @@ hypr/
 
 - **Modular Configuration**: Organized into logical sections
 - **Material Design 3**: Color scheme via matugen integration
-- **Quickshell Integration**: Custom shell UI with global keybinds
+- **blxshell**: binds call `blxshell <command>` over its socket
 - **Animation Variants**: Switch between vertical/horizontal workspace animations
 - **Dynamic Theming**: Colors auto-generated from wallpaper
 
@@ -55,7 +55,7 @@ hypr/
 
 **`autostart.conf`**
 - Startup applications
-- Currently launches: Quickshell (qs), dex autostart
+- Currently launches: blxshell, dex autostart
 
 **`monitor.conf`**
 - Display configuration
@@ -94,9 +94,9 @@ To switch: Edit `hyprland.conf` line 8-9
 Key keybindings:
 - `Super + Return` - Terminal
 - `Super + Q` - Kill window
-- `Super + Space` - Launcher (Quickshell)
-- `Super + S` - Settings (Quickshell)
-- `Super + W` - Random wallpaper
+- `Super + Space` - Launcher
+- `Super + S` - Settings
+- `Super + W` - Wallpaper picker
 - `Super + 1-9` - Switch workspace
 - `Super + Shift + 1-9` - Move window to workspace
 - `Print` - Screenshot
@@ -146,17 +146,18 @@ $foreground
 matugen image /path/to/wallpaper.png
 ```
 
-## Quickshell Integration
+## blxshell
 
-Global keybinds for Quickshell widgets:
+Binds run `blxshell <command>`, which sends the command to the running shell
+over `$XDG_RUNTIME_DIR/blxshell.sock` (`blxshell help` lists them all):
 
-| Keybind | Action |
-|---------|--------|
-| `Super + Space` | Toggle launcher |
-| `Super + S` | Toggle settings |
-| `Super + I` | Toggle keyboard (show/hide) |
-| `Super + C` | Untoggle keyboard |
-| `Alt + Space` | Toggle pie menu |
+| Keybind | Command |
+|---------|---------|
+| `Super + Space` | `blxshell launcher` |
+| `Super + S` | `blxshell settings` |
+| `Super + W` | `blxshell wallpapers` |
+| `Super + L` | `blxshell lock` |
+| `Super + P` | `blxshell powermenu` |
 
 ## Customization
 
@@ -212,13 +213,14 @@ windowrule = workspace 2 silent, ^(app-name)$
 
 ## Troubleshooting
 
-### Quickshell not launching
+### blxshell not launching
 ```bash
-# Check if quickshell is installed
-which qs
+# Is it installed, and is a shell answering?
+which blxshell
+blxshell ping
 
-# View logs
-journalctl --user -u quickshell
+# Run it in a terminal to see its output
+blxshell
 ```
 
 ### Colors not updating
@@ -273,11 +275,10 @@ grep -r "bind.*YOUR_KEY" ~/.config/hypr/
 ## Credits
 
 - [Hyprland](https://hyprland.org/) - Dynamic tiling Wayland compositor
-- [Quickshell](https://github.com/outfoxxed/quickshell) - QtQuick-based shell
+- [vw](https://github.com/binarylinuxx/vw) - the C++ Wayland/Vulkan library blxshell is built on
 - [matugen](https://github.com/InioX/matugen) - Material Design 3 color generation
 
 ## See Also
 
-- [Quickshell configuration](../quickshell/README.md)
-- [Installation guide](../../README.md)
+- [blxshell](../../README.md)
 - [Hyprland wiki](https://wiki.hyprland.org/)

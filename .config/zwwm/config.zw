@@ -1,0 +1,218 @@
+--zwwm system configuration
+--
+-- Copy this file to ~/.config/zwwm/config.zw to create a user override.
+-- Changes to the active configuration are reloaded automatically.
+--
+-- Split configuration with one or more imports. Relative paths start beside
+-- the file containing the import; $VAR and ${VAR} use process environment
+-- variables. Later assignments override earlier settings.
+-- import = "$HOME/.config/zwwm/appearance.zw"
+-- import = ["bindings.zw", "${XDG_CONFIG_HOME}/zwwm/outputs.zw"]
+
+-- Commands used by bindings. Variables are uppercase string assignments.
+TERMINAL = "ghostty"
+LAUNCHER = "fuzzel"
+MOD = "Mod4"
+ALTMOD = "Mod1"
+RADIUS = "20"
+ROUNDING_POWER = "2"
+
+-- A local plugin build; point at your own.
+-- plugins = ["$HOME/zwwm/build-meson/zwwm-demo-plugin.so"]
+plugin-settings = { demo = { gestures = true swipe-distance = 80 } }
+
+-- Bindings are: modifiers, key, action, argument.
+-- Modifiers use XKB names joined with "+". Supported actions are exec, reload,
+-- exit, focus, killactive, killsession, togglefloating, toggle-fullscreen, tag, and
+-- movetotag.
+bind = $MOD, Return, exec, $TERMINAL
+bind = $MOD, D, exec, $LAUNCHER
+bind = $MOD, Q, killactive, ""
+bind = $MOD, T, togglefloating, ""
+bind = $MOD, M, fullscreen, ""
+bind = $MOD, Tab, focus, ""
+bind = $MOD, Left, focus, "left"
+bind = $MOD, Right, focus, "right"
+bind = $MOD, Up, focus, "up"
+bind = $MOD, Down, focus, "down"
+bind = $MOD, R, reload, ""
+bind = "Mod4+Shift", Escape, exit, ""
+bind = $MOD, scrollback, zoomin, ""
+bind = $MOD, scrollforward, zoomout, ""
+
+bind = $MOD, "1", tag, "1"
+bind = $MOD, "2", tag, "2"
+bind = $MOD, "3", tag, "3"
+bind = $MOD, "4", tag, "4"
+bind = $MOD, "5", tag, "5"
+bind = $MOD, "6", tag, "6"
+bind = $MOD, "7", tag, "7"
+bind = $MOD, "8", tag, "8"
+bind = $MOD, "9", tag, "9"
+
+bind = "Mod1+Shift", "1", movetotag, "1"
+bind = "Mod4+Shift", "2", movetotag, "2"
+bind = "Mod4+Shift", "3", movetotag, "3"
+bind = "Mod4+Shift", "4", movetotag, "4"
+bind = "Mod4+Shift", "5", movetotag, "5"
+bind = "Mod4+Shift", "6", movetotag, "6"
+bind = "Mod4+Shift", "7", movetotag, "7"
+bind = "Mod4+Shift", "8", movetotag, "8"
+bind = "Mod4+Shift", "9", movetotag, "9"
+
+shaders = {
+  glass = {
+    role = "window"
+    source = "shaders/glass.frag"
+    values = {
+      radius = $RADIUS
+      rounding_power = $ROUNDING_POWER
+      blur_radius = 0
+      blur_passes = 0
+      blur_brightness = 100
+      blur_contrast = 100
+      blur_saturation = 100
+      blur_noise = 0
+      glass_width = 0
+      glass_height = 0
+      glass_radius = $RADIUS
+      distortion_depth_per_mille = 250
+      distortion_strength_per_mille = 150
+      chromatic_shift = 5
+      glass_tint_per_mille = 1000
+      client_opacity = 100 -- Keep equal to the glass window rule's opacity.
+    }
+  }
+  border = {
+    role = "border"
+    source = "shaders/border.frag"
+    values = {
+      width = 2
+      radius = $RADIUS
+      rounding_power = $ROUNDING_POWER
+      gradient_colors = ["#0e0e0d"]
+      focused_gradient_colors = ["#9dd1c5"]
+    }
+  }
+  shadow = {
+  	role = "shadow"
+  	source = "shaders/shadow.frag"
+  	values = {
+  		strength = 200
+  		size = 20
+  		offset_x = 5
+  		offset_y = 5
+  		rounding_power = $ROUNDING_POWER
+  		color = "#0000005a"
+  		focused_color = "#0000008c"
+  	}
+  }
+}
+
+-- Window animation timing and curve controls.
+animations = {
+  enabled = true
+  duration-ms = 320
+  open-duration-ms = 50
+  close-duration-ms = 180
+  move-duration-ms = 280
+  fade-duration-ms = 160
+  tag-duration-ms = 260
+  cubic-bezier = { x1 = 220 y1 = 0 x2 = 300 y2 = 1000 }
+  open-window = true
+  resize = true
+  close = true
+  open-scale-per-mille = 900
+  close-scale-per-mille = 800
+  open-offset-px = 0
+  close-offset-px = 0
+  tag-scale-per-mille = 1000
+  tag-parallax-per-mille = 1000
+  tag-fade-per-mille = 0
+}
+
+-- Master-stack layout. master-ratio accepts 10..90.
+layout = {
+  default = "focus-fibonacci"
+  -- default = "endless-canvas"
+  master-count = 1
+  master-ratio = 50
+  outer-gap = 10
+  inner-gap = 10
+  smart-gaps = false
+}
+
+-- Focus mode is "by-click" or "hover".
+input = {
+  focus-mode = "hover"
+  reverse-mouse-scrolling = true
+}
+
+-- XKB names. Empty rules/model/variant/options use libxkbcommon defaults.
+-- Multiple layouts and variants are comma-separated; group switching is set
+-- through options, for example "grp:alt_shift_toggle".
+keyboard = {
+  rules = "evdev"
+  model = "pc104"
+  layout = "us,ru,il"
+  variant = ","
+  options = "grp:alt_shift_toggle"
+}
+
+-- Use the preferred output mode by default. scale-per-mille accepts 250..8000,
+-- bit-depth is 8 or 10, and transform is "normal", "90", "180", or "270".
+-- `output` supplies global defaults. `outputs` applies per-connector overrides.
+-- Direct DRM connectors are named like "card0-HDMI-A-1" or just "HDMI-A-1".
+output = {
+  mode = "1920x1080@179.82"
+  scale-per-mille = 1000
+  bit-depth = 10
+  transform = "normal"
+}
+outputs = {
+  HDMI-A-1 = { mode = "1929x1080@179" scale-per-mille = 1000 }
+  -- DP-3 = { transform = "90" }
+}
+
+-- Environment inherited by programs launched from zwwm.
+environment = {
+  XDG_CURRENT_DESKTOP = "zwwm"
+  XDG_SESSION_DESKTOP = "zwwm"
+  XDG_SESSION_TYPE = "wayland"
+  XCURSOR_SIZE = "24"
+  XCURSOR_THEME = "Bibata-Modern-Ice"
+  TERMINAL = $TERMINAL
+}
+
+-- Rules use shell-style globs and apply in declaration order. A rule may match
+-- app-id, title, or both, then set floating, size, blur, blur-radius, glass, or opacity.
+--
+-- rule = {
+--   match = { app-id = "org.example.*" title = "Preferences" }
+--   set = { floating = true size = "60%x70%" blur = true blur-radius = 12 opacity = 95 }
+-- }
+-- Layer rules match layer-shell namespaces and may set blur, blur-radius, and
+-- opacity. Layers are not blurred unless a matching rule enables it.
+--
+layer-rule = {
+   match = { namespace = "caelestia-background" }
+   set = { blur = true blur-radius = 10 }
+}
+layer-rule = {
+   match = { namespace = "caelestia-drawers" }
+   set = { blur = true blur-radius = 10 }
+}
+-- blxshell is a full-screen surface: ignore-alpha keeps the desktop behind its
+-- transparent middle sharp.
+layer-rule = {
+   match = { namespace = "blxshell" }
+   set = { blur = true blur-radius = 4 ignore-alpha = 50 }
+}
+
+rule = {
+ 	match = { app-id = "zen" }
+	set = {
+ 		opacity = 100
+ 		window-shader = "glass"
+	}
+}

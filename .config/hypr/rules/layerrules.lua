@@ -1,11 +1,11 @@
 hl.layer_rule({
-    name = "quickshell_popup_no_compositor_animation",
-    match = { namespace = "^quickshell:popup:" },
+    name = "blxshell_no_compositor_animation",
+    match = { namespace = "^blxshell$" },
     animation = "none",
 })
 
 hl.layer_rule({
     name = "background_slide",
-    match = { namespace = "^quickshell:background$" },
+    match = { namespace = "^blxshell-background$" },
     animation = "slide left",
 })

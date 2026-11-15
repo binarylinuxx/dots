@@ -1,0 +1,95 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rgba8, set = 0, binding = 0) uniform image2D target_image;
+layout(rgba8, set = 0, binding = 2) readonly uniform image2D backdrop_image;
+layout(push_constant) uniform Rectangle {
+  vec4 bounds;
+  vec4 params;
+  vec4 color;
+  vec4 color2;
+  vec4 border_color;
+  vec4 clip;
+  vec4 clip_params;
+  vec4 shader_params; // normalized distortion depth, strength, chromatic shift px, tint multiplier
+} rectangle;
+
+float box_distance(vec2 point, vec2 half_size, float radius) {
+  vec2 edge = abs(point) - (half_size - vec2(radius));
+  return length(max(edge, vec2(0.0))) + min(max(edge.x, edge.y), 0.0) - radius;
+}
+
+vec4 backdrop(vec2 point) {
+  vec2 position = clamp(point, vec2(0.0), vec2(imageSize(backdrop_image) - 1));
+  ivec2 lo = ivec2(floor(position));
+  ivec2 hi = min(lo + 1, imageSize(backdrop_image) - 1);
+  vec2 f = fract(position);
+  return mix(mix(imageLoad(backdrop_image, lo), imageLoad(backdrop_image, ivec2(hi.x, lo.y)), f.x),
+             mix(imageLoad(backdrop_image, ivec2(lo.x, hi.y)), imageLoad(backdrop_image, hi), f.x), f.y);
+}
+
+vec4 blurred_backdrop(vec2 point) {
+  // zwwm supplies an already blurred backdrop. Here the immutable rectangle
+  // snapshot is filtered locally with a fixed Gaussian footprint instead.
+  vec4 result = vec4(0.0);
+  float total = 0.0;
+  for (int y = -2; y <= 2; ++y) for (int x = -2; x <= 2; ++x) {
+    float weight = exp(-float(x * x + y * y) * 0.5);
+    result += backdrop(point + vec2(x, y) * 3.0) * weight;
+    total += weight;
+  }
+  return result / total;
+}
+
+vec2 safe_normalize(vec2 value) {
+  float scale = max(max(abs(value.x), abs(value.y)), 0.0001);
+  vec2 scaled = value / scale;
+  return scaled / max(length(scaled), 0.0001);
+}
+
+void main() {
+  ivec2 local = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(local, ivec2(ceil(rectangle.bounds.zw))))) return;
+  ivec2 destination = ivec2(floor(rectangle.bounds.xy)) + local;
+  if (any(lessThan(destination, ivec2(0))) ||
+      any(greaterThanEqual(destination, imageSize(target_image)))) return;
+  vec2 point = vec2(local) + vec2(0.5);
+  vec2 half_size = rectangle.bounds.zw * 0.5;
+  float radius = clamp(rectangle.params.x, 0.0, min(half_size.x, half_size.y));
+  float distance = box_distance(point - half_size, half_size, radius);
+  float coverage = 1.0 - smoothstep(-0.5, 0.5, distance);
+  if (coverage <= 0.0) return;
+  if (rectangle.clip.z > 0.0 && rectangle.clip.w > 0.0) {
+    vec2 clip_half = rectangle.clip.zw * 0.5;
+    if (box_distance(vec2(destination) + vec2(0.5) - rectangle.clip.xy - clip_half,
+                     clip_half, rectangle.clip_params.x) > 0.0) return;
+  }
+
+  vec2 glass_coordinate = point - half_size;
+  float size = max(min(rectangle.bounds.z, rectangle.bounds.w), 1.0);
+  float inverse_sdf = -distance / size;
+  vec2 direction = safe_normalize(glass_coordinate);
+  float depth = max(rectangle.shader_params.x, 0.0001);
+  float center_distance = 1.0 - clamp(inverse_sdf / depth, 0.0, 1.0);
+  float distortion = 1.0 - sqrt(max(1.0 - center_distance * center_distance, 0.0));
+  vec2 offset = distortion * direction * half_size * rectangle.shader_params.y;
+  vec2 glass_position = vec2(destination) - offset;
+  vec2 shift = direction * center_distance * rectangle.shader_params.z;
+  vec4 red = blurred_backdrop(glass_position - shift);
+  vec4 green = blurred_backdrop(glass_position);
+  vec4 blue = blurred_backdrop(glass_position + shift);
+  // Maintain premultiplied coverage when the vw surface itself is translucent.
+  vec4 glass = vec4(red.r, green.g, blue.b, green.a);
+  glass.rgb = clamp(glass.rgb * max(0.0, rectangle.shader_params.w),
+                    vec3(0.0), vec3(glass.a));
+  float tint_alpha = clamp(rectangle.color.a, 0.0, 1.0);
+  glass = vec4(rectangle.color.rgb * tint_alpha, tint_alpha) + glass * (1.0 - tint_alpha);
+  float border = rectangle.params.y > 0.0
+      ? 1.0 - smoothstep(rectangle.params.y - 0.5, rectangle.params.y + 0.5, -distance) : 0.0;
+  float border_alpha = rectangle.border_color.a * border;
+  glass = vec4(rectangle.border_color.rgb * border_alpha, border_alpha) + glass * (1.0 - border_alpha);
+  // Replace the covered backdrop with its refracted version; don't alpha-blend
+  // it onto a second copy of itself.
+  vec4 current = imageLoad(backdrop_image, destination);
+  imageStore(target_image, destination, mix(current, glass, coverage));
+}

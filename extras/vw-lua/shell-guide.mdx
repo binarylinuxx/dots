@@ -1,0 +1,83 @@
+---
+title: Build a desktop shell
+description: A single-surface shell with rounded panels, click-through input, and native services.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+The BlxShell-inspired example uses one fullscreen surface. Its frame, rail,
+dashboard, launcher, and sidebar are rounded rectangles on that surface.
+
+```sh
+./build/vw -c examples/blxshell.lua
+```
+
+<Screenshot label="BlxShell layout with the dashboard open" file="blxshell.png" />
+
+## Layout topology
+
+- **Left rail:** 55 pixels wide, with tags/workspaces, active app label, audio,
+  keyboard layout, clock, settings, and power.
+- **Frame:** a thin rounded border around the screen, drawn with `base.rectangle`.
+- **Top center:** a compact media/date island that expands into the dashboard.
+- **Bottom center:** a searchable application launcher with native icons.
+- **Right edge:** a draggable controls sidebar and session actions.
+
+## Keep the center click-through
+
+Set surface metadata after building your widgets:
+
+```lua
+local surface = require("vw.surface")
+surface.set({
+  width = 1920, height = 1080,
+  anchor = "top_left", layer = "bottom",
+  namespace = "vw:my-shell",
+  input_regions = {
+    { 0, 0, 55, 1080 },       -- rail
+    { 0, 0, 1920, 12 },      -- top frame
+    { 1908, 0, 12, 1080 },   -- right frame
+    { 0, 1068, 1920, 12 },   -- bottom frame
+  },
+})
+```
+
+Add each open panel's bounds to `input_regions`. The transparent center should
+not be included. An empty region table makes the whole surface pointer-transparent.
+
+## Choose a layer
+
+The example defaults to `bottom`. To show panels above application windows:
+
+```sh
+VW_SHELL_LAYER=top ./build/vw -c examples/blxshell.lua
+```
+
+The example does not create extra exclusive-zone windows to reserve a desktop
+rail. Window placement remains compositor policy.
+
+## Services and state
+
+zwwm uses typed protocol snapshots and tag events. Hyprland uses direct IPC.
+Application entries and themed icons come from GIO/GTK. Media uses MPRIS.
+Memory, load, and uptime are read from `/proc`.
+
+Panel state is stored at `$XDG_RUNTIME_DIR/vw-blxshell-state`. Overrides:
+
+| Environment variable | Purpose |
+| --- | --- |
+| `VW_SHELL_FONT` | Body font; defaults to Rubik |
+| `VW_SHELL_LAYER` | Layer-shell layer |
+| `VW_SHELL_WIDTH`, `VW_SHELL_HEIGHT` | Explicit surface dimensions |
+| `VW_SHELL_STATE` | Alternate panel state file |
+
+Material Symbols Rounded is used for UI icons. Application icons remain native
+theme assets.
+
+## Expanded views
+
+The launcher uses `base.listview`, so only visible rows are built. Keep other
+expensive views inside explicit visibility conditions instead of relying on
+`base.lazy` to skip their construction.
+
+<Screenshot label="Searchable native-icon launcher" file="launcher.png" />

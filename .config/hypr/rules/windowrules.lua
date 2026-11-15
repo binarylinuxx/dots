@@ -1,6 +1,6 @@
 hl.window_rule({
-    name = "quickshell-settings",
-    match = { class = "^org\\.quickshell$", title = "^Settings$" },
+    name = "blxshell-settings",
+    match = { class = "^blxshell-settings$" },
     float = true,
     center = true,
 })

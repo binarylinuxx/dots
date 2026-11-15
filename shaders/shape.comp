@@ -1,0 +1,81 @@
+#version 450
+
+// Material 3 shapes (src/shapes.cpp): a closed polyline in unit coordinates
+// from the shape's flattened cubic outline, filled and stroked with a
+// per-pixel signed distance, as the roundedpolygon plugin's fill and
+// centred stroke meshes.
+//
+// vw's rectangle push constants carry:
+//   shader_params  x, y, size of the shape's square in surface pixels
+//   params.y       stroke width (vw's border width)
+//   color          fill
+//   color2         stroke
+//   clip_params.y  first word of the outline in the data buffer
+//   clip_params.z  float count: x0, y0, x1, y1, ...
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rgba8, set = 0, binding = 0) uniform image2D target_image;
+layout(std430, set = 0, binding = 1) readonly buffer Data { uint words[]; } data;
+
+layout(push_constant) uniform Rectangle {
+  vec4 bounds;
+  vec4 params;
+  vec4 color;
+  vec4 color2;
+  vec4 border_color;
+  vec4 clip;
+  vec4 clip_params;
+  vec4 shader_params;
+} rectangle;
+
+vec2 vertex(uint index) {
+  uint base = uint(rectangle.clip_params.y) + index * 2u;
+  return vec2(uintBitsToFloat(data.words[base]), uintBitsToFloat(data.words[base + 1u]));
+}
+
+void blend(ivec2 destination, vec4 color, float amount) {
+  float alpha = color.a * clamp(amount, 0.0, 1.0);
+  if (alpha <= 0.0) return;
+  vec4 source = vec4(color.rgb * alpha, alpha);
+  vec4 current = imageLoad(target_image, destination);
+  imageStore(target_image, destination, source + current * (1.0 - source.a));
+}
+
+void main() {
+  ivec2 local = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(local, ivec2(ceil(rectangle.bounds.zw))))) return;
+  ivec2 destination = ivec2(floor(rectangle.bounds.xy)) + local;
+  if (any(lessThan(destination, ivec2(0))) ||
+      any(greaterThanEqual(destination, imageSize(target_image)))) return;
+
+  float size = rectangle.shader_params.z;
+  uint count = uint(rectangle.clip_params.z) / 2u;
+  if (count < 3u || size <= 0.0) return;
+  vec2 point = (vec2(destination) + vec2(0.5) - rectangle.shader_params.xy) / size;
+
+  // Distance to the nearest segment, and the non-zero winding number.
+  float nearest = 1e9;
+  int winding = 0;
+  vec2 a = vertex(count - 1u);
+  for (uint index = 0u; index < count; ++index) {
+    vec2 b = vertex(index);
+    vec2 edge = b - a;
+    vec2 offset = point - a;
+    float t = clamp(dot(offset, edge) / max(dot(edge, edge), 1e-12), 0.0, 1.0);
+    nearest = min(nearest, length(offset - edge * t));
+    float cross_z = edge.x * offset.y - edge.y * offset.x;
+    if (a.y <= point.y) {
+      if (b.y > point.y && cross_z > 0.0) winding += 1;
+    } else if (b.y <= point.y && cross_z < 0.0) {
+      winding -= 1;
+    }
+    a = b;
+  }
+  float signed_distance = (winding != 0 ? -nearest : nearest) * size;
+
+  blend(destination, rectangle.color, 1.0 - smoothstep(-0.5, 0.5, signed_distance));
+  float stroke = rectangle.params.y;
+  if (stroke > 0.0)
+    blend(destination, rectangle.color2,
+          1.0 - smoothstep(-0.5, 0.5, abs(signed_distance) - stroke * 0.5));
+}

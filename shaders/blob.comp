@@ -1,0 +1,205 @@
+#version 450
+
+// The shell's SDF surface, drawn through vw's custom rectangle shader hook.
+// UNION is ~/shell's blob.frag: one signed distance for the inverted screen
+// frame and every member, so joins have no seams. Shadows and progress rings
+// are separate passes.
+//
+// vw's rectangle push constants carry the data:
+//   params.x       mode (see below)
+//   params.y       smoothing (union) or blur (shadows) or stroke (rings)
+//   clip           box A: x, y, width, height in surface pixels
+//   shader_params  rings: start, sweep, track alpha, 0
+//   color2         box A corner radii / 512: top-left, top-right, bottom-right, bottom-left
+//   color          fill or shadow color
+//
+// UNION's shader_data: outline r, g, b, a, width, shape count, backdrop width
+// and height; then 8 floats per shape (x, y, width, height, four radii), shape
+// 0 being the frame's inner hole; then the backdrop, one float per pixel
+// holding r | g << 8 | b << 16. A client cannot see what is behind it, so the
+// backdrop is the shell's own blurred wallpaper, stretched over the surface
+// with `color` tinted over it by its alpha.
+
+const float SHADOW = 3.0;        // drop shadow of box A
+const float FRAME_SHADOW = 4.0;  // drop shadow of the frame
+const float RING = 5.0;          // progress arc inscribed in box A
+const float UNION = 6.0;         // frame and members, melted
+
+const uint HEADER = 8u;
+const uint STRIDE = 8u;
+const uint MAX_SHAPES = 17u;
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rgba8, set = 0, binding = 0) uniform image2D target_image;
+layout(std430, set = 0, binding = 1) readonly buffer Data { uint words[]; } data;
+
+layout(push_constant) uniform Rectangle {
+  vec4 bounds;
+  vec4 params;
+  vec4 color;
+  vec4 color2;
+  vec4 border_color;
+  vec4 clip;
+  vec4 clip_params;
+  vec4 shader_params;
+} rectangle;
+
+float corner(vec2 point, vec2 center, vec4 radii, vec2 half_size) {
+  float radius = point.x < center.x ? (point.y < center.y ? radii.x : radii.w)
+                                    : (point.y < center.y ? radii.y : radii.z);
+  return clamp(radius, 0.0, min(half_size.x, half_size.y));
+}
+
+// Signed distance to a box with per-corner radii.
+float round_box(vec2 point, vec4 box, vec4 radii) {
+  vec2 half_size = box.zw * 0.5;
+  vec2 center = box.xy + half_size;
+  float radius = corner(point, center, radii, half_size);
+  vec2 q = abs(point - center) - half_size + radius;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+}
+
+// Circular smooth minimum, as in ~/shell: a round fillet of radius k.
+float smin(float a, float b, float k) {
+  k = max(0.001, k);
+  return max(k, min(a, b)) - length(max(vec2(k) - vec2(a, b), 0.0));
+}
+
+float coverage(float distance) { return 1.0 - smoothstep(-0.5, 0.5, distance); }
+
+float word(uint index) { return uintBitsToFloat(data.words[uint(rectangle.clip_params.y) + index]); }
+
+vec4 shape_box(uint index) {
+  uint at = HEADER + index * STRIDE;
+  return vec4(word(at), word(at + 1u), word(at + 2u), word(at + 3u));
+}
+
+vec4 shape_radii(uint index) {
+  uint at = HEADER + index * STRIDE + 4u;
+  return vec4(word(at), word(at + 1u), word(at + 2u), word(at + 3u));
+}
+
+// The fillet radius for one pair at `point`. Two boxes that touch along a
+// seam leave a step where their side edges differ by `step`; a circular
+// fillet wider than that step runs past the ledge and bulges the outline
+// (worst when the edges are nearly, but not exactly, aligned). So a touching
+// pair is filleted by at most its step on the side the point is on, easing
+// back to the full radius as the boxes separate across the seam.
+float pair_radius(vec4 a, vec4 b, vec2 point, float k) {
+  vec2 overlap = min(a.xy + a.zw, b.xy + b.zw) - max(a.xy, b.xy);
+  // The seam runs across the axis where the boxes barely overlap.
+  bool stacked = overlap.y < overlap.x;  // one above the other
+  float gap = -(stacked ? overlap.y : overlap.x);
+  float along = stacked ? point.x : point.y;
+  float low_a = stacked ? a.x : a.y;
+  float low_b = stacked ? b.x : b.y;
+  float high_a = low_a + (stacked ? a.z : a.w);
+  float high_b = low_b + (stacked ? b.z : b.w);
+  float middle = (max(low_a, low_b) + min(high_a, high_b)) * 0.5;
+  float step = along < middle ? abs(low_a - low_b) : abs(high_a - high_b);
+  float touching = min(k, step);
+  return mix(touching, k, clamp(gap / max(k, 0.001), 0.0, 1.0));
+}
+
+// Like blob.frag: the exact union, then each pair's circular fillet on its
+// own, since chaining circular smooth-min is not associative.
+float merged(vec2 point, float k) {
+  uint count = min(uint(word(5u)), MAX_SHAPES);
+  float distances[MAX_SHAPES];
+  distances[0] = -round_box(point, shape_box(0u), shape_radii(0u));
+  float d = distances[0];
+  for (uint i = 1u; i < count; ++i) {
+    distances[i] = round_box(point, shape_box(i), shape_radii(i));
+    d = min(d, distances[i]);
+  }
+  for (uint i = 0u; i < count; ++i) {
+    for (uint j = i + 1u; j < count; ++j) {
+      if (max(distances[i], distances[j]) >= k) continue;
+      // The frame (0) is inverted: its joins are always full concave fillets.
+      float radius = i > 0u ? pair_radius(shape_box(i), shape_box(j), point, k) : k;
+      if (radius < 0.05) continue;
+      d = min(d, smin(distances[i], distances[j], radius));
+    }
+  }
+  return d;
+}
+
+vec3 backdrop_pixel(ivec2 at, ivec2 size) {
+  uint first = HEADER + uint(word(5u)) * STRIDE;
+  uint value = uint(word(first + uint(at.y * size.x + at.x)));
+  return vec3(float(value & 255u), float((value >> 8u) & 255u), float((value >> 16u) & 255u)) / 255.0;
+}
+
+// Upscaled with a smoothed bilinear filter: the source is tiny, and plain
+// bilinear would show its grid.
+vec3 backdrop(vec2 point) {
+  ivec2 size = ivec2(word(6u), word(7u));
+  vec2 position = clamp(point / vec2(imageSize(target_image)) * vec2(size) - 0.5, vec2(0.0), vec2(size - 1));
+  ivec2 low = ivec2(floor(position));
+  ivec2 high = min(low + 1, size - 1);
+  vec2 t = fract(position);
+  t = t * t * (3.0 - 2.0 * t);
+  return mix(mix(backdrop_pixel(low, size), backdrop_pixel(ivec2(high.x, low.y), size), t.x),
+             mix(backdrop_pixel(ivec2(low.x, high.y), size), backdrop_pixel(high, size), t.x), t.y);
+}
+
+void blend(ivec2 destination, vec4 color, float amount) {
+  float alpha = color.a * clamp(amount, 0.0, 1.0);
+  if (alpha <= 0.0) return;
+  vec4 source = vec4(color.rgb * alpha, alpha);
+  vec4 current = imageLoad(target_image, destination);
+  imageStore(target_image, destination, source + current * (1.0 - source.a));
+}
+
+void main() {
+  ivec2 local = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(local, ivec2(ceil(rectangle.bounds.zw))))) return;
+  ivec2 destination = ivec2(rectangle.bounds.xy) + local;
+  if (any(lessThan(destination, ivec2(0))) ||
+      any(greaterThanEqual(destination, imageSize(target_image)))) return;
+  vec2 point = vec2(destination) + vec2(0.5);
+
+  float mode = rectangle.params.x;
+  float k = rectangle.params.y;
+  vec4 radii_a = rectangle.color2 * 512.0;
+
+  if (mode == UNION) {
+    float d = merged(point, k);
+    float fill = coverage(d);
+    float width = word(4u);
+    if (width > 0.0) {
+      // Outside the merged shape only, so joins show no second contour.
+      vec4 outline = vec4(word(0u), word(1u), word(2u), word(3u));
+      blend(destination, outline, max(0.0, coverage(d - width) - fill));
+    }
+    if (fill <= 0.0) return;
+    if (word(6u) > 0.0) blend(destination, vec4(mix(backdrop(point), rectangle.color.rgb, rectangle.color.a), 1.0), fill);
+    else blend(destination, rectangle.color, fill);
+    return;
+  }
+  if (mode == SHADOW || mode == FRAME_SHADOW) {
+    // Offset 5 px down, like ~/shell's MultiEffect shadow.
+    vec2 shifted = point - vec2(0.0, 5.0);
+    float d = round_box(shifted, rectangle.clip, radii_a);
+    if (mode == FRAME_SHADOW) d = -d;
+    float falloff = 1.0 - smoothstep(-k * 0.35, k, d);
+    blend(destination, rectangle.color, falloff * falloff);
+    return;
+  }
+  if (mode == RING) {
+    vec2 half_size = rectangle.clip.zw * 0.5;
+    vec2 offset = point - rectangle.clip.xy - half_size;
+    float radius = min(half_size.x, half_size.y) - k * 0.5;
+    float band = abs(length(offset) - radius) - k * 0.5;
+    float ring = coverage(band);
+    if (ring <= 0.0) return;
+    // Clockwise from the top.
+    float angle = atan(offset.x, -offset.y) / 6.28318530718;
+    if (angle < 0.0) angle += 1.0;
+    float start = rectangle.shader_params.x;
+    float sweep = rectangle.shader_params.y;
+    float along = fract(angle - start);
+    float on_arc = along <= sweep ? 1.0 : 0.0;
+    blend(destination, rectangle.color, ring * mix(rectangle.shader_params.z, 1.0, on_arc));
+  }
+}

@@ -1,10 +1,61 @@
 {
-  description = "blxshell dotfiles, runtime packages, and Home Manager module";
+  description = "blxshell: a Wayland desktop shell built on libvw";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # To build against a local vw checkout instead:
+    #   nix build --override-input vw path:/home/blx/vw
+    vw = {
+      url = "github:binarylinuxx/vw";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs }:
-    import ./nix-deps { inherit self nixpkgs; };
+  outputs = { self, nixpkgs, vw }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+    in {
+      # vw.lib.mkShell brings cmake, clang, glslc and vw (linked into the
+      # binary); the package is blxshell alone.
+      packages = forAllSystems (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          fonts = import ./nix/fonts.nix { inherit pkgs; inherit (pkgs) lib; };
+        in fonts // {
+          default = vw.lib.mkShell {
+            inherit system;
+            pname = "blxshell";
+            # Only what the build reads, so editing the dotfiles in .config
+            # doesn't rebuild the shell.
+            src = nixpkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = nixpkgs.lib.fileset.unions [ ./CMakeLists.txt ./src ./shaders ];
+            };
+          };
+        });
+
+      # programs.blxshell.greeter: the login screen (nix/module.nix).
+      nixosModules.default = import ./nix/module.nix self;
+
+      apps = forAllSystems (system: {
+        default = {
+          type = "app";
+          program = "${self.packages.${system}.default}/bin/blxshell";
+        };
+      });
+
+      # Builds vw from ../vw (VW_SOURCE_DIR) so both can be edited together.
+      devShells = forAllSystems (system:
+        let pkgs = nixpkgs.legacyPackages.${system};
+        in {
+          default = (pkgs.mkShell.override { stdenv = pkgs.clangStdenv; }) {
+            inputsFrom = [ vw.devShells.${system}.default ];
+            VW_SOURCE_DIR = "/home/blx/vw";
+            # inputsFrom carries packages, not environment variables.
+            ZWAYLAND_ROOT = "${vw.inputs.zwwm}";
+            packages = with pkgs; [ cmake ninja ];
+          };
+        });
+    };
 }

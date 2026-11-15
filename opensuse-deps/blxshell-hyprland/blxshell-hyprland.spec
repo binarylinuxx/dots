@@ -17,7 +17,7 @@ Name:           blxshell-hyprland
 Version:        1.0
 Release:        4
 Summary:        Blxshell Hyprland Dependencies (WM, compositor, portals)
-License:        custom
+License:        BSD-3-Clause
 URL:            https://github.com/binarylinuxx/dots
 BuildArch:      noarch
 

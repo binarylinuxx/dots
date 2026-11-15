@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc='Blxshell shell dependencies (terminal, prompt, fonts, theming)'
 arch=(any)
 url='https://github.com/binarylinuxx/dots'
-license=(custom)
+license=(BSD-3-Clause)
 depends=(
 	# shell & terminal
 	fish

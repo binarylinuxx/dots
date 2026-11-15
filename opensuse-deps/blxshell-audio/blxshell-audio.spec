@@ -17,7 +17,7 @@ Name:           blxshell-audio
 Version:        2.0
 Release:        1
 Summary:        Blxshell Audio Dependencies (pipewire, controls, visualizers)
-License:        custom
+License:        BSD-3-Clause
 URL:            https://github.com/binarylinuxx/dots
 BuildArch:      noarch
 

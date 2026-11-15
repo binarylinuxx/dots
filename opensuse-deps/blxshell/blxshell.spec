@@ -20,7 +20,7 @@ Name:           blxshell
 Version:        4.0.0~git
 Release:        1
 Summary:        Material You desktop shell for zwwm and Hyprland, in C++ on vw
-License:        GPL-3.0-only
+License:        BSD-3-Clause
 URL:            https://github.com/binarylinuxx/dots
 
 Source0:        dots-%{_commit}.tar.gz

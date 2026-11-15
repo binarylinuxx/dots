@@ -17,7 +17,7 @@ Name:           blxshell-shell
 Version:        2.0
 Release:        1
 Summary:        Blxshell Shell Dependencies (terminal, shell, fonts, theming)
-License:        custom
+License:        BSD-3-Clause
 URL:            https://github.com/binarylinuxx/dots
 BuildArch:      noarch
 

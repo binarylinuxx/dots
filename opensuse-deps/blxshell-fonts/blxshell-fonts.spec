@@ -17,7 +17,7 @@ Name:           blxshell-fonts
 Version:        1.0
 Release:        1
 Summary:        Blxshell Fonts — all custom font packages
-License:        custom
+License:        BSD-3-Clause
 URL:            https://github.com/binarylinuxx/dots
 BuildArch:      noarch
 

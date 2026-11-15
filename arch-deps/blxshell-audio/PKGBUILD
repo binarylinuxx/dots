@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc='Blxshell Audio Dependencies (pipewire, controls, visualizers)'
 arch=(any)
 url='https://github.com/binarylinuxx/dots'
-license=(custom)
+license=(BSD-3-Clause)
 depends=(
   pipewire
   pipewire-pulse

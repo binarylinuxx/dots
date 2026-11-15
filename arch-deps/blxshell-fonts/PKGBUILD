@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc='Blxshell fonts: Google Sans Flex, Rubik, Material Symbols and the rest'
 arch=(any)
 url='https://github.com/binarylinuxx/dots'
-license=(custom)
+license=(BSD-3-Clause)
 depends=(
   blxshell-font-googlesans
   blxshell-font-bitcount

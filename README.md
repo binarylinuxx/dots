@@ -144,3 +144,8 @@ for tray and app icons.
 | `src/bar.*` | composes the modules into left / center / right segments |
 | `src/popups.*` | the popup surface: calendar, power menu, tray menus |
 | `src/state.hpp` | which popup is open and where |
+
+## License
+
+BSD 3-Clause, see [LICENSE](LICENSE). The fonts blxshell uses keep their own
+licenses (see `nix/fonts.nix`).

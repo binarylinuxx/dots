@@ -180,12 +180,26 @@ bool hyprland_window_fresh = false;
 std::optional<std::vector<Workspace>> hyprland_workspaces;
 std::optional<nlohmann::json> zwwm_toplevels_cache;
 std::optional<nlohmann::json> zwwm_outputs_cache;
+// Every window with its tag (zwwm manager version 7), or null where that
+// snapshot is missing: older zwwm lists only the active tag's windows.
+std::optional<nlohmann::json> zwwm_windows_cache;
 
 // A snapshot is a blocking round trip to the compositor: at most one per
 // change, not several per frame.
 const nlohmann::json& zwwm_toplevels() {
   if (!zwwm_toplevels_cache) zwwm_toplevels_cache = vw::zwwm::snapshot(vw::zwwm::Snapshot::toplevels);
   return *zwwm_toplevels_cache;
+}
+
+const nlohmann::json& zwwm_windows() {
+  if (!zwwm_windows_cache) {
+    try {
+      zwwm_windows_cache = vw::zwwm::snapshot(vw::zwwm::Snapshot::windows);
+    } catch (const std::exception&) {
+      zwwm_windows_cache = nlohmann::json(nullptr);
+    }
+  }
+  return *zwwm_windows_cache;
 }
 
 const nlohmann::json& zwwm_outputs() {
@@ -214,6 +228,7 @@ void invalidate_window() {
   hyprland_workspaces.reset();
   zwwm_toplevels_cache.reset();
   zwwm_outputs_cache.reset();
+  zwwm_windows_cache.reset();
 }
 
 std::vector<Workspace> workspaces() {
@@ -233,17 +248,28 @@ std::vector<Workspace> workspaces() {
       return result;
     }
     if (vw::zwwm::available()) {
-      // zwwm's toplevel snapshot carries no tags: windows show on the active tag.
-      std::vector<std::string> visible;
-      for (const auto& toplevel : zwwm_toplevels())
-        if (visible.size() < 3) visible.push_back(toplevel.value("app_id", ""));
+      // Each tag's own windows, from the windows snapshot. The pill shows up
+      // to five icons a tag; the count is all of them.
+      constexpr std::size_t shown = 5;
+      const auto& windows = zwwm_windows();
+      std::vector<std::string> visible;  // older zwwm: the active tag's only
+      if (!windows.is_array())
+        for (const auto& toplevel : zwwm_toplevels())
+          if ((toplevel.value("state", 0U) & 1U) != 0) visible.push_back(toplevel.value("app_id", ""));
       for (const auto& tag : vw::zwwm::tags()) {
         Workspace workspace{tag.name.empty() ? std::to_string(tag.id) : tag.name, tag.active, 0, {},
                             [id = tag.id] { vw::zwwm::set_active_tags({id}); }};
-        if (tag.active) {
-          workspace.apps = visible;
-          workspace.windows = static_cast<int>(visible.size());
+        std::vector<std::string> apps;
+        if (windows.is_array()) {
+          for (const auto& window : windows)
+            if (window.value("tag", 0U) == tag.id && (window.value("state", 0U) & 1U) != 0)
+              apps.push_back(window.value("app_id", ""));
+        } else if (tag.active) {
+          apps = visible;
         }
+        workspace.windows = static_cast<int>(apps.size());
+        if (apps.size() > shown) apps.resize(shown);
+        workspace.apps = std::move(apps);
         result.push_back(std::move(workspace));
       }
       return result;

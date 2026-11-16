@@ -119,6 +119,8 @@ int main(int argc, char** argv) {
           was_fullscreen = fullscreen;
           return true;
         }
+        // Windows opening, closing or changing tag redraw the workspaces pill.
+        if (vw::zwwm::last_event() == "window") return true;
         static std::string last;
         std::string now;
         for (const auto& tag : vw::zwwm::tags())

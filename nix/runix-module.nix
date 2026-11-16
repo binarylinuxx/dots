@@ -50,9 +50,11 @@ let
     _: user: user.uid >= 1000 && user.uid < 30000 && user.home != "/var/empty"
   ) config.runix.users;
   # The seeded configs name the session cursor.
+  # The shipped configs name the session cursor and the terminal.
   withCursor = name: file: pkgs.replaceVars file {
     cursorName = cfg.cursor.name;
     cursorSize = toString cfg.cursor.size;
+    terminal = lib.getExe cfg.terminal;
   };
   # zwwm gets no seed: the blxshell session below brings its own setup, and
   # the plain zwwm session is left to the user's ~/.config/zwwm.
@@ -228,6 +230,17 @@ in
       '';
     };
 
+    terminal = mkOption {
+      type = types.package;
+      default = pkgs.ghostty;
+      defaultText = lib.literalExpression "pkgs.ghostty";
+      example = lib.literalExpression "pkgs.foot";
+      description = ''
+        The terminal Super+Return opens in the blxshell session and the seeded
+        Hyprland config: installed, and run through its main program.
+      '';
+    };
+
     seedConfigs = mkOption {
       type = types.bool;
       default = true;
@@ -299,7 +312,7 @@ in
   config = mkMerge [
     (mkIf cfg.enable {
       # matugen builds the Material colour scheme from the wallpaper.
-      runix.packages = [ cfg.package pkgs.matugen cfg.cursor.package ];
+      runix.packages = [ cfg.package pkgs.matugen cfg.cursor.package cfg.terminal ];
       fonts.packages = cfg.fonts;
     })
 
@@ -310,8 +323,7 @@ in
     })
 
     (mkIf (cfg.enable && cfg.seedConfigs) {
-      # Both seeded configs open ghostty with Super+Return.
-      runix.packages = [ pkgs.ghostty ];
+
       runix.preparationScripts = [ seedScript ];
     })
 

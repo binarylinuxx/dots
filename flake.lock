@@ -30,11 +30,11 @@
         "zwwm": "zwwm"
       },
       "locked": {
-        "lastModified": 1794563576,
-        "narHash": "sha256-G42y7UWIGOH2IcC97SKQpNnrLeQkMQHfEjfhnQjIAxE=",
+        "lastModified": 1794848795,
+        "narHash": "sha256-ClptaE3GJT9lvcowHz6ET2/hcOx56OhlegUzPcuMAf8=",
         "owner": "binarylinuxx",
         "repo": "vw",
-        "rev": "6892f4eeb6934ff2500fb16cb1314cf2152cf0a6",
+        "rev": "1195f44ee587132f81571798860c27fd3ea2f273",
         "type": "github"
       },
       "original": {
@@ -46,11 +46,11 @@
     "zwwm": {
       "flake": false,
       "locked": {
-        "lastModified": 1794476273,
-        "narHash": "sha256-4bbENo88thjbZN0AUIunzlckDwbkMR3SVH5CPNymyEs=",
+        "lastModified": 1794848791,
+        "narHash": "sha256-j6dEru1N432YSL5cmd9fwo44kHBYikF0I5Yi+trvIIg=",
         "owner": "zwwmWM",
         "repo": "zwwm",
-        "rev": "1912b91d325e039a21b1c17f87ed16b26d755689",
+        "rev": "03cab468b4197be7b41fcdbe56089001d2357faa",
         "type": "github"
       },
       "original": {

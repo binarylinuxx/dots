@@ -5,7 +5,7 @@
 -- It never reads or writes ~/.config/zwwm: the plain "zwwm" session is yours
 -- to set up as you like. `blxshell help` lists the shell's commands.
 
-TERMINAL = "ghostty"
+TERMINAL = "@terminal@"
 MOD = "Mod4"
 RADIUS = "20"
 ROUNDING_POWER = "2"

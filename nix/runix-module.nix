@@ -138,7 +138,9 @@ let
     export LIBSEAT_BACKEND=seatd
     export XDG_SESSION_TYPE=wayland
     export XDG_CONFIG_HOME=${theme}/xdg
-    export XDG_DATA_DIRS=/run/current-system/sw/share
+    # Runix's sessions first: each starts through runix-session (a session
+    # bus and audio); the first file of a name wins.
+    export XDG_DATA_DIRS=/run/current-system/sessions/share:/run/current-system/sw/share
     ${optionalString (greeter.cursor != null) ''
       export XCURSOR_PATH=${greeter.cursor.package}/share/icons
       export XCURSOR_THEME=${lib.escapeShellArg greeter.cursor.name}

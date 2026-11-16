@@ -317,7 +317,8 @@ in
   config = mkMerge [
     (mkIf cfg.enable {
       # matugen builds the Material colour scheme from the wallpaper.
-      runix.packages = [ cfg.package pkgs.matugen cfg.cursor.package cfg.terminal ];
+      # nixos-icons holds nix-snowflake, the bar's default OS icon.
+      runix.packages = [ cfg.package pkgs.matugen cfg.cursor.package cfg.terminal pkgs.nixos-icons ];
       fonts.packages = cfg.fonts;
     })
 

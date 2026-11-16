@@ -10,11 +10,17 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <cerrno>
+#include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string_view>
+#include <sys/inotify.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
 
 #include "net.hpp"
 #include "config.hpp"
@@ -29,6 +35,74 @@
 #include "surfaces.hpp"
 
 namespace {
+
+// Runix: a rebuild switch points /run/current-system at the new system. When
+// its blxshell is another build than this one, the shell becomes it, so it
+// never keeps running old code after an update. Never while the screen is
+// locked: that waits for the unlock.
+constexpr const char* system_shell = "/run/current-system/sw/bin/blxshell";
+char** shell_argv = nullptr;
+int switch_retry_fd = -1;
+
+// /nix/store/<hash>-<name>: one build of the package, whichever file in it.
+std::filesystem::path store_path(const std::filesystem::path& file) {
+  std::filesystem::path result;
+  int parts = 0;
+  for (const auto& part : file) {
+    result /= part;
+    if (++parts == 4) break;
+  }
+  return result;
+}
+
+void follow_system_switch() {
+  namespace fs = std::filesystem;
+  std::error_code error, self_error;
+  const fs::path next = fs::canonical(system_shell, error);
+  const fs::path self = fs::canonical("/proc/self/exe", self_error);
+  if (error || self_error || store_path(next) == store_path(self)) return;
+  if (blx::shell().locked) {
+    const itimerspec retry{.it_interval = {5, 0}, .it_value = {5, 0}};
+    if (switch_retry_fd >= 0) timerfd_settime(switch_retry_fd, 0, &retry, nullptr);
+    return;
+  }
+  std::cerr << "blxshell: the system switched to " << store_path(next).string() << ", restarting into it\n";
+  ::execv(next.c_str(), shell_argv);
+  std::cerr << "blxshell: could not restart: " << std::strerror(errno) << '\n';
+}
+
+int watch_system_switch() {
+  std::error_code error;
+  if (!std::filesystem::exists(system_shell, error)) return -1;
+  const int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+  if (fd < 0) return -1;
+  if (inotify_add_watch(fd, "/run", IN_CREATE | IN_MOVED_TO) < 0) {
+    ::close(fd);
+    return -1;
+  }
+  switch_retry_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+  return fd;
+}
+
+bool drain_system_switch(int fd) {
+  alignas(inotify_event) char buffer[4096];
+  bool switched = false;
+  for (ssize_t got; (got = ::read(fd, buffer, sizeof buffer)) > 0;) {
+    for (ssize_t offset = 0; offset < got;) {
+      const auto* event = reinterpret_cast<const inotify_event*>(buffer + offset);
+      if (event->len > 0 && std::string_view(event->name) == "current-system") switched = true;
+      offset += static_cast<ssize_t>(sizeof(inotify_event) + event->len);
+    }
+  }
+  if (switched) follow_system_switch();
+  return false;
+}
+
+bool drain_switch_retry(int fd) {
+  std::uint64_t expirations = 0;
+  if (::read(fd, &expirations, sizeof expirations) > 0) follow_system_switch();
+  return false;
+}
 
 // BLXSHELL_DEBUG_EVENTS=1 prints, every second, which event sources woke
 // the shell for a rebuild.
@@ -62,6 +136,7 @@ int main(int argc, char** argv) {
     return blx::ipc::send(argc, argv);
   }
 
+  shell_argv = argv;
   const int ipc_fd = blx::ipc::listen();
 
   blx::sync_style();
@@ -78,6 +153,10 @@ int main(int argc, char** argv) {
       .surface(blx::reserve_bottom)
       .surface(blx::lock_surface);
   if (ipc_fd >= 0) app.on_event(ipc_fd, counted("ipc", [ipc_fd] { return blx::ipc::drain(ipc_fd); }));
+  if (const int switch_fd = watch_system_switch(); switch_fd >= 0) {
+    app.on_event(switch_fd, [switch_fd] { return drain_system_switch(switch_fd); });
+    if (switch_retry_fd >= 0) app.on_event(switch_retry_fd, [] { return drain_switch_retry(switch_retry_fd); });
+  }
   app.on_event(blx::colours_event_fd(), counted("colours", blx::reload_colours))
       .on_event(blx::config_event_fd(), counted("config", [] {
         const blx::Config before = blx::config();

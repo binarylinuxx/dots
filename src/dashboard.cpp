@@ -174,10 +174,7 @@ void user(vw::Ui& ui, float x, float y) {
   const Colours& c = colours();
   card(ui, x, y, 340, 106, c.surface_container, 45);
   const std::string image = avatar();
-  if (image.empty()) {
-    shapes::draw(ui, "user.logo", "gem", x + 28, y + 28, 54, c.primary_container);
-    draw::glyph(ui, "desktop_windows", x + 55, y + 55, 24, c.primary);
-  }
+  // Text on the left, the avatar (or its placeholder) on the right.
   const float tx = x + 32;
   const float tw = 242 - 12 - 32;
   float ty = y + 26;

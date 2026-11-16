@@ -52,7 +52,8 @@ struct Config {
   std::vector<std::string> bar_left{"os", "workspaces"};
   std::vector<std::string> bar_center{"window"};
   std::vector<std::string> bar_right{"tray", "keyboard", "clock", "status", "power"};
-  std::string bar_os_icon = "nix-snowflake";
+  // "runix" is the logo built into blxshell; anything else is an icon theme name.
+  std::string bar_os_icon = "runix";
   std::string bar_clock_format = "%H:%M";  // strftime
   int bar_clock_size = 16;
   std::string bar_workspace_style = "apps";  // "apps", "dots", "numbers"

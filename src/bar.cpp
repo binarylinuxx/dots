@@ -2,6 +2,8 @@
 #include <vw/vw.hpp>
 
 #include <algorithm>
+#include <filesystem>
+#include <vector>
 #include <chrono>
 #include <format>
 #include <functional>
@@ -66,6 +68,25 @@ std::size_t tray_count() {
 float tray_width() {
   const auto count = static_cast<float>(tray_count());
   return count == 0 ? 0 : count * tray_item() + (count - 1) * tray_gap + tray_padding * 2;
+}
+
+// The Runix logo that ships with blxshell: <prefix>/share/blxshell/icons, or
+// the source tree while developing.
+const std::string& runix_logo() {
+  static const std::string path = [] {
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    std::error_code error;
+    const auto executable = fs::read_symlink("/proc/self/exe", error);
+    if (!error) candidates.push_back(executable.parent_path().parent_path() / "share" / "blxshell" / "icons");
+#ifdef BLXSHELL_SOURCE_ICON_DIR
+    candidates.emplace_back(BLXSHELL_SOURCE_ICON_DIR);
+#endif
+    for (const auto& directory : candidates)
+      if (fs::exists(directory / "runix-logo.svg", error)) return (directory / "runix-logo.svg").string();
+    return std::string();
+  }();
+  return path;
 }
 
 // What the workspaces pill shows, per the config's style.
@@ -279,7 +300,9 @@ Module module_for(vw::Ui& ui, const Screen& screen, const std::string& id) {
   const float centre_y = bar_centre(screen);
   if (id == "os")
     return {30, [&ui, &c, &settings, centre_y](float x) {
-              draw::icon(ui, "", settings.bar_os_icon, x + 4, centre_y - 11, 22, std::nullopt, 0, vw::ImageFit::contain, draw::icon_tint());
+              const bool builtin = settings.bar_os_icon == "runix";
+              draw::icon(ui, builtin ? runix_logo() : "", builtin ? "" : settings.bar_os_icon, x + 4, centre_y - 11, 22,
+                         std::nullopt, 0, vw::ImageFit::contain, draw::icon_tint());
               draw::state_layer(ui, x, centre_y - 15, 30, 30, 15, c.primary, {.on_click = [](const vw::ClickEvent&) {
                 shell().launcher_open = !shell().launcher_open;
               }});

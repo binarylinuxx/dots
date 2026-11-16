@@ -26,7 +26,7 @@
             # doesn't rebuild the shell.
             src = nixpkgs.lib.fileset.toSource {
               root = ./.;
-              fileset = nixpkgs.lib.fileset.unions [ ./CMakeLists.txt ./src ./shaders ./wallpapers/runix-m3.png ];
+              fileset = nixpkgs.lib.fileset.unions [ ./CMakeLists.txt ./src ./shaders ./wallpapers/runix-m3.png ./icons/runix-logo.svg ];
             };
           };
         });

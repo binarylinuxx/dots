@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="535"
+     height="535"
+     viewBox="0 0 501.5625 501.5625"
+     role="img"
+     aria-labelledby="title">
+  <title id="title">Runix snowflake</title>
+  <defs>
+    <path id="arm"
+          d="m 309.54892,-710.38827 122.19683,211.67512 -56.15706,0.5268 -32.6236,-56.8692 -32.85645,56.5653 -27.90237,-0.011 -14.29086,-24.6896 46.81047,-80.4901 -33.22946,-57.8257 z"/>
+  </defs>
+  <g transform="translate(-156.47443 966.49523)" fill="#009750" fill-rule="evenodd">
+    <use xlink:href="#arm"/>
+    <use xlink:href="#arm" transform="rotate(60 407.11155 -715.78724)"/>
+    <use xlink:href="#arm" transform="rotate(-60 407.31177 -715.70016)"/>
+    <use xlink:href="#arm" transform="rotate(180 407.41868 -715.7565)"/>
+  </g>
+  <g transform="translate(-156.47443 966.49523)" fill="#7d7d7d" fill-rule="evenodd">
+    <use xlink:href="#arm"/>
+    <use xlink:href="#arm" transform="rotate(120 407.33916 -716.08356)"/>
+    <use xlink:href="#arm" transform="rotate(-120 407.28823 -715.86995)"/>
+  </g>
+</svg>

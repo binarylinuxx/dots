@@ -261,7 +261,7 @@ const std::vector<Page>& pages() {
         choice("Show", &Config::bar_workspace_style, {{"apps", "App icons"}, {"dots", "Dots"}, {"numbers", "Numbers"}}),
         header("Look"),
         toggle("Pill backgrounds", "Behind workspaces and status icons", &Config::bar_pills),
-        text("OS icon", "Any icon theme name", &Config::bar_os_icon),
+        text("OS icon", "runix, or any icon theme name", &Config::bar_os_icon),
         slider("Window title width", &Config::bar_title_width, 100, 640, 10, " px"),
         slider("Tray icon size", &Config::bar_tray_size, 14, 32, 1, " px"),
         toggle("Tint tray icons", "Match them to the theme", &Config::bar_tint_tray_icons),

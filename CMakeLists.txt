@@ -62,7 +62,8 @@ add_dependencies(blxshell-core blxshell-shaders)
 # <prefix>/share/blxshell when installed.
 target_compile_definitions(blxshell-core PRIVATE
   BLXSHELL_BUILD_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}"
-  BLXSHELL_SOURCE_WALLPAPER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/wallpapers")
+  BLXSHELL_SOURCE_WALLPAPER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/wallpapers"
+  BLXSHELL_SOURCE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/icons")
 # vw props are designated initializers that omit defaulted fields on purpose.
 set(BLXSHELL_WARNINGS -Wall -Wextra -Wpedantic
   -Wno-missing-designated-field-initializers -Wno-missing-field-initializers)
@@ -81,3 +82,4 @@ install(TARGETS blxshell blxshell-greeter RUNTIME DESTINATION "${CMAKE_INSTALL_B
 install(FILES ${BLXSHELL_SHADERS} DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell")
 # The default wallpaper, for the shell and the greeter alike.
 install(FILES wallpapers/runix-m3.png DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/wallpapers")
+install(FILES icons/runix-logo.svg DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/icons")

@@ -13,9 +13,10 @@
 # blxshell starts from the compositor's own autostart (`exec-once = blxshell`
 # for Hyprland, `exec-sh-on-startup` for zwwm). Runix has no per-session
 # service manager to start it from, and the compositor has to be running first
-# anyway. Users without their own zwwm or Hyprland configuration get one made
-# for blxshell (runix/zwwm.zw and runix/hyprland.conf), copied once; see
-# programs.blxshell.seedConfigs.
+# anyway. With zwwm, the "blxshell" session runs zwwm on Runix's own setup
+# for the shell (runix/zwwm.zw and its shaders, from the store), apart from
+# the user's ~/.config/zwwm. Hyprland users without a configuration get
+# runix/hyprland.conf, copied once; see programs.blxshell.seedConfigs.
 #
 # The greeter runs as on NixOS: greetd runs a minimal zwwm, zwwm runs
 # blxshell-greeter (one login per monitor) and quits as soon as it exits, and
@@ -53,16 +54,48 @@ let
     cursorName = cfg.cursor.name;
     cursorSize = toString cfg.cursor.size;
   };
+  # zwwm gets no seed: the blxshell session below brings its own setup, and
+  # the plain zwwm session is left to the user's ~/.config/zwwm.
   seeds =
-    lib.optionals config.programs.zwwm.enable (
-      [ { file = withCursor "zwwm.zw" ./runix/zwwm.zw; target = "zwwm/config.zw"; } ]
-      ++ map (shader: { file = ./runix/zwwm-shaders + "/${shader}"; target = "zwwm/shaders/${shader}"; }) [
-        "border.frag"
-        "shadow.frag"
-        "zwwm.glsl"
-      ]
-    )
-    ++ optional config.programs.hyprland.enable { file = withCursor "hyprland.conf" ./runix/hyprland.conf; target = "hypr/hyprland.conf"; };
+    optional config.programs.hyprland.enable { file = withCursor "hyprland.conf" ./runix/hyprland.conf; target = "hypr/hyprland.conf"; };
+
+  # The blxshell session: zwwm with Runix's setup for the shell (rounded
+  # borders, shadows, animations, the cursor and blxshell itself), read from
+  # the store through ZWWM_CONFIG. It follows every rebuild and never touches
+  # ~/.config/zwwm, which the plain zwwm session keeps using.
+  sessionZwwm = if greeter.zwwmPackage != null then greeter.zwwmPackage else config.programs.zwwm.package;
+  sessionConfig = pkgs.runCommand "blxshell-zwwm-config" { } ''
+    mkdir -p $out/shaders
+    cp ${withCursor "config.zw" ./runix/zwwm.zw} $out/config.zw
+    cp ${./runix/zwwm-shaders/glass.frag} $out/shaders/glass.frag
+    cp ${./runix/zwwm-shaders/border.frag} $out/shaders/border.frag
+    cp ${./runix/zwwm-shaders/shadow.frag} $out/shaders/shadow.frag
+    # The shader interface of the zwwm that runs them, when it ships one.
+    if [ -e ${sessionZwwm}/share/zwwm/shaders/zwwm.glsl ]; then
+      cp ${sessionZwwm}/share/zwwm/shaders/zwwm.glsl $out/shaders/zwwm.glsl
+    else
+      cp ${./runix/zwwm-shaders/zwwm.glsl} $out/shaders/zwwm.glsl
+    fi
+  '';
+  sessionScript = pkgs.writeShellScript "blxshell-session" ''
+    export ZWWM_CONFIG=${sessionConfig}/config.zw
+    export XCURSOR_PATH=$HOME/.icons:$HOME/.local/share/icons:/run/current-system/sw/share/icons
+    export XCURSOR_THEME=${lib.escapeShellArg cfg.cursor.name}
+    export XCURSOR_SIZE=${toString cfg.cursor.size}
+    exec ${sessionZwwm}/bin/zwwm-session "$@"
+  '';
+  sessionPackage = pkgs.runCommand "blxshell-session" { passthru.providedSessions = [ "blxshell" ]; } ''
+    mkdir -p $out/share/wayland-sessions
+    cat > $out/share/wayland-sessions/blxshell.desktop <<EOF
+    [Desktop Entry]
+    Name=blxshell
+    Comment=The Runix desktop: blxshell on zwwm
+    Exec=${sessionScript}
+    Type=Application
+    DesktopNames=zwwm
+    EOF
+    sed -i 's/^    //' $out/share/wayland-sessions/blxshell.desktop
+  '';
   cursorType = types.submodule {
     options = {
       package = mkOption {
@@ -187,8 +220,9 @@ in
       default = { package = pkgs.bibata-cursors; name = "Bibata-Modern-Ice"; size = 24; };
       defaultText = lib.literalExpression ''{ package = pkgs.bibata-cursors; name = "Bibata-Modern-Ice"; size = 24; }'';
       description = ''
-        The pointer: installed, named in the seeded zwwm and Hyprland configs,
-        and the login screen's too unless greeter.cursor says otherwise.
+        The pointer: installed, worn in the blxshell session and the seeded
+        Hyprland config, and on the login screen unless greeter.cursor says
+        otherwise.
       '';
     };
 
@@ -196,10 +230,11 @@ in
       type = types.bool;
       default = true;
       description = ''
-        Give every user without a zwwm or Hyprland configuration one set up
-        for blxshell: it starts the shell and binds its launcher, lock screen,
+        Give every user without a Hyprland configuration one set up for
+        blxshell: it starts the shell and binds its launcher, lock screen,
         power menu, wallpapers and settings. It is copied once, at
         installation or the next boot, and never overwritten after that.
+        zwwm needs none: the blxshell session brings its own.
       '';
     };
 
@@ -264,6 +299,12 @@ in
       # matugen builds the Material colour scheme from the wallpaper.
       runix.packages = [ cfg.package pkgs.matugen cfg.cursor.package ];
       fonts.packages = cfg.fonts;
+    })
+
+    (mkIf (cfg.enable && config.programs.zwwm.enable) {
+      # SDDM lists sessionPackages; the greeter reads the system profile.
+      runix.wayland.sessionPackages = [ sessionPackage ];
+      runix.packages = [ sessionPackage ];
     })
 
     (mkIf (cfg.enable && cfg.seedConfigs) {

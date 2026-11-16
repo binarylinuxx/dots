@@ -1,9 +1,9 @@
--- zwwm, set up for blxshell.
+-- zwwm for the blxshell session.
 --
--- Runix copies this to ~/.config/zwwm/config.zw once, for users who have no
--- zwwm configuration yet. It is yours from then on: edit it freely, and it is
--- never overwritten. The full reference is /etc/xdg/zwwm/config.zw from the
--- zwwm package, and `blxshell help` lists the shell's commands.
+-- Runix runs the "blxshell" session from a copy of this in the Nix store
+-- (ZWWM_CONFIG), with the shaders beside it, so it follows every rebuild.
+-- It never reads or writes ~/.config/zwwm: the plain "zwwm" session is yours
+-- to set up as you like. `blxshell help` lists the shell's commands.
 
 TERMINAL = "ghostty"
 MOD = "Mod4"
@@ -64,8 +64,30 @@ layer-rule = {
    set = { blur = true blur-radius = 4 ignore-alpha = 50 }
 }
 
--- Rounded borders and soft shadows, from shaders/ beside this file.
+-- Rounded windows and borders, and soft shadows, from shaders/ beside this file.
 shaders = {
+  glass = {
+    role = "window"
+    source = "shaders/glass.frag"
+    values = {
+      radius = $RADIUS
+      rounding_power = $ROUNDING_POWER
+      blur_radius = 0
+      blur_passes = 0
+      blur_brightness = 100
+      blur_contrast = 100
+      blur_saturation = 100
+      blur_noise = 0
+      glass_width = 0
+      glass_height = 0
+      glass_radius = $RADIUS
+      distortion_depth_per_mille = 250
+      distortion_strength_per_mille = 150
+      chromatic_shift = 5
+      glass_tint_per_mille = 1000
+      client_opacity = 100
+    }
+  }
   border = {
     role = "border"
     source = "shaders/border.frag"

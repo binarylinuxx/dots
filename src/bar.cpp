@@ -339,10 +339,12 @@ void draw_bar(vw::Ui& ui, const Screen& screen) {
       if (Module module = module_for(ui, screen, id); module.draw) result.push_back(std::move(module));
     return result;
   };
-  float left = 10;
+  // The left side sits close to the edge, workspaces right beside the icon.
+  constexpr float left_gap = 4;
+  float left = 4;
   for (const Module& module : modules(settings.bar_left)) {
     module.draw(left);
-    left += module.width + gap;
+    left += module.width + left_gap;
   }
   float right = screen.width - 8;
   const auto end = modules(settings.bar_right);

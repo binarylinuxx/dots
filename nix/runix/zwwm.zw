@@ -7,6 +7,8 @@
 
 TERMINAL = "ghostty"
 MOD = "Mod4"
+RADIUS = "20"
+ROUNDING_POWER = "2"
 
 -- The shell: bar, launcher, notifications, wallpaper and lock screen.
 exec-sh-on-startup = ["blxshell"]
@@ -60,4 +62,65 @@ bind = "Mod4+Shift", "9", movetotag, "9"
 layer-rule = {
    match = { namespace = "blxshell" }
    set = { blur = true blur-radius = 4 ignore-alpha = 50 }
+}
+
+-- Rounded borders and soft shadows, from shaders/ beside this file.
+shaders = {
+  border = {
+    role = "border"
+    source = "shaders/border.frag"
+    values = {
+      width = 2
+      radius = $RADIUS
+      rounding_power = $ROUNDING_POWER
+      gradient_colors = ["#0e0e0d"]
+      focused_gradient_colors = ["#9dd1c5"]
+    }
+  }
+  shadow = {
+    role = "shadow"
+    source = "shaders/shadow.frag"
+    values = {
+      strength = 200
+      size = 20
+      offset_x = 5
+      offset_y = 5
+      rounding_power = $ROUNDING_POWER
+      color = "#0000005a"
+      focused_color = "#0000008c"
+    }
+  }
+}
+
+animations = {
+  enabled = true
+  duration-ms = 320
+  open-duration-ms = 50
+  close-duration-ms = 180
+  move-duration-ms = 280
+  fade-duration-ms = 160
+  tag-duration-ms = 260
+  cubic-bezier = { x1 = 220 y1 = 0 x2 = 300 y2 = 1000 }
+  open-window = true
+  resize = true
+  close = true
+  open-scale-per-mille = 900
+  close-scale-per-mille = 800
+  open-offset-px = 0
+  close-offset-px = 0
+  tag-scale-per-mille = 1000
+  tag-parallax-per-mille = 1000
+  tag-fade-per-mille = 0
+}
+
+layout = {
+  outer-gap = 10
+  inner-gap = 10
+}
+
+environment = {
+  XCURSOR_PATH = "/run/current-system/sw/share/icons"
+  XCURSOR_THEME = "@cursorName@"
+  XCURSOR_SIZE = "@cursorSize@"
+  TERMINAL = $TERMINAL
 }

@@ -48,9 +48,40 @@ let
   people = lib.filterAttrs (
     _: user: user.uid >= 1000 && user.uid < 30000 && user.home != "/var/empty"
   ) config.runix.users;
+  # The seeded configs name the session cursor.
+  withCursor = name: file: pkgs.replaceVars file {
+    cursorName = cfg.cursor.name;
+    cursorSize = toString cfg.cursor.size;
+  };
   seeds =
-    optional config.programs.zwwm.enable { file = ./runix/zwwm.zw; target = "zwwm/config.zw"; }
-    ++ optional config.programs.hyprland.enable { file = ./runix/hyprland.conf; target = "hypr/hyprland.conf"; };
+    lib.optionals config.programs.zwwm.enable (
+      [ { file = withCursor "zwwm.zw" ./runix/zwwm.zw; target = "zwwm/config.zw"; } ]
+      ++ map (shader: { file = ./runix/zwwm-shaders + "/${shader}"; target = "zwwm/shaders/${shader}"; }) [
+        "border.frag"
+        "shadow.frag"
+        "zwwm.glsl"
+      ]
+    )
+    ++ optional config.programs.hyprland.enable { file = withCursor "hyprland.conf" ./runix/hyprland.conf; target = "hypr/hyprland.conf"; };
+  cursorType = types.submodule {
+    options = {
+      package = mkOption {
+        type = types.package;
+        example = lib.literalExpression "pkgs.bibata-cursors";
+        description = "Package providing the cursor theme in share/icons.";
+      };
+      name = mkOption {
+        type = types.str;
+        example = "Bibata-Modern-Classic";
+        description = "The cursor theme's name.";
+      };
+      size = mkOption {
+        type = types.int;
+        default = 24;
+        description = "Cursor size.";
+      };
+    };
+  };
   # Copies a config only where the user has none, so their own is never touched.
   seedScript = lib.concatStrings (
     lib.mapAttrsToList (
@@ -151,6 +182,16 @@ in
       description = "The blxshell package.";
     };
 
+    cursor = mkOption {
+      type = cursorType;
+      default = { package = pkgs.bibata-cursors; name = "Bibata-Modern-Ice"; size = 24; };
+      defaultText = lib.literalExpression ''{ package = pkgs.bibata-cursors; name = "Bibata-Modern-Ice"; size = 24; }'';
+      description = ''
+        The pointer: installed, named in the seeded zwwm and Hyprland configs,
+        and the login screen's too unless greeter.cursor says otherwise.
+      '';
+    };
+
     seedConfigs = mkOption {
       type = types.bool;
       default = true;
@@ -191,28 +232,10 @@ in
       };
 
       cursor = mkOption {
-        type = types.nullOr (types.submodule {
-          options = {
-            package = mkOption {
-              type = types.package;
-              example = lib.literalExpression "pkgs.bibata-cursors";
-              description = "Package providing the cursor theme in share/icons.";
-            };
-            name = mkOption {
-              type = types.str;
-              example = "Bibata-Modern-Classic";
-              description = "The cursor theme's name.";
-            };
-            size = mkOption {
-              type = types.int;
-              default = 24;
-              description = "Cursor size.";
-            };
-          };
-        });
+        type = types.nullOr cursorType;
         # Without a theme zwwm has no cursor to draw.
-        default = { package = pkgs.adwaita-icon-theme; name = "Adwaita"; size = 24; };
-        defaultText = lib.literalExpression ''{ package = pkgs.adwaita-icon-theme; name = "Adwaita"; size = 24; }'';
+        default = cfg.cursor;
+        defaultText = lib.literalExpression "config.programs.blxshell.cursor";
         description = "The pointer on the login screen, like home-manager's home.pointerCursor.";
       };
 
@@ -239,7 +262,7 @@ in
   config = mkMerge [
     (mkIf cfg.enable {
       # matugen builds the Material colour scheme from the wallpaper.
-      runix.packages = [ cfg.package pkgs.matugen ];
+      runix.packages = [ cfg.package pkgs.matugen cfg.cursor.package ];
       fonts.packages = cfg.fonts;
     })
 

@@ -1,6 +1,7 @@
 #include "draw.hpp"
 
 #include "config.hpp"
+#include "i18n.hpp"
 
 #include <vw/text.hpp>
 
@@ -8,13 +9,16 @@
 
 namespace blx::draw {
 
+// Words are translated where they are drawn and measured; icon names (drawn
+// as Material Symbols ligatures) never are.
 float measure(std::string_view value, float size, int weight, const char* family) {
   if (value.empty()) return 0;
-  return vw::caret_stops(value, family, size * props::font_scale, weight).back().x;
+  const std::string& shown = family == font::icon ? std::string(value) : i18n::tr(std::string(value));
+  return vw::caret_stops(shown, family, size * props::font_scale, weight).back().x;
 }
 
 vw::Widget text(vw::Ui& ui, const std::string& value, float x, float y, const TextStyle& style) {
-  return ui.text({.text = value, .font = style.family, .size = style.size * (style.scaled ? props::font_scale : 1), .weight = style.weight,
+  return ui.text({.text = style.family == font::icon ? value : i18n::tr(value), .font = style.family, .size = style.size * (style.scaled ? props::font_scale : 1), .weight = style.weight,
                   .color = style.color, .max_width = style.max_width,
                   .max_lines = style.max_lines, .align = style.align,
                   .place = {.x = x, .y = y}});

@@ -175,6 +175,8 @@ struct Config {
   // (surfaces, text, outlines), "amoled" (those, with black or white
   // surfaces) or "mono" (everything but error).
   std::string colour_preset = "generated";
+  // The shell's language: "auto" follows LANG; "en", "ru"... pick one.
+  std::string language = "auto";
   std::string font_display = "Rubik";
   std::string font_utility = "Google Sans Flex";
   // Theme tint on icons (where enabled), and on album art.

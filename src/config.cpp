@@ -198,6 +198,7 @@ void apply(Config& c, const json& root) {
   read(appearance, "islandRadius", c.island_radius);
   read(appearance, "launcherRadius", c.launcher_radius);
   read(appearance, "animationSpeed", c.animation_speed);
+  read(appearance, "language", c.language);
   read(appearance, "fontDisplay", c.font_display);
   read(appearance, "fontUtility", c.font_utility);
   read(appearance, "iconTint", c.icon_tint);
@@ -297,6 +298,7 @@ json serialize(const Config& c) {
         {"islandRadius", c.island_radius},
         {"launcherRadius", c.launcher_radius},
         {"animationSpeed", c.animation_speed},
+        {"language", c.language},
         {"fontDisplay", c.font_display},
         {"fontUtility", c.font_utility},
         {"iconTint", c.icon_tint},

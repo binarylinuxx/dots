@@ -205,6 +205,7 @@ const std::vector<Page>& pages() {
     }});
     result.push_back({"text_fields", "Type & motion", "Fonts, text size, animation", 0, 2, {
         header("Fonts"),
+        text("Language", "auto follows LANG; or en, ru", &Config::language),
         text("Display font", "Titles, the clock and the bar", &Config::font_display),
         text("Interface font", "Controls and small text", &Config::font_utility),
         slider("Text size", &Config::font_scale, 0.75F, 1.5F, 0.05F, "%"),

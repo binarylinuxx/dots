@@ -55,6 +55,11 @@ let
     cursorName = cfg.cursor.name;
     cursorSize = toString cfg.cursor.size;
     terminal = lib.getExe cfg.terminal;
+    wpctl = "${pkgs.wireplumber}/bin/wpctl";
+    brightnessctl = lib.getExe pkgs.brightnessctl;
+    # wpctl's own names, not placeholders: kept as they are.
+    DEFAULT_AUDIO_SINK = null;
+    DEFAULT_AUDIO_SOURCE = null;
   };
   # zwwm gets no seed: the blxshell session below brings its own setup, and
   # the plain zwwm session is left to the user's ~/.config/zwwm.

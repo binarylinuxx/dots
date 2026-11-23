@@ -3,6 +3,8 @@
 #include <vw/ui.hpp>
 #include <vw/zwwm.hpp>
 
+#include <array>
+#include <cstdint>
 #include <vector>
 
 #include "blob.hpp"
@@ -30,6 +32,10 @@ inline float middle(const Screen& screen) { return (props::frame_thickness + scr
 // Bottom bar: OS icon and workspaces on the left, the active window centred,
 // tray, clock, status pill and power button on the right.
 void draw_bar(vw::Ui& ui, const Screen& screen);
+
+// Plugins' desktop items on the wallpaper surface, and their popups; adds
+// their input regions.
+void draw_desktop(vw::Ui& ui, const Screen& screen, std::vector<std::array<std::int32_t, 4>>& input);
 
 Panel launcher_panel(const Screen& screen);
 void draw_launcher(vw::Ui& ui, const Panel& panel);

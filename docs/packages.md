@@ -269,6 +269,7 @@ shell's log.
 | `restart` | `"on-failure"` (default), `"always"` or `"never"`. More than 5 restarts in a minute and it stays stopped until `blxshell plugin restart <id>`. |
 | `permissions` | below |
 | `barModules` | modules it fills; users place them in the bar as `"<plugin id>:<module id>"` |
+| `desktop` | desktop areas it fills with icons on the wallpaper: `[{ "id", "name", "description" }]` |
 | `commands` | names `blxshell plugin call <id> <name> [args]` accepts |
 | `settings` | `key`, `type` (`bool`, `number`, `string`, `choice`), `label`, `description`, `default`, `choices` |
 
@@ -282,6 +283,14 @@ values for settings go in `plugins.settings.<id>` in config.json:
   "settings": { "io.github.you.cpu": { "interval": 5 } }
 }
 ```
+
+### Desktop items
+
+The shell lays a plugin's desktop items out on the wallpaper in a grid from
+the top left. A click opens a popup with the item's actions; a double-click
+runs its first. Users can drag items to another cell (dropping on an item
+swaps them); the cells are remembered in `~/.local/state/blxshell/desktop.json`,
+keyed by area and item id, so keep ids stable (a file name, not an index).
 
 ### Permissions
 
@@ -311,6 +320,7 @@ ignored, so later versions can add to either side.
 | `settings` | `settings` | the user changed them |
 | `colours` | `colours` | the scheme changed |
 | `event` | `module`, `event`: `"click"` with `button` (`left`, `right`, `middle`), or `"scroll"` with `delta` | pointer on one of its bar modules |
+| `event` | `desktop` (area id), `item`, `event`: `"action"`, `action` | the user picked an action on one of its desktop items (a double-click picks the first) |
 | `command` | `name`, `args` (strings) | `blxshell plugin call <id> <name> [args…]` |
 
 When its stdin closes, the plugin should exit. On disable or shutdown the
@@ -321,6 +331,7 @@ shell closes it and sends SIGTERM to the plugin's process group.
 | `type` | Fields | |
 |---|---|---|
 | `module` | `id`, and any of `text`, `icon` (a Material Symbols name), `tone` (a colour role, `""` for the default), `progress` (0–1 draws a ring around the icon; `null` removes it), `visible` | updates a bar module. Fields left out keep their last value. `id` must be in `barModules`. |
+| `desktop` | `id`, `items`: `[{ "id", "label", "icon", "image", "glyph", "actions": [{ "id", "label", "glyph", "danger" }] }]` | replaces a desktop area's items (up to 500). `icon` is a theme icon name or a list tried in order; `image` an absolute path shown as a thumbnail; `glyph` the Material Symbols fallback; `danger` draws an action in the error colour. `id` must be in `desktop`. |
 | `shell` | `command`: `["launcher", "toggle"]` or `"launcher toggle"` | runs a `blxshell` command (see `blxshell help`). Needs `shell`. `plugin …` commands are refused. |
 | `notify` | `summary`, `body` | desktop notification. Needs `notifications`. |
 | `log` | `message` | a line in the shell's log |

@@ -325,10 +325,36 @@
               }
             }
           }
+        },
+        "desktop": {
+          "type": "array",
+          "description": "Areas of desktop items (icons on the wallpaper) the plugin fills with \"desktop\" messages.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
         }
       },
       "dependentRequired": {
         "barModules": [
+          "exec"
+        ],
+        "desktop": [
           "exec"
         ]
       }

@@ -80,6 +80,8 @@ struct Manifest {
   std::string restart = "on-failure";  // "never", "on-failure", "always"
   std::vector<std::string> permissions;
   std::vector<BarModule> bar_modules;
+  // Areas of desktop items it fills (icons on the wallpaper), same fields.
+  std::vector<BarModule> desktop_areas;
   std::vector<std::string> commands;
   std::vector<Setting> settings;
 

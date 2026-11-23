@@ -23,6 +23,30 @@ struct Module {
   bool visible = true;
 };
 
+// An action in a desktop item's popup menu.
+struct DesktopAction {
+  std::string id;
+  std::string label;
+  std::string glyph;    // a Material Symbols name
+  bool danger = false;  // shown in the error colour (delete, trash, ...)
+};
+
+// One icon on the desktop, as last sent by the plugin.
+struct DesktopItem {
+  std::string id;
+  std::string label;
+  std::vector<std::string> icons;  // theme icon names or files, the first that loads wins
+  std::string image;               // an image file shown as the icon (a thumbnail)
+  std::string glyph;               // Material Symbols fallback
+  std::vector<DesktopAction> actions;
+};
+
+// A plugin's desktop area: "<plugin id>:<area id>" and its items.
+struct Desktop {
+  std::string source;
+  std::vector<DesktopItem> items;
+};
+
 // One epoll fd covering every plugin's socket; pass to vw::App::on_event.
 int event_fd();
 // Reads what plugins sent; true when anything shown changed.
@@ -43,6 +67,11 @@ bool is_plugin_module(const std::string& bar_id);
 // "middle") or "scroll" (delta).
 void click(const std::string& bar_id, const std::string& button);
 void scroll(const std::string& bar_id, double delta);
+
+// Every running plugin's desktop items, in plugin order.
+std::vector<Desktop> desktops();
+// The user picked `action` on `item` of a desktop area (source as above).
+void desktop_action(const std::string& source, const std::string& item, const std::string& action);
 
 // For IPC: `plugin call <id> <command> [args…]`, `plugin restart <id>`,
 // `plugin status`. Returns the reply text; ok is false on an error.

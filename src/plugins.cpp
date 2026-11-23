@@ -46,6 +46,7 @@ struct Process {
   std::string buffer;
   std::string settings;  // the settings JSON last sent
   std::map<std::string, Module> modules;
+  std::map<std::string, std::vector<DesktopItem>> desktop;  // area id -> items
   std::vector<Clock::time_point> starts;
   std::string state = "stopped";  // running, exited, crashed, gave up
   bool stopping = false;
@@ -207,6 +208,7 @@ void stop(Process& process) {
     process.pid = -1;
   }
   process.modules.clear();
+  process.desktop.clear();
   process.state = "stopped";
 }
 
@@ -225,6 +227,7 @@ void ended(Process& process) {
     process.pid = -1;
   }
   process.modules.clear();
+  process.desktop.clear();
   if (process.stopping) return;
   const std::string& policy = process.manifest.restart;
   if (policy == "never" || (policy == "on-failure" && !failed)) {
@@ -270,6 +273,47 @@ bool handle(Process& process, const std::string& line) {
     }
     return module.text != before.text || module.icon != before.icon || module.tone != before.tone ||
            module.visible != before.visible || module.progress != before.progress;
+  }
+  if (type == "desktop") {
+    // The whole area at once: items it leaves out are gone.
+    const std::string id = message.value("id", "");
+    const bool declared = std::ranges::any_of(process.manifest.desktop_areas, [&](const auto& area) { return area.id == id; });
+    if (!declared) {
+      log(process, std::format("sent desktop area \"{}\", which its manifest doesn't declare", id));
+      return false;
+    }
+    if (!message.contains("items") || !message["items"].is_array()) {
+      log(process, "sent a desktop message without an items array");
+      return false;
+    }
+    const auto string = [](const json& object, const char* key, std::size_t limit) {
+      return object.contains(key) && object[key].is_string() ? object[key].get<std::string>().substr(0, limit) : std::string();
+    };
+    std::vector<DesktopItem> items;
+    for (const json& entry : message["items"]) {
+      if (items.size() >= 500) break;
+      if (!entry.is_object() || !entry.contains("id") || !entry["id"].is_string()) continue;
+      DesktopItem item{.id = string(entry, "id", 512), .label = string(entry, "label", 256), .image = string(entry, "image", 4096),
+                       .glyph = string(entry, "glyph", 64)};
+      if (entry.contains("icon")) {
+        if (entry["icon"].is_string()) item.icons.push_back(entry["icon"].get<std::string>().substr(0, 4096));
+        else if (entry["icon"].is_array())
+          for (const json& name : entry["icon"])
+            if (name.is_string() && item.icons.size() < 8) item.icons.push_back(name.get<std::string>().substr(0, 4096));
+      }
+      // Images must be absolute paths: the shell loads them itself.
+      if (!item.image.empty() && !item.image.starts_with('/')) item.image.clear();
+      if (entry.contains("actions") && entry["actions"].is_array())
+        for (const json& action : entry["actions"]) {
+          if (item.actions.size() >= 16 || !action.is_object() || !action.contains("id") || !action["id"].is_string()) continue;
+          item.actions.push_back({.id = string(action, "id", 128), .label = string(action, "label", 128),
+                                  .glyph = string(action, "glyph", 64),
+                                  .danger = action.contains("danger") && action["danger"].is_boolean() && action["danger"].get<bool>()});
+        }
+      items.push_back(std::move(item));
+    }
+    process.desktop[id] = std::move(items);
+    return true;
   }
   if (type == "shell") {
     if (!process.manifest.has_permission("shell")) {
@@ -448,6 +492,20 @@ void scroll(const std::string& bar_id, double delta) {
   const auto [plugin, id] = split(bar_id);
   if (const auto it = running().find(plugin); it != running().end())
     send(*it->second, {{"type", "event"}, {"module", id}, {"event", "scroll"}, {"delta", delta}});
+}
+
+std::vector<Desktop> desktops() {
+  std::vector<Desktop> result;
+  for (const auto& [id, process] : running())
+    for (const auto& [area, items] : process->desktop)
+      if (!items.empty()) result.push_back({id + ":" + area, items});
+  return result;
+}
+
+void desktop_action(const std::string& source, const std::string& item, const std::string& action) {
+  const auto [plugin, area] = split(source);
+  if (const auto it = running().find(plugin); it != running().end())
+    send(*it->second, {{"type", "event"}, {"desktop", area}, {"item", item}, {"event", "action"}, {"action", action}});
 }
 
 std::string call(const std::string& id, const std::string& command, const std::vector<std::string>& args, bool& ok) {

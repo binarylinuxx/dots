@@ -600,6 +600,8 @@ void wallpaper_surface(vw::Ui& ui) {
                                     .family = font::display});
                       });
   }
+  // Plugins' desktop icons, over the wallpaper and under the widgets' veil.
+  draw_desktop(ui, screen, input);
   // Fade and rise come up out of the surface colour, widgets included (the
   // iris only clips the wallpaper).
   const float veil = transition == "iris" ? 0.0F : 1 - reveal;

@@ -37,6 +37,7 @@ add_library(blxshell-core STATIC
   src/blob.cpp
   src/config.cpp
   src/dashboard.cpp
+  src/desktop.cpp
   src/draw.cpp
   src/i18n.cpp
   src/halley.cpp

@@ -266,7 +266,7 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
     return;
   }
   Reader r{m, plugin, "plugin: "};
-  r.only({"api", "exec", "restart", "permissions", "barModules", "commands", "settings"});
+  r.only({"api", "exec", "restart", "permissions", "barModules", "desktop", "commands", "settings"});
   if (r.get("api", m.api, true) && (m.api < 1 || m.api > api_version))
     m.errors.push_back(std::format("plugin.api {} is not supported (this blxshell speaks {})", m.api, api_version));
   if (r.get("exec", m.exec)) {
@@ -298,7 +298,23 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
         m.bar_modules.push_back(std::move(module));
       }
   }
+  if (plugin.contains("desktop")) {
+    if (!plugin["desktop"].is_array()) m.errors.push_back("plugin.desktop must be an array");
+    else
+      for (const json& entry : plugin["desktop"]) {
+        BarModule area;
+        Reader ar{m, entry, "plugin.desktop[]: "};
+        ar.only({"id", "name", "description"});
+        ar.get("id", area.id, true);
+        ar.get("name", area.name);
+        ar.get("description", area.description);
+        if (!area.id.empty() && !std::ranges::all_of(area.id, [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_'; }))
+          m.errors.push_back(std::format("desktop area id \"{}\" may hold only letters, digits, - and _", area.id));
+        m.desktop_areas.push_back(std::move(area));
+      }
+  }
   if (!m.bar_modules.empty() && m.exec.empty()) m.errors.push_back("plugin.barModules needs plugin.exec to fill them");
+  if (!m.desktop_areas.empty() && m.exec.empty()) m.errors.push_back("plugin.desktop needs plugin.exec to fill it");
   if (plugin.contains("settings")) {
     if (!plugin["settings"].is_array()) m.errors.push_back("plugin.settings must be an array");
     else
@@ -1057,6 +1073,15 @@ const char* usage() {
 std::optional<int> command(int argc, char** argv) {
   std::vector<std::string> args(argv + 1, argv + argc);
   if (args.empty()) return std::nullopt;
+  // `plugin install x`, `theme update`, …: the same as without the noun.
+  if ((args[0] == "plugin" || args[0] == "plugins" || args[0] == "theme" || args[0] == "themes") && args.size() > 1) {
+    static constexpr std::string_view shared[] = {"install", "remove", "uninstall", "search", "update", "upgrade", "inspect"};
+    if (std::ranges::find(shared, args[1]) != std::end(shared)) {
+      std::vector<char*> rest{argv[0]};
+      for (int index = 2; index < argc; ++index) rest.push_back(argv[index]);
+      return command(static_cast<int>(rest.size()), rest.data());
+    }
+  }
   const std::string& verb = args[0];
   const auto need = [&](std::size_t count, const char* help) {
     if (args.size() >= count) return true;

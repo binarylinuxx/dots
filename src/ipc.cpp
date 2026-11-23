@@ -20,7 +20,9 @@
 #include <vector>
 
 #include "config.hpp"
+#include "packages.hpp"
 #include "parts.hpp"
+#include "plugins.hpp"
 #include "state.hpp"
 #include "style.hpp"
 
@@ -118,16 +120,63 @@ Reply run(std::vector<std::string> args) {
     else return error("media [play-pause|pause|next|previous]");
     return done ? Reply{"ok\n", false} : error("no player can do that");
   }
+  if (command == "popout") {
+    // The bar's status popouts, which otherwise open on hover.
+    static constexpr std::string_view kinds[] = {"wifi", "bluetooth", "audio", "battery"};
+    const std::string_view how = args.size() > 2 ? std::string_view(args[2]) : "toggle";
+    if (std::ranges::find(kinds, arg) == std::end(kinds) || (how != "toggle" && how != "open" && how != "close"))
+      return error("popout wifi|bluetooth|audio|battery [toggle|open|close]");
+    HoverPopout& status = shell.status;
+    const bool open = how == "open" || (how == "toggle" && status.pinned != arg);
+    if (open) {
+      const auto anchor = shell.status_anchors.find(std::string(arg));
+      if (anchor != shell.status_anchors.end()) status.anchor = anchor->second;
+      status.pinned = std::string(arg);
+    } else if (status.pinned == arg) {
+      status.pinned.clear();
+    }
+    return ok();
+  }
+  if (command == "dashboard") {
+    if (!apply(shell.dashboard_hovered, arg.empty() ? "toggle" : arg)) return error("dashboard [toggle|open|close]");
+    return ok();
+  }
+  if (command == "osd") {
+    // As if tugged out of the edge: shown for the hold time, setting or not.
+    shell.audio_tug_until = Clock::now() + std::chrono::milliseconds(config().osd_hold_ms);
+    return ok();
+  }
+  if (command == "plugin" || command == "plugins") {
+    const std::string sub = arg.empty() ? "status" : std::string(arg);
+    bool done = false;
+    if (sub == "status" || sub == "list") return {plugins::status(), false};
+    if (sub == "call" && args.size() >= 4) {
+      const std::string reply = plugins::call(args[2], args[3], {args.begin() + 4, args.end()}, done);
+      return done ? Reply{"ok\n", false} : error(reply);
+    }
+    if (sub == "restart" && args.size() >= 3) {
+      const std::string reply = plugins::restart(args[2], done);
+      return done ? ok() : error(reply);
+    }
+    return error("plugin status | call <id> <command> [args] | restart <id>");
+  }
   return error("unknown command `" + command + "`; try `blxshell help`");
 }
 
 }  // namespace
 
+std::string execute(const std::vector<std::string>& args, bool& succeeded, bool& changed) {
+  Reply reply = run(args);
+  succeeded = !reply.text.starts_with("error:");
+  changed = reply.changed;
+  return reply.text;
+}
+
 const char* usage() {
   return "usage: blxshell [command]\n"
          "\n"
          "  (none)                            run the shell\n"
-         "  settings                          open the settings app\n"
+         "  settings [page]                   open the settings app (e.g. settings plugins)\n"
          "\n"
          "Sent to the running shell:\n"
          "  launcher [toggle|open|close]\n"
@@ -138,6 +187,10 @@ const char* usage() {
          "  reload                            re-read config and colours\n"
          "  media play-pause|pause|next|previous\n"
          "  ping                              ok when a shell is running\n"
+         "  popout wifi|bluetooth|audio|battery [toggle|open|close]\n"
+         "  dashboard [toggle|open|close]\n"
+         "  osd                               show the volume slider\n"
+         "  plugin status                     running plugins\n"
          "\n"
          "Quickshell's `ipc call <target> <function>` form is accepted too\n"
          "(lockscreen lock, powermenu toggle, shell reload, mpris pauseAll).\n";

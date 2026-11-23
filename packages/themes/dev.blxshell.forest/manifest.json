@@ -1,0 +1,47 @@
+{
+  "$schema": "../../../schemas/manifest.schema.json",
+  "schema": 1,
+  "type": "theme",
+  "id": "dev.blxshell.forest",
+  "name": "Forest",
+  "version": "1.0.0",
+  "description": "Deep greens on near-black.",
+  "authors": [
+    "blxshell"
+  ],
+  "license": "MIT",
+  "tags": [
+    "dark",
+    "green"
+  ],
+  "blxshell": ">=0.1.0",
+  "compositors": [
+    "any"
+  ],
+  "colours": {
+    "kind": "static",
+    "roles": {
+      "primary": "#a8d08d",
+      "primaryText": "#173807",
+      "primaryContainer": "#2d4f1d",
+      "secondary": "#bccbb0",
+      "secondaryContainer": "#3d4b35",
+      "tertiary": "#a0cfcf",
+      "tertiaryContainer": "#1f4e4e",
+      "error": "#ffb4ab",
+      "errorText": "#690005",
+      "errorContainer": "#93000a",
+      "errorContainerText": "#ffdad6",
+      "surface": "#11140f",
+      "surfaceContainer": "#1e201b",
+      "surfaceContainerLow": "#1a1c17",
+      "surfaceContainerHigh": "#282b25",
+      "surfaceContainerHighest": "#33362f",
+      "surfaceVariant": "#43483e",
+      "text": "#e2e3da",
+      "textMuted": "#c3c8bb",
+      "outline": "#8d9286",
+      "outlineVariant": "#43483e"
+    }
+  }
+}

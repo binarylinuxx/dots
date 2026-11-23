@@ -13,6 +13,7 @@
 #include "config.hpp"
 #include "draw.hpp"
 #include "parts.hpp"
+#include "plugins.hpp"
 #include "state.hpp"
 #include "system.hpp"
 
@@ -213,6 +214,7 @@ void status_pill(vw::Ui& ui, const Screen& screen, float left) {
   for (const auto& entry : entries) {
     if (!entry.shown) continue;
     const float centre_x = x + status_icon / 2;
+    shell().status_anchors[entry.kind] = centre_x;
     draw::glyph(ui, entry.glyph, centre_x, centre_y, 18, entry.tint);
     draw::state_layer(
         ui, x, centre_y - status_icon / 2, status_icon, status_icon, status_icon / 2, entry.tint,
@@ -294,10 +296,45 @@ struct Module {
   std::function<void(float x)> draw;
 };
 
+// A plugin's module ("<plugin id>:<module id>"): icon and text as the
+// plugin last sent them, its clicks and scrolls sent back.
+Module plugin_module(vw::Ui& ui, const Screen& screen, const std::string& id) {
+  const plugins::Module* module = plugins::module(id);
+  if (module == nullptr || !module->visible || (module->text.empty() && module->icon.empty())) return {};
+  const Colours& c = colours();
+  const float centre_y = bar_centre(screen);
+  constexpr float icon_size = 20;
+  constexpr float padding = 10;
+  constexpr float text_size = 13;
+  const bool icon = !module->icon.empty();
+  const bool label = !module->text.empty();
+  const float text_width = label ? draw::measure(module->text, text_size * props::font_scale, vw::weight::medium) : 0;
+  const float width = padding * 2 + (icon ? icon_size : 0) + (icon && label ? 6 : 0) + text_width;
+  const vw::Color accent = module->tone.empty() ? c.primary : role_colour(module->tone);
+  const vw::Color ink = module->tone.empty() ? c.text : accent;
+  return {width, [&ui, &c, id, width, centre_y, icon, label, accent, ink, module = *module](float x) {
+            if (config().bar_pills) draw::rect(ui, x, centre_y - pill_height / 2, width, pill_height, pill_height / 2, c.surface_container);
+            float cursor = x + padding;
+            if (icon) {
+              if (module.progress)
+                blob::ring(ui, {cursor - 3, centre_y - icon_size / 2 - 3, icon_size + 6, icon_size + 6}, 2, 0, *module.progress, accent);
+              draw::glyph(ui, module.icon, cursor + icon_size / 2, centre_y, module.progress ? icon_size - 6 : icon_size, accent);
+              cursor += icon_size + (label ? 6 : 0);
+            }
+            if (label) draw::text_middle(ui, module.text, cursor, centre_y, {.size = text_size, .color = ink, .weight = vw::weight::medium});
+            draw::state_layer(ui, x, centre_y - pill_height / 2, width, pill_height, pill_height / 2, accent,
+                              {.on_click = [id](const vw::ClickEvent& click) {
+                                 plugins::click(id, click.button == 273 ? "right" : click.button == 274 ? "middle" : "left");
+                               },
+                               .on_scroll = [id](const vw::ScrollEvent& event) { plugins::scroll(id, event.delta); }});
+          }};
+}
+
 Module module_for(vw::Ui& ui, const Screen& screen, const std::string& id) {
   const Colours& c = colours();
   const Config& settings = config();
   const float centre_y = bar_centre(screen);
+  if (plugins::is_plugin_module(id)) return plugin_module(ui, screen, id);
   if (id == "os")
     return {30, [&ui, &c, &settings, centre_y](float x) {
               const bool builtin = settings.bar_os_icon == "runix";

@@ -25,6 +25,8 @@
 #include "net.hpp"
 #include "config.hpp"
 #include "ipc.hpp"
+#include "packages.hpp"
+#include "plugins.hpp"
 #include "quickshare.hpp"
 #include "services.hpp"
 #include "parts.hpp"
@@ -128,11 +130,13 @@ std::function<bool()> counted(const char* name, std::function<bool()> drain) {
 int main(int argc, char** argv) {
   if (argc > 1) {
     const std::string_view command = argv[1];
-    if (command == "settings") return blx::run_settings();
+    if (command == "settings") return blx::run_settings(argc > 2 ? std::string_view(argv[2]) : std::string_view());
     if (command == "help" || command == "--help" || command == "-h") {
-      std::cout << blx::ipc::usage();
+      std::cout << blx::ipc::usage() << '\n' << blx::packages::usage();
       return EXIT_SUCCESS;
     }
+    // Package commands work on files; the rest go to the running shell.
+    if (const auto result = blx::packages::command(argc, argv)) return *result;
     return blx::ipc::send(argc, argv);
   }
 
@@ -152,12 +156,18 @@ int main(int argc, char** argv) {
       .surface(blx::reserve_right)
       .surface(blx::reserve_bottom)
       .surface(blx::lock_surface);
+  blx::plugins::sync();
+  app.on_event(blx::plugins::event_fd(), counted("plugins", blx::plugins::drain));
   if (ipc_fd >= 0) app.on_event(ipc_fd, counted("ipc", [ipc_fd] { return blx::ipc::drain(ipc_fd); }));
   if (const int switch_fd = watch_system_switch(); switch_fd >= 0) {
     app.on_event(switch_fd, [switch_fd] { return drain_system_switch(switch_fd); });
     if (switch_retry_fd >= 0) app.on_event(switch_retry_fd, [] { return drain_switch_retry(switch_retry_fd); });
   }
-  app.on_event(blx::colours_event_fd(), counted("colours", blx::reload_colours))
+  app.on_event(blx::colours_event_fd(), counted("colours", [] {
+        if (!blx::reload_colours()) return false;
+        blx::plugins::colours_changed();
+        return true;
+      }))
       .on_event(blx::config_event_fd(), counted("config", [] {
         const blx::Config before = blx::config();
         if (!blx::reload_config()) return false;
@@ -169,6 +179,7 @@ int main(int argc, char** argv) {
             now.matugen_contrast != before.matugen_contrast || now.matugen_prefer != before.matugen_prefer ||
             now.theme_source != before.theme_source || now.theme_seed != before.theme_seed)
           blx::regenerate_colours();
+        blx::plugins::sync();
         return true;
       }))
       .on_event(blx::services_event_fd(), counted("services", blx::drain_services))
@@ -219,6 +230,7 @@ int main(int argc, char** argv) {
   }
   const int result = app.run();
   blx::keep_awake::set(false);
+  blx::plugins::stop_all();
   blx::ipc::close(ipc_fd);
   return result;
 }

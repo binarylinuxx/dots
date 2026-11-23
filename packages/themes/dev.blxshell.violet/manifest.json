@@ -1,0 +1,47 @@
+{
+  "$schema": "../../../schemas/manifest.schema.json",
+  "schema": 1,
+  "type": "theme",
+  "id": "dev.blxshell.violet",
+  "name": "Violet",
+  "version": "1.0.0",
+  "description": "Soft lavender accents on dark grey.",
+  "authors": [
+    "blxshell"
+  ],
+  "license": "MIT",
+  "tags": [
+    "dark",
+    "purple"
+  ],
+  "blxshell": ">=0.1.0",
+  "compositors": [
+    "any"
+  ],
+  "colours": {
+    "kind": "static",
+    "roles": {
+      "primary": "#cfbcff",
+      "primaryText": "#381e72",
+      "primaryContainer": "#4f378a",
+      "secondary": "#cbc2db",
+      "secondaryContainer": "#4a4458",
+      "tertiary": "#efb8c8",
+      "tertiaryContainer": "#633b48",
+      "error": "#ffb4ab",
+      "errorText": "#690005",
+      "errorContainer": "#93000a",
+      "errorContainerText": "#ffdad6",
+      "surface": "#141218",
+      "surfaceContainer": "#211f26",
+      "surfaceContainerLow": "#1d1b20",
+      "surfaceContainerHigh": "#2b2930",
+      "surfaceContainerHighest": "#36343b",
+      "surfaceVariant": "#49454f",
+      "text": "#e6e0e9",
+      "textMuted": "#cac4d0",
+      "outline": "#948f99",
+      "outlineVariant": "#49454f"
+    }
+  }
+}

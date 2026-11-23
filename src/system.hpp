@@ -24,6 +24,10 @@ std::string avatar();
 std::vector<double> cpu_history();
 std::vector<double> memory_history();
 std::string kernel();
+// This program's path, for running it again (`blxshell settings`, ...).
+// After a rebuild or update replaced the file, /proc/self/exe reads
+// "<path> (deleted)": the path then names the new build, which is wanted.
+std::string self_path();
 
 struct Workspace {
   std::string name;

@@ -19,6 +19,7 @@
 #include "parts.hpp"
 #include "services.hpp"
 #include "state.hpp"
+#include "system.hpp"
 #include "widgets.hpp"
 
 namespace blx {
@@ -605,7 +606,7 @@ void draw_toggles(vw::Ui& ui, float x, float y, float w) {
     tiles.push_back({"settings", "settings", false, [] {
                        shell().sidebar_reveal = 0;
                        shell().stack_reveal = 0;
-                       vw::spawn({std::filesystem::read_symlink("/proc/self/exe").string(), "settings"});
+                       vw::spawn({system::self_path(), "settings"});
                      }});
   if (settings.sidebar_tile_lock) tiles.push_back({"lock", "lock", false, [] { lock_session(); }});
   if (tiles.empty()) return;

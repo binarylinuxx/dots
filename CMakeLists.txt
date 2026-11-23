@@ -32,6 +32,7 @@ add_custom_target(blxshell-shaders ALL DEPENDS ${BLXSHELL_SHADERS})
 
 # Everything but the entry points, shared by the shell and the greeter.
 add_library(blxshell-core STATIC
+  src/archive.cpp
   src/bar.cpp
   src/blob.cpp
   src/config.cpp
@@ -46,6 +47,8 @@ add_library(blxshell-core STATIC
   src/net.cpp
   src/notifications.cpp
   src/notify.cpp
+  src/packages.cpp
+  src/plugins.cpp
   src/popouts.cpp
   src/quickshare.cpp
   src/services.cpp
@@ -57,12 +60,17 @@ add_library(blxshell-core STATIC
   src/surfaces.cpp
   src/system.cpp
   src/widgets.cpp)
-target_link_libraries(blxshell-core PUBLIC vw::vw)
+# .blx packages are zstd-compressed tar archives.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
+target_link_libraries(blxshell-core PUBLIC vw::vw PRIVATE PkgConfig::ZSTD)
 add_dependencies(blxshell-core blxshell-shaders)
 # Shaders are found in the build tree while developing, or in
 # <prefix>/share/blxshell when installed.
 target_compile_definitions(blxshell-core PRIVATE
   BLXSHELL_BUILD_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+  BLXSHELL_VERSION="${PROJECT_VERSION}"
+  BLXSHELL_SOURCE_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/packages"
   BLXSHELL_SOURCE_WALLPAPER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/wallpapers"
   BLXSHELL_SOURCE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/icons"
   BLXSHELL_SOURCE_TRANSLATION_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
@@ -86,3 +94,8 @@ install(FILES ${BLXSHELL_SHADERS} DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell
 install(FILES wallpapers/runix-m3.png DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/wallpapers")
 install(FILES icons/runix-logo.svg DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/icons")
 install(DIRECTORY translations/ DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/translations")
+
+# The built-in themes, found through $XDG_DATA_DIRS/blxshell/themes, and the
+# manifest schema for package authors.
+install(DIRECTORY packages/themes/ DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/themes")
+install(FILES schemas/manifest.schema.json DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/schemas")

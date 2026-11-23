@@ -122,6 +122,23 @@ Under a compositor with layer shell, `blxshell-greeter --layer` draws one login 
 
 To try it without logging out, greetd's `fakegreet` stands in for the daemon (user `user`, password `password`, then `9`): `fakegreet ./build/blxshell-greeter`. Run on its own, it shows the screen as a preview.
 
+## Themes and plugins
+
+Themes and plugins are `.blx` packages (zstd-compressed tar with a
+`manifest.json`), each flagged with the compositors it works under. A theme
+sets colours: a fixed palette, or a matugen generation preset.
+
+```sh
+blxshell install forest-1.0.0.blx
+blxshell theme apply io.github.you.forest
+blxshell theme reset                 # back to your own colours
+blxshell plugin enable io.github.you.cpu
+blxshell pack ./my-theme             # make a package
+```
+
+The format, the plugin protocol and the store rules are in
+[docs/packages.md](docs/packages.md). Examples are in `packages/`.
+
 ## Configuration
 
 | Variable | Default |
@@ -144,6 +161,11 @@ for tray and app icons.
 | `src/bar.*` | composes the modules into left / center / right segments |
 | `src/popups.*` | the popup surface: calendar, power menu, tray menus |
 | `src/state.hpp` | which popup is open and where |
+| `src/archive.*` | `.blx` packages: zstd and a strict tar reader / writer |
+| `src/packages.*` | manifests, compatibility checks, install, theme apply, the package CLI |
+| `src/plugins.*` | running plugins and their JSON-lines protocol |
+| `schemas/` | the manifest JSON Schema |
+| `packages/` | built-in themes and an example plugin |
 
 ## License
 

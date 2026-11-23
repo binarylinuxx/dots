@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cctype>
 #include <cmath>
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -22,9 +23,13 @@
 #include <sys/file.h>
 #include <unistd.h>
 
+#include <nlohmann/json.hpp>
+
 #include "config.hpp"
+#include "packages.hpp"
 #include "draw.hpp"
 #include "style.hpp"
+#include "system.hpp"
 
 namespace blx {
 namespace {
@@ -44,7 +49,7 @@ constexpr float group_gap = 14;
 constexpr float outer_radius = 24;
 constexpr float inner_radius = 5;
 
-enum class Kind { header, toggle, slider, choice, text, action, filter, app, module, colour };
+enum class Kind { header, toggle, slider, choice, text, action, filter, app, module, colour, plugin, plugin_setting };
 
 struct Option {
   std::string value;
@@ -69,8 +74,16 @@ struct Row {
   // Actions.
   std::string glyph;
   std::function<void()> run;
-  // Apps: the desktop entry id; `glyph` is its icon file.
+  // Apps: the desktop entry id; `glyph` is its icon file. Plugins: the
+  // plugin's id.
   std::string id;
+  // Plugin settings: the key, its type ("bool", "number", "string",
+  // "choice") and its default as JSON text.
+  std::string key;
+  std::string type;
+  std::string fallback;
+  // Plugins: why it can't run here, if it can't.
+  std::string problem;
 };
 
 Row header(std::string label) { return {.kind = Kind::header, .label = std::move(label)}; }
@@ -96,7 +109,7 @@ Row action(std::string label, std::string detail, std::string glyph, std::functi
   return {.kind = Kind::action, .label = std::move(label), .detail = std::move(detail), .glyph = std::move(glyph), .run = std::move(run)};
 }
 
-std::string self_path() { return std::filesystem::read_symlink("/proc/self/exe").string(); }
+std::string self_path() { return system::self_path(); }
 
 struct Page {
   const char* glyph;
@@ -107,6 +120,7 @@ struct Page {
   std::vector<Row> rows;
   bool lists_apps = false;
   std::function<void()> on_reset = {};
+  bool lists_plugins = false;  // rows come from the installed plugins
 };
 
 struct Tone {
@@ -377,6 +391,7 @@ const std::vector<Page>& pages() {
         toggle("Use this location", "Otherwise it is found from your connection", &Config::prefer_weather_location_from_config),
         text("Location", "City name", &Config::weather_location),
     }});
+    result.push_back({"extension", "Plugins", "Installed plugins and their settings", 3, 0, {}, false, {}, true});
     result.push_back({"info", "About", "Config file", 3, 2, {
         header("Configuration"),
         action("Open config file", config_path(), "description", [] { vw::spawn({"xdg-open", config_path()}); }),
@@ -452,6 +467,11 @@ float height_of(const Row& row) {
     case Kind::module: return 72;
     case Kind::colour: return 68;
     case Kind::app: return row.id == expanded_app() ? 130 : 72;
+    case Kind::plugin: return 84;
+    case Kind::plugin_setting:
+      if (row.type == "bool") return row.detail.empty() ? 64 : 76;
+      if (row.type == "choice") return 52 + static_cast<float>(choice_lines(row)) * (chip_height + 3) + 13;
+      return 118;
   }
   return 60;
 }
@@ -475,14 +495,12 @@ void row_label(vw::Ui& ui, const Row& row, float width, float height) {
                     {.size = 12, .color = c.text_muted, .family = font::utility, .max_width = width});
 }
 
-void draw_toggle(vw::Ui& ui, const Row& row, float width, float height) {
+// An M3 switch at the right of a row; `id` keys its animation.
+void draw_switch(vw::Ui& ui, const std::string& id, bool on, float width, float height) {
   const Colours& c = colours();
-  const auto member = std::get<bool Config::*>(row.field);
-  const bool on = config().*member;
-  row_label(ui, row, width - 100, height);
   constexpr float track_width = 52;
   constexpr float track_height = 32;
-  const float amount = std::clamp(static_cast<float>(vw::animate("settings.switch." + row.label, on ? 1 : 0, motion::quick())), 0.0F, 1.0F);
+  const float amount = std::clamp(static_cast<float>(vw::animate("settings.switch." + id, on ? 1 : 0, motion::quick())), 0.0F, 1.0F);
   const float x = width - 20 - track_width;
   const float y = (height - track_height) / 2;
   // M3: outlined when off, filled when on, with a check in the larger thumb.
@@ -494,6 +512,13 @@ void draw_toggle(vw::Ui& ui, const Row& row, float width, float height) {
   draw::rect(ui, centre_x - thumb / 2, y + (track_height - thumb) / 2, thumb, thumb, thumb / 2,
              mix(c.outline, c.primary_text, amount));
   if (amount > 0.5F) draw::glyph(ui, "check", centre_x, y + track_height / 2, 16, c.primary);
+}
+
+void draw_toggle(vw::Ui& ui, const Row& row, float width, float height) {
+  const Colours& c = colours();
+  const auto member = std::get<bool Config::*>(row.field);
+  row_label(ui, row, width - 100, height);
+  draw_switch(ui, row.label, config().*member, width, height);
   draw::state_layer(ui, 0, 0, width, height, 6, c.text, {.on_click = [member](const vw::ClickEvent&) {
     config().*member = !(config().*member);
     commit(true);
@@ -555,16 +580,17 @@ void draw_slider(vw::Ui& ui, const Row& row, float width, float height, float li
 
 // M3 Expressive's connected button group: small inner corners, large outer
 // ones, and the selected button rounds off completely.
-void draw_choice(vw::Ui& ui, const Row& row, float width) {
+// Connected chips, one per option; `current` is the selected value.
+void draw_chips(vw::Ui& ui, const Row& row, float width, const std::string& current,
+                const std::function<void(const std::string&)>& pick) {
   const Colours& c = colours();
   draw::text_middle(ui, row.label, 20, 28, {.size = 15, .color = c.text, .family = font::utility});
-  const auto member = std::get<std::string Config::*>(row.field);
   constexpr float gap = 3;
   const float inner = width - 40;
   const std::size_t total = row.options.size();
   for (std::size_t index = 0; index < total; ++index) {
     const Option& option = row.options[index];
-    const bool selected = config().*member == option.value;
+    const bool selected = current == option.value;
     const std::size_t column = index % choices_per_line;
     const std::size_t line = index / choices_per_line;
     const std::size_t in_line = std::min<std::size_t>(choices_per_line, total - line * choices_per_line);
@@ -586,15 +612,20 @@ void draw_choice(vw::Ui& ui, const Row& row, float width) {
                   .corner_radii = {corner(first_line && first), corner(first_line && last),
                                    corner(last_line && last), corner(last_line && first)},
                   .place = {.x = x, .y = y},
-                  .input = {.on_click = [member, value = option.value](const vw::ClickEvent&) {
-                              config().*member = value;
-                              commit(true);
-                            },
+                  .input = {.on_click = [pick, value = option.value](const vw::ClickEvent&) { pick(value); },
                             .hover = vw::Hover{.color = mix(c.surface_container_highest, c.text, 0.12F), .duration = 0.12F}}});
     draw::text_centered(ui, option.label, x + cell / 2, y + chip_height / 2,
                         {.size = 13, .color = mix(c.text, c.primary_text, tint), .weight = vw::weight::medium,
                          .family = font::utility, .max_width = cell - 16});
   }
+}
+
+void draw_choice(vw::Ui& ui, const Row& row, float width) {
+  const auto member = std::get<std::string Config::*>(row.field);
+  draw_chips(ui, row, width, config().*member, [member](const std::string& value) {
+    config().*member = value;
+    commit(true);
+  });
 }
 
 void draw_text(vw::Ui& ui, const Row& row, float width) {
@@ -781,6 +812,139 @@ void draw_colour(vw::Ui& ui, const Row& row, float width, float height) {
                  .place = {.x = width - 20 - field, .y = (height - 40) / 2}});
 }
 
+// --- Plugins -------------------------------------------------------------------
+
+// A plugin's settings as saved: its object in config.json's plugins.settings.
+nlohmann::json plugin_values(const std::string& id) {
+  const auto& saved = config().plugin_settings;
+  const auto it = saved.find(id);
+  nlohmann::json values = it == saved.end() ? nlohmann::json::object() : nlohmann::json::parse(it->second, nullptr, false);
+  return values.is_object() ? values : nlohmann::json::object();
+}
+
+// The setting's value: the user's, else the manifest's default.
+nlohmann::json plugin_value(const Row& row) {
+  const nlohmann::json values = plugin_values(row.id);
+  if (values.contains(row.key)) return values[row.key];
+  return row.fallback.empty() ? nlohmann::json() : nlohmann::json::parse(row.fallback, nullptr, false);
+}
+
+// Saved to config.json; the shell sends it to the running plugin.
+void set_plugin_value(const std::string& id, const std::string& key, nlohmann::json value) {
+  nlohmann::json values = plugin_values(id);
+  values[key] = std::move(value);
+  config().plugin_settings[id] = values.dump();
+  commit(true);
+}
+
+// The plugin, its version and what it does, with a switch to run it.
+void draw_plugin(vw::Ui& ui, const Row& row, float width, float height) {
+  const Colours& c = colours();
+  const bool usable = row.problem.empty();
+  const bool on = listed(config().plugins_enabled, row.id);
+  const float text_width = width - (usable ? 110 : 40);
+  draw::text_middle(ui, row.label, 20, height / 2 - 20, {.size = 15, .color = c.text, .family = font::utility, .max_width = text_width});
+  draw::text_middle(ui, row.detail, 20, height / 2 + 1,
+                    {.size = 12, .color = c.text_muted, .family = font::utility, .max_width = text_width});
+  draw::text_middle(ui, usable ? row.glyph : row.problem, 20, height / 2 + 21,
+                    {.size = 12, .color = usable ? c.text_muted : c.error, .family = font::utility, .max_width = text_width});
+  if (!usable) return;
+  draw_switch(ui, "plugin." + row.id, on, width, height);
+  draw::state_layer(ui, 0, 0, width, height, 6, c.text, {.on_click = [id = row.id](const vw::ClickEvent&) {
+    toggle_listed(config().plugins_enabled, id);
+    commit(true);
+  }});
+}
+
+void draw_plugin_setting(vw::Ui& ui, const Row& row, float width, float height) {
+  const Colours& c = colours();
+  const nlohmann::json value = plugin_value(row);
+  if (row.type == "bool") {
+    row_label(ui, row, width - 100, height);
+    const bool on = value.is_boolean() && value.get<bool>();
+    draw_switch(ui, "plugin." + row.id + "." + row.key, on, width, height);
+    draw::state_layer(ui, 0, 0, width, height, 6, c.text, {.on_click = [id = row.id, key = row.key, on](const vw::ClickEvent&) {
+      set_plugin_value(id, key, !on);
+    }});
+    return;
+  }
+  if (row.type == "choice") {
+    draw_chips(ui, row, width, value.is_string() ? value.get<std::string>() : "",
+               [id = row.id, key = row.key](const std::string& picked) { set_plugin_value(id, key, picked); });
+    return;
+  }
+  // Number or text: a field. A number that doesn't parse isn't saved.
+  draw::text_middle(ui, row.label, 20, 24, {.size = 15, .color = c.text, .family = font::utility});
+  draw::text_middle(ui, row.detail, 20, 44, {.size = 12, .color = c.text_muted, .family = font::utility});
+  const std::string shown = value.is_string() ? value.get<std::string>() : value.is_null() ? "" : value.dump();
+  ui.text_field({.id = "plugin." + row.id + "." + row.key, .value = shown, .width = width - 40, .height = 44, .radius = 16,
+                 .border_width = 1, .color = c.surface_container_highest, .border_color = c.surface_container_highest,
+                 .focus_color = c.primary, .text_color = c.text, .placeholder_color = c.text_muted,
+                 .caret_color = c.primary, .font = font::utility, .size = 14,
+                 .on_change = [id = row.id, key = row.key, number = row.type == "number"](const std::string& text) {
+                   if (!number) {
+                     set_plugin_value(id, key, text);
+                     return;
+                   }
+                   try {
+                     std::size_t used = 0;
+                     const double parsed = std::stod(text, &used);
+                     if (used == text.size()) set_plugin_value(id, key, parsed);
+                   } catch (const std::exception&) {
+                   }
+                 },
+                 .place = {.x = 20, .y = 60}});
+}
+
+// One group per installed plugin: the plugin, then (while it's on) its bar
+// modules and settings. Rescanned when the config changes and every few
+// seconds, so installs and removals show up.
+const std::vector<Row>& plugin_rows(const Page& page) {
+  static std::vector<Row> rows;
+  static std::uint64_t generation = ~0ULL;
+  static Clock::time_point scanned{};
+  if (generation == config_generation() && Clock::now() - scanned < std::chrono::seconds(3)) return rows;
+  generation = config_generation();
+  scanned = Clock::now();
+  rows = page.rows;
+  const auto installed = packages::installed(packages::Kind::plugin);
+  for (const packages::Manifest& m : installed) {
+    std::string problem;
+    if (!m.valid()) problem = "Broken: " + (m.errors.empty() ? std::string("unreadable") : m.errors.front());
+    else if (const auto why = packages::incompatibility(m)) problem = "Won't run here: " + *why;
+    std::string permissions;
+    for (const std::string& permission : m.permissions) permissions += (permissions.empty() ? "" : ", ") + permission;
+    rows.push_back(header(m.name.empty() ? m.id : m.name));
+    rows.push_back({.kind = Kind::plugin,
+                    .label = m.description.empty() ? m.id : m.description,
+                    .detail = std::format("Version {} · {}", m.version, m.id),
+                    .glyph = permissions.empty() ? "No permissions" : "Permissions: " + permissions,
+                    .id = m.id,
+                    .problem = problem});
+    if (!problem.empty() || !listed(config().plugins_enabled, m.id)) continue;
+    for (const packages::BarModule& module : m.bar_modules)
+      rows.push_back({.kind = Kind::module, .label = (module.name.empty() ? module.id : module.name) + " in the bar",
+                      .id = m.id + ":" + module.id});
+    for (const packages::Setting& setting : m.settings) {
+      Row row{.kind = Kind::plugin_setting, .label = setting.label.empty() ? setting.key : setting.label,
+              .detail = setting.description, .id = m.id, .key = setting.key, .type = setting.type,
+              .fallback = setting.default_json};
+      for (const std::string& option : setting.choices) row.options.push_back({option, option});
+      rows.push_back(std::move(row));
+    }
+  }
+  rows.push_back(header("More"));
+  rows.push_back(action("Open plugins folder",
+                        installed.empty() ? "None installed yet. Install with: blxshell install file.blx"
+                                          : "Install more with: blxshell install file.blx",
+                        "folder_open", [] {
+                          std::error_code error;
+                          std::filesystem::create_directories(packages::user_directory(packages::Kind::plugin), error);
+                          vw::spawn({"xdg-open", packages::user_directory(packages::Kind::plugin).string()});
+                        }));
+  return rows;
+}
+
 bool joins_above(const std::vector<Row>& rows, std::size_t index) {
   return index > 0 && rows[index - 1].kind != Kind::header;
 }
@@ -808,6 +972,8 @@ void draw_row(vw::Ui& ui, const std::vector<Row>& rows, std::size_t index, float
     case Kind::app: draw_app(ui, row, width); break;
     case Kind::module: draw_module(ui, row, width, height); break;
     case Kind::colour: draw_colour(ui, row, width, height); break;
+    case Kind::plugin: draw_plugin(ui, row, width, height); break;
+    case Kind::plugin_setting: draw_plugin_setting(ui, row, width, height); break;
     case Kind::header: break;
   }
 }
@@ -821,6 +987,7 @@ int& selected_page() {
 
 // The page's rows; the Apps page ends with one row per matching app.
 const std::vector<Row>& page_rows(const Page& page) {
+  if (page.lists_plugins) return plugin_rows(page);
   if (!page.lists_apps) return page.rows;
   static const std::vector<vw::applications::Application> apps = [] {
     auto list = vw::applications::search("", 0);
@@ -933,20 +1100,23 @@ void build(vw::Ui& ui) {
   const float list_x = pane_width + content_padding + (available - list_width) / 2;
   draw::text(ui, page.title, list_x + 8, 26, {.size = 30, .color = c.text, .weight = vw::weight::semibold, .family = font::display});
 
-  // Back to this page's defaults: a tonal button.
+  // Back to this page's defaults: a tonal button. The Plugins page has no
+  // defaults of its own, so none there.
   constexpr float reset_width = 104;
   constexpr float reset_height = 40;
   const float reset_x = list_x + list_width - reset_width;
-  ui.rectangle({.width = reset_width, .height = reset_height, .radius = reset_height / 2, .color = c.secondary_container,
-                .place = {.x = reset_x, .y = 26},
-                .input = {.on_click = [&page](const vw::ClickEvent&) {
-                            for (const Row& row : page.rows) reset(row);
-                            if (page.on_reset) page.on_reset();
-                            commit(true);
-                          },
-                          .hover = vw::Hover{.color = mix(c.secondary_container, c.text, 0.08F), .duration = 0.12F}}});
-  draw::glyph(ui, "restart_alt", reset_x + 24, 46, 18, c.text);
-  draw::text_middle(ui, "Reset", reset_x + 40, 46, {.size = 13, .color = c.text, .weight = vw::weight::medium, .family = font::utility});
+  if (!page.lists_plugins) {
+    ui.rectangle({.width = reset_width, .height = reset_height, .radius = reset_height / 2, .color = c.secondary_container,
+                  .place = {.x = reset_x, .y = 26},
+                  .input = {.on_click = [&page](const vw::ClickEvent&) {
+                              for (const Row& row : page.rows) reset(row);
+                              if (page.on_reset) page.on_reset();
+                              commit(true);
+                            },
+                            .hover = vw::Hover{.color = mix(c.secondary_container, c.text, 0.08F), .duration = 0.12F}}});
+    draw::glyph(ui, "restart_alt", reset_x + 24, 46, 18, c.text);
+    draw::text_middle(ui, "Reset", reset_x + 40, 46, {.size = 13, .color = c.text, .weight = vw::weight::medium, .family = font::utility});
+  }
 
   constexpr float list_y = 80;
   const std::vector<Row>& rows = page_rows(page);
@@ -962,12 +1132,38 @@ void build(vw::Ui& ui) {
 
 }  // namespace
 
-int run_settings() {
-  // One window: a second run leaves the open one alone.
+int run_settings(std::string_view page) {
+  if (!page.empty()) {
+    const auto& list = pages();
+    for (std::size_t index = 0; index < list.size(); ++index) {
+      std::string title = list[index].title;
+      std::ranges::transform(title, title.begin(), [](unsigned char c) { return std::tolower(c); });
+      if (title == page || title.starts_with(page)) {
+        selected_page() = static_cast<int>(index);
+        break;
+      }
+    }
+  }
+  // One window. A second run takes over: the open one may be on another
+  // workspace, or an older build, so it closes and this one opens where
+  // you are. Settings save as they change, so nothing is lost.
   const char* runtime = std::getenv("XDG_RUNTIME_DIR");
   const std::string lock = std::string(runtime != nullptr ? runtime : "/tmp") + "/blxshell-settings.lock";
   const int fd = open(lock.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
-  if (fd >= 0 && flock(fd, LOCK_EX | LOCK_NB) != 0) return EXIT_SUCCESS;
+  if (fd >= 0 && flock(fd, LOCK_EX | LOCK_NB) != 0) {
+    char text[32] = {};
+    const ssize_t got = pread(fd, text, sizeof text - 1, 0);
+    const pid_t other = got > 0 ? static_cast<pid_t>(std::atol(text)) : 0;
+    if (other > 0) kill(other, SIGTERM);
+    // Wait up to a second for it to let go.
+    bool locked = false;
+    for (int attempt = 0; attempt < 20 && !(locked = flock(fd, LOCK_EX | LOCK_NB) == 0); ++attempt) usleep(50'000);
+    if (!locked) return EXIT_SUCCESS;
+  }
+  if (fd >= 0) {
+    const std::string pid = std::to_string(getpid()) + "\n";
+    if (ftruncate(fd, 0) == 0 && pwrite(fd, pid.data(), pid.size(), 0) < 0) {}
+  }
 
   sync_style();
   vw::App app(build);

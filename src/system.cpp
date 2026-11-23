@@ -1,5 +1,7 @@
 #include "system.hpp"
 
+#include <string_view>
+
 #include <vw/vw.hpp>
 
 #include "halley.hpp"
@@ -161,6 +163,15 @@ History& history() {
 
 std::vector<double> cpu_history() { return history().cpu; }
 std::vector<double> memory_history() { return history().memory; }
+
+std::string self_path() {
+  std::error_code error;
+  std::string path = std::filesystem::read_symlink("/proc/self/exe", error).string();
+  if (error || path.empty()) return "blxshell";
+  constexpr std::string_view deleted = " (deleted)";
+  if (path.ends_with(deleted)) path.erase(path.size() - deleted.size());
+  return path;
+}
 
 std::string kernel() {
   static const std::string release = [] {

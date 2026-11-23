@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../schemas/manifest.schema.json",
+  "schema": 1,
+  "type": "plugin",
+  "id": "dev.blxshell.cpu",
+  "name": "CPU",
+  "version": "1.0.0",
+  "description": "CPU usage in the bar, as a ring and a percentage. Click for the load average, right click for the sidebar. An example of the plugin protocol in plain POSIX sh.",
+  "authors": ["blxshell"],
+  "license": "MIT",
+  "tags": ["system", "example"],
+  "blxshell": ">=0.1.0",
+  "compositors": ["any"],
+  "plugin": {
+    "api": 1,
+    "exec": ["bin/cpu.sh"],
+    "restart": "on-failure",
+    "permissions": ["shell"],
+    "barModules": [
+      { "id": "usage", "name": "CPU usage", "description": "Percentage with a ring" }
+    ],
+    "commands": ["refresh"],
+    "settings": [
+      { "key": "interval", "type": "number", "label": "Update every (s)", "default": 2 },
+      { "key": "warn", "type": "number", "label": "Turn red above (%)", "default": 85 }
+    ]
+  }
+}

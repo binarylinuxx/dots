@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <map>
 #include <string>
 
 #include "style.hpp"
@@ -61,6 +62,8 @@ struct Shell {
   bool power_hovered = false;
 
   HoverPopout status;
+  // Where each status icon sits on the bar, for popouts opened by command.
+  std::map<std::string, float> status_anchors;
   HoverPopout tray;
 
   // 0 hidden .. 1 out; follows the pointer while the sidebar is dragged.

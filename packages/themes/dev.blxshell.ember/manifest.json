@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/manifest.schema.json",
+  "schema": 1,
+  "type": "theme",
+  "id": "dev.blxshell.ember",
+  "name": "Ember",
+  "version": "1.0.0",
+  "description": "Generated from a warm orange seed: vibrant accents on AMOLED black.",
+  "authors": [
+    "blxshell"
+  ],
+  "license": "MIT",
+  "tags": [
+    "dark",
+    "orange",
+    "generated"
+  ],
+  "blxshell": ">=0.1.0",
+  "compositors": [
+    "any"
+  ],
+  "colours": {
+    "kind": "generated",
+    "source": "seed",
+    "seed": "#ff6d3a",
+    "mode": "dark",
+    "scheme": "vibrant",
+    "contrast": 0.2,
+    "preset": "amoled"
+  }
+}

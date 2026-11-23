@@ -6,6 +6,9 @@
 //
 //   blxshell launcher            # the CLI is a client of the socket
 //   echo lock | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/blxshell.sock
+#include <string>
+#include <vector>
+
 namespace blx::ipc {
 
 // Binds the socket (replacing a stale one) and returns its listening,
@@ -15,6 +18,10 @@ int listen();
 bool drain(int fd);
 // Removes the socket file on exit.
 void close(int fd);
+
+// Runs one command inside the shell, as if it came over the socket (for
+// plugins with the "shell" permission). Returns the reply text.
+std::string execute(const std::vector<std::string>& args, bool& ok, bool& changed);
 
 // The CLI side: sends argv[1..] to the running shell and prints its reply.
 int send(int argc, char** argv);

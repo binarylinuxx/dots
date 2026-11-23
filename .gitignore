@@ -71,3 +71,6 @@ autocommit
 # Builds
 /build/
 /result*
+
+# Packed .blx packages (blxshell pack)
+/dist/

@@ -1,0 +1,476 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blxshell.dev/schemas/manifest-1.json",
+  "title": "blxshell package manifest",
+  "description": "manifest.json at the root of a .blx package (a zstd-compressed tar). Schema version 1.",
+  "type": "object",
+  "required": [
+    "schema",
+    "type",
+    "id",
+    "name",
+    "version",
+    "compositors"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema": {
+      "const": 1,
+      "description": "Manifest format version. blxshell refuses manifests newer than it reads."
+    },
+    "type": {
+      "enum": [
+        "theme",
+        "plugin"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+)+$",
+      "minLength": 3,
+      "maxLength": 128,
+      "description": "Reverse-DNS id, unique in the store, e.g. io.github.someone.glass. Also the install folder's name."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v?(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)([-+][0-9A-Za-z.-]+)?$",
+      "description": "Semantic version of this package."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX identifier, e.g. MIT, GPL-3.0-or-later."
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 32
+      },
+      "maxItems": 12
+    },
+    "icon": {
+      "$ref": "#/$defs/packagePath"
+    },
+    "previews": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/packagePath"
+      },
+      "maxItems": 8
+    },
+    "blxshell": {
+      "type": "string",
+      "description": "blxshell versions it works with: \"*\", \">=0.1.0\", \">=0.1.0 <0.3.0\", \"^0.1.0\", \"~0.1.2\", groups joined by \"||\"."
+    },
+    "compositors": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "anyOf": [
+          {
+            "enum": [
+              "any",
+              "zwwm",
+              "hyprland",
+              "halley"
+            ]
+          },
+          {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          }
+        ]
+      },
+      "description": "Compositors it works under. blxshell won't apply or run it under others. \"any\" for all."
+    },
+    "plugin": {
+      "$ref": "#/$defs/plugin"
+    },
+    "colours": {
+      "$ref": "#/$defs/colours"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "theme"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "colours"
+        ],
+        "not": {
+          "required": [
+            "plugin"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "plugin"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "plugin"
+        ],
+        "not": {
+          "required": [
+            "colours"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "packagePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+      "description": "A file inside the package, relative to its root."
+    },
+    "colour": {
+      "type": "string",
+      "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+    },
+    "role": {
+      "enum": [
+        "primary",
+        "primaryText",
+        "primaryContainer",
+        "secondary",
+        "secondaryContainer",
+        "tertiary",
+        "tertiaryContainer",
+        "error",
+        "errorText",
+        "errorContainer",
+        "errorContainerText",
+        "surface",
+        "surfaceContainer",
+        "surfaceContainerLow",
+        "surfaceContainerHigh",
+        "surfaceContainerHighest",
+        "surfaceVariant",
+        "text",
+        "textMuted",
+        "outline",
+        "outlineVariant"
+      ]
+    },
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "api"
+      ],
+      "properties": {
+        "api": {
+          "const": 1,
+          "description": "Plugin protocol version."
+        },
+        "exec": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/packagePath"
+            }
+          ],
+          "description": "The program to run (inside the package) and its arguments. It speaks JSON lines on stdin/stdout."
+        },
+        "restart": {
+          "enum": [
+            "never",
+            "on-failure",
+            "always"
+          ],
+          "default": "on-failure"
+        },
+        "permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "shell",
+              "notifications",
+              "network",
+              "filesystem",
+              "spawn"
+            ]
+          },
+          "description": "shell and notifications gate messages to the shell. All are shown to users and reviewers; none is a sandbox."
+        },
+        "barModules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "description": "Names accepted by `blxshell plugin call <id> <command>`."
+        },
+        "settings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "type"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_]+$"
+              },
+              "type": {
+                "enum": [
+                  "bool",
+                  "number",
+                  "string",
+                  "choice"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "default": {},
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependentRequired": {
+        "barModules": [
+          "exec"
+        ]
+      }
+    },
+    "colours": {
+      "description": "A theme's colours: a fixed palette (static) or a matugen generation preset (generated).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "roles"
+          ],
+          "properties": {
+            "kind": {
+              "const": "static"
+            },
+            "roles": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/roleMap"
+                },
+                {
+                  "required": [
+                    "primary",
+                    "primaryText",
+                    "primaryContainer",
+                    "secondary",
+                    "secondaryContainer",
+                    "tertiary",
+                    "tertiaryContainer",
+                    "error",
+                    "errorText",
+                    "errorContainer",
+                    "errorContainerText",
+                    "surface",
+                    "surfaceContainer",
+                    "surfaceContainerLow",
+                    "surfaceContainerHigh",
+                    "surfaceContainerHighest",
+                    "surfaceVariant",
+                    "text",
+                    "textMuted",
+                    "outline",
+                    "outlineVariant"
+                  ]
+                }
+              ],
+              "description": "Every role, fixed."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "generated"
+            },
+            "source": {
+              "enum": [
+                "wallpaper",
+                "seed"
+              ]
+            },
+            "seed": {
+              "$ref": "#/$defs/colour"
+            },
+            "mode": {
+              "enum": [
+                "dark",
+                "light"
+              ]
+            },
+            "scheme": {
+              "enum": [
+                "tonal-spot",
+                "content",
+                "expressive",
+                "fidelity",
+                "fruit-salad",
+                "monochrome",
+                "neutral",
+                "rainbow",
+                "vibrant"
+              ]
+            },
+            "contrast": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1
+            },
+            "prefer": {
+              "enum": [
+                "saturation",
+                "darkness",
+                "lightness"
+              ]
+            },
+            "preset": {
+              "enum": [
+                "generated",
+                "neutral",
+                "amoled",
+                "mono"
+              ]
+            },
+            "roles": {
+              "$ref": "#/$defs/roleMap",
+              "description": "Roles pinned over the generated ones."
+            }
+          },
+          "if": {
+            "properties": {
+              "source": {
+                "const": "seed"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "required": [
+              "seed"
+            ]
+          }
+        }
+      ]
+    },
+    "roleMap": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/role"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/colour"
+      }
+    }
+  }
+}

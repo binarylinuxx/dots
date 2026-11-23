@@ -183,6 +183,15 @@ struct Config {
   float icon_tint = 1;
   float art_tint = 0;
   float art_hue = 0;
+  // The applied theme's id; the theme's values themselves are in here.
+  std::string theme;
+  // Plugin ids that run. Installed plugins stay off until listed.
+  std::vector<std::string> plugins_enabled;
+  // Extra package repositories, after the official one: "owner/name" on
+  // GitHub, or the URL of an index.json.
+  std::vector<std::string> plugin_repositories;
+  // Plugin id -> its settings, as a JSON object's text.
+  std::map<std::string, std::string> plugin_settings;
   bool sdf_outline_enabled = false;
   float sdf_outline_width = 1;
   std::string sdf_outline_color_role = "outline";

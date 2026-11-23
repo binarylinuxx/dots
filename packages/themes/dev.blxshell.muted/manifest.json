@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/manifest.schema.json",
+  "schema": 1,
+  "type": "theme",
+  "id": "dev.blxshell.muted",
+  "name": "Muted",
+  "version": "1.0.0",
+  "description": "Generated from your wallpaper, toned down: neutral scheme and surfaces.",
+  "authors": [
+    "blxshell"
+  ],
+  "license": "MIT",
+  "tags": [
+    "dark",
+    "wallpaper",
+    "generated"
+  ],
+  "blxshell": ">=0.1.0",
+  "compositors": [
+    "any"
+  ],
+  "colours": {
+    "kind": "generated",
+    "source": "wallpaper",
+    "mode": "dark",
+    "scheme": "neutral",
+    "prefer": "darkness",
+    "preset": "neutral"
+  }
+}

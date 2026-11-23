@@ -1,0 +1,47 @@
+{
+  "$schema": "../../../schemas/manifest.schema.json",
+  "schema": 1,
+  "type": "theme",
+  "id": "dev.blxshell.paper",
+  "name": "Paper",
+  "version": "1.0.0",
+  "description": "A light theme: olive accents on warm off-white.",
+  "authors": [
+    "blxshell"
+  ],
+  "license": "MIT",
+  "tags": [
+    "light",
+    "green"
+  ],
+  "blxshell": ">=0.1.0",
+  "compositors": [
+    "any"
+  ],
+  "colours": {
+    "kind": "static",
+    "roles": {
+      "primary": "#4c662b",
+      "primaryText": "#ffffff",
+      "primaryContainer": "#cdeda3",
+      "secondary": "#586249",
+      "secondaryContainer": "#dce7c8",
+      "tertiary": "#386663",
+      "tertiaryContainer": "#bcece7",
+      "error": "#ba1a1a",
+      "errorText": "#ffffff",
+      "errorContainer": "#ffdad6",
+      "errorContainerText": "#410002",
+      "surface": "#f9faef",
+      "surfaceContainer": "#eeefe3",
+      "surfaceContainerLow": "#f3f4e9",
+      "surfaceContainerHigh": "#e8e9de",
+      "surfaceContainerHighest": "#e2e3d8",
+      "surfaceVariant": "#e1e4d5",
+      "text": "#1a1c16",
+      "textMuted": "#44483d",
+      "outline": "#75796c",
+      "outlineVariant": "#c5c8ba"
+    }
+  }
+}

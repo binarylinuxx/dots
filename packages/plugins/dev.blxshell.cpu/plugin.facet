@@ -1,0 +1,28 @@
+// CPU usage in the bar. bin/cpu.sh measures and sends {"type": "state", ...};
+// this file draws it. Click for the load average, right click for the sidebar.
+let [ vw.ui as ui, vw.layout as layout ] in
+
+view Bar(state, actions) {
+    if state.ready {
+        let load = actions.get("load", false)
+        let hot = state.backend.percent >= actions.get("warn", 85)
+        let tone = hot ? state.colours.error : state.colours.primary
+        Native(name: Pill, color: state.colours.surfaceContainer,
+               on_click: () => actions.set("load", !load),
+               on_right_click: () => actions.run("sidebar both")) {
+            Native(name: Ring, progress: (state.backend.percent / 100), size: 22, color: tone)
+            ui.Text(text: load ? state.backend.load : state.backend.percent + "%",
+                    font: state.fonts.text, size: 13, weight: medium, color: hot ? tone : state.colours.text)
+        }
+    }
+}
+
+view Settings(state, actions) {
+    let warn = actions.get("warn", 85)
+    layout.Column(gap: 12, width: state.width, align: start) {
+        ui.Text(text: "Turn red above " + warn + "%", font: state.fonts.text, size: 15, color: state.colours.text)
+        ui.Slider(id: "cpu-warn", value: warn, min: 50, max: 100, step: 1, width: state.width,
+                  color: state.colours.error, track_color: state.colours.surfaceContainerHighest,
+                  on_change: (value) => actions.set("warn", value))
+    }
+}

@@ -1,0 +1,104 @@
+#pragma once
+
+// blxshell C++ plugins.
+//
+// A native plugin is a shared library with one class deriving from
+// blxshell::Plugin, ending with BLXSHELL_PLUGIN(ThatClass). Its views draw
+// with vw straight into the shell, like the shell's own modules:
+//
+//   #include <blxshell/plugin.hpp>
+//
+//   class Clicks : public blxshell::Plugin {
+//    public:
+//     std::vector<std::string> views() const override { return {"Bar"}; }
+//     vw::Widget view(vw::Ui& ui, std::string_view, blxshell::Host& host) override {
+//       const std::string count = host.get("count");
+//       return ui.text({.text = count.empty() ? "0" : count, .font = host.font("text"),
+//                       .size = 13, .color = host.colour("text")});
+//     }
+//   };
+//   BLXSHELL_PLUGIN(Clicks)
+//
+// The manifest names the library ("native": "lib/plugin.so") and must list
+// the "native" permission: native code runs inside the shell with no limits,
+// so the official repository only takes it as source that CI builds.
+//
+// The library must be built against this blxshell version with the same
+// compiler: blxshell compares BLXSHELL_PLUGIN_ABI and refuses anything else.
+
+#include <vw/ui.hpp>
+
+#include <string>
+#include <string_view>
+#include <vector>
+
+#define BLXSHELL_PLUGIN_VERSION "@PROJECT_VERSION@"
+#if defined(__clang__)
+#define BLXSHELL_PLUGIN_COMPILER "clang " __clang_version__
+#else
+#define BLXSHELL_PLUGIN_COMPILER "gcc " __VERSION__
+#endif
+#define BLXSHELL_PLUGIN_ABI "blxshell-plugin-2/" BLXSHELL_PLUGIN_VERSION "/" BLXSHELL_PLUGIN_COMPILER
+
+namespace blxshell {
+
+// What the shell offers a plugin. The same as Facet views get as state and
+// actions, with values as JSON text.
+class Host {
+ public:
+  virtual ~Host() = default;
+
+  virtual std::string id() const = 0;
+  // The plugin's store (its settings and state, kept on disk): a value as
+  // JSON text, "" when unset.
+  virtual std::string get(std::string_view key) const = 0;
+  virtual void set(std::string_view key, std::string_view json) = 0;
+  // What its process last sent as {"type": "state", "state": ...}.
+  virtual std::string backend() const = 0;
+  // To its process, as {"type": "action", "data": <json>}.
+  virtual void send(std::string_view json) = 0;
+  // Draw again after this long (clocks, timers).
+  virtual void refresh(int milliseconds) = 0;
+  // A colour role ("primary", "surfaceContainer", ...) and the shell's fonts
+  // ("text", "display", "icon").
+  virtual vw::Color colour(std::string_view role) const = 0;
+  virtual std::string font(std::string_view which) const = 0;
+  // A blxshell command ("launcher toggle"); needs the "shell" permission.
+  virtual bool run(std::string_view command) = 0;
+  // Needs the "notifications" permission.
+  virtual void notify(std::string_view summary, std::string_view body) = 0;
+  virtual void log(std::string_view text) = 0;
+};
+
+class Plugin {
+ public:
+  virtual ~Plugin() = default;
+  // Its views: "Bar…" ones are bar modules ("<plugin id>:<view>").
+  virtual std::vector<std::string> views() const = 0;
+  virtual vw::Widget view(vw::Ui& ui, std::string_view name, Host& host) = 0;
+};
+
+// vw draws in the order things are built, so a background must be built
+// before what sits on it. pill() does that for a background sized to its
+// content: it builds the background, then `content` (a function returning a
+// widget), then sizes the background to it. Rounded like the bar's modules.
+template <class Content>
+vw::Widget pill(vw::Ui& ui, vw::Color colour, vw::Input input, Content content, float padding = 8, float height = 34) {
+  const vw::Widget back = ui.rectangle({.width = 1, .height = 1, .color = colour, .input = std::move(input)});
+  const vw::Widget inside = content();
+  const vw::Widget body = ui.row({inside}, {.padding = padding, .height = height});
+  auto& rectangle = ui.scene().rectangles[back.begin];
+  rectangle.width = body.width;
+  rectangle.height = body.height;
+  rectangle.radius = body.height / 2;
+  vw::Widget sized = back;
+  sized.width = body.width;
+  sized.height = body.height;
+  return ui.stack({sized, body}, {.width = body.width, .height = body.height});
+}
+
+}  // namespace blxshell
+
+#define BLXSHELL_PLUGIN(Type)                                                           \
+  extern "C" const char* blxshell_plugin_abi() { return BLXSHELL_PLUGIN_ABI; }          \
+  extern "C" blxshell::Plugin* blxshell_plugin_create() { return new Type(); }

@@ -218,10 +218,22 @@
       "required": [
         "api"
       ],
+      "description": "A plugin (api 2): any of facet, exec and native, at least one.",
       "properties": {
         "api": {
-          "const": 1,
-          "description": "Plugin protocol version."
+          "const": 2,
+          "description": "Plugin API version."
+        },
+        "facet": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/packagePath"
+            },
+            {
+              "pattern": "\\.facet$"
+            }
+          ],
+          "description": "Its views in Facet, drawn by the shell: Bar\u2026 views are bar modules, Settings is its page in Settings."
         },
         "exec": {
           "type": "array",
@@ -234,7 +246,18 @@
               "$ref": "#/$defs/packagePath"
             }
           ],
-          "description": "The program to run (inside the package) and its arguments. It speaks JSON lines on stdin/stdout."
+          "description": "A process behind it, in any language, speaking JSON lines on stdin/stdout."
+        },
+        "native": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/packagePath"
+            },
+            {
+              "pattern": "\\.so$"
+            }
+          ],
+          "description": "A C++ library (<blxshell/plugin.hpp>); runs inside the shell, so needs the native permission."
         },
         "restart": {
           "enum": [
@@ -253,109 +276,45 @@
               "notifications",
               "network",
               "filesystem",
-              "spawn"
+              "spawn",
+              "native"
             ]
           },
-          "description": "shell and notifications gate messages to the shell. All are shown to users and reviewers; none is a sandbox."
-        },
-        "barModules": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "id"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_-]+$"
-              },
-              "name": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "commands": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]+$"
-          },
-          "description": "Names accepted by `blxshell plugin call <id> <command>`."
-        },
-        "settings": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "key",
-              "type"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "key": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_]+$"
-              },
-              "type": {
-                "enum": [
-                  "bool",
-                  "number",
-                  "string",
-                  "choice"
-                ]
-              },
-              "label": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "default": {},
-              "choices": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "desktop": {
-          "type": "array",
-          "description": "Areas of desktop items (icons on the wallpaper) the plugin fills with \"desktop\" messages.",
-          "items": {
-            "type": "object",
-            "required": [
-              "id"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_-]+$"
-              },
-              "name": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              }
-            }
-          }
+          "description": "shell, notifications and spawn gate requests to the shell; native is required for native code. All are shown to users and reviewers."
         }
       },
-      "dependentRequired": {
-        "barModules": [
-          "exec"
-        ],
-        "desktop": [
-          "exec"
+      "anyOf": [
+        {
+          "required": [
+            "facet"
+          ]
+        },
+        {
+          "required": [
+            "exec"
+          ]
+        },
+        {
+          "required": [
+            "native"
+          ]
+        }
+      ],
+      "if": {
+        "required": [
+          "native"
+        ]
+      },
+      "then": {
+        "properties": {
+          "permissions": {
+            "contains": {
+              "const": "native"
+            }
+          }
+        },
+        "required": [
+          "permissions"
         ]
       }
     },

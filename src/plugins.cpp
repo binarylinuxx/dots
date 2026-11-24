@@ -1,6 +1,7 @@
 #include "plugins.hpp"
 
-#include <nlohmann/json.hpp>
+#include <blxshell/plugin.hpp>
+#include <vw/facet.hpp>
 #include <vw/vw.hpp>
 
 #include <algorithm>
@@ -9,18 +10,24 @@
 #include <cmath>
 #include <csignal>
 #include <cstring>
+#include <dlfcn.h>
 #include <format>
+#include <fstream>
 #include <iostream>
 #include <map>
-#include <sstream>
 #include <memory>
 #include <spawn.h>
+#include <sstream>
 #include <sys/epoll.h>
+#include <sys/inotify.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "blob.hpp"
 #include "config.hpp"
+#include "draw.hpp"
 #include "ipc.hpp"
 #include "packages.hpp"
 #include "style.hpp"
@@ -28,9 +35,11 @@
 extern char** environ;
 
 namespace blx::plugins {
-namespace {
 
 using nlohmann::json;
+
+namespace {
+
 using Clock = std::chrono::steady_clock;
 
 constexpr std::size_t max_line = 64 * 1024;
@@ -39,14 +48,59 @@ constexpr std::size_t max_buffer = 1 << 20;
 constexpr int max_restarts = 5;
 constexpr auto restart_window = std::chrono::seconds(60);
 
+constexpr const char* colour_role_names[] = {
+    "primary", "primaryText", "primaryContainer", "secondary", "secondaryContainer", "tertiary",
+    "tertiaryContainer", "error", "errorText", "errorContainer", "errorContainerText", "surface",
+    "surfaceContainer", "surfaceContainerLow", "surfaceContainerHigh", "surfaceContainerHighest",
+    "surfaceVariant", "text", "textMuted", "outline", "outlineVariant"};
+
+struct Process;
+
+// What a native plugin sees: the same as Facet's state and actions.
+class NativeHost final : public blxshell::Host {
+ public:
+  explicit NativeHost(std::string id) : id_(std::move(id)) {}
+  std::string id() const override { return id_; }
+  std::string get(std::string_view key) const override;
+  void set(std::string_view key, std::string_view value) override;
+  std::string backend() const override;
+  void send(std::string_view value) override;
+  void refresh(int milliseconds) override;
+  vw::Color colour(std::string_view role) const override { return role_colour(std::string(role)); }
+  std::string font(std::string_view which) const override {
+    return which == "display" ? font::display : which == "icon" ? font::icon : font::utility;
+  }
+  bool run(std::string_view command) override;
+  void notify(std::string_view summary, std::string_view body) override;
+  void log(std::string_view text) override;
+
+ private:
+  std::string id_;
+};
+
+// A loaded C++ plugin library.
+struct Native {
+  void* library = nullptr;
+  std::unique_ptr<blxshell::Plugin> plugin;
+  std::unique_ptr<NativeHost> host;
+  ~Native() {
+    plugin.reset();  // its code lives in the library: destroy it first
+    // The library stays mapped: handlers it gave vw may still be queued.
+  }
+};
+
 struct Process {
   packages::Manifest manifest;
   pid_t pid = -1;
   int fd = -1;  // our end of the socketpair: its stdin and stdout
   std::string buffer;
-  std::string settings;  // the settings JSON last sent
-  std::map<std::string, Module> modules;
   std::map<std::string, std::vector<DesktopItem>> desktop;  // area id -> items
+  std::unique_ptr<facet::Plugin> views;  // its Facet file
+  std::unique_ptr<Native> native;        // its C++ library
+  json store = json::object();
+  json backend = json::object();
+  Clock::time_point checked{};
+  std::string last_error;
   std::vector<Clock::time_point> starts;
   std::string state = "stopped";  // running, exited, crashed, gave up
   bool stopping = false;
@@ -62,10 +116,19 @@ std::vector<pid_t>& dying() {
   return pids;
 }
 
+Process* find_running(const std::string& id) {
+  const auto it = running().find(id);
+  return it == running().end() ? nullptr : it->second.get();
+}
+
 int epoll() {
   static const int fd = epoll_create1(EPOLL_CLOEXEC);
   return fd;
 }
+
+// epoll tags for the two fds that aren't plugin sockets.
+int refresh_tag = 0;
+int store_tag = 0;
 
 void log(const Process& process, std::string_view message) {
   std::cerr << "blxshell: plugin " << process.manifest.id << ": " << message << '\n';
@@ -78,26 +141,8 @@ std::string hex(vw::Color colour) {
 
 json colour_roles() {
   json roles = json::object();
-  for (const char* role : {"primary", "primaryText", "primaryContainer", "secondary", "secondaryContainer", "tertiary",
-                           "tertiaryContainer", "error", "errorText", "errorContainer", "errorContainerText", "surface",
-                           "surfaceContainer", "surfaceContainerLow", "surfaceContainerHigh", "surfaceContainerHighest",
-                           "surfaceVariant", "text", "textMuted", "outline", "outlineVariant"})
-    roles[role] = hex(role_colour(role));
+  for (const char* role : colour_role_names) roles[role] = hex(role_colour(role));
   return roles;
-}
-
-// The manifest's defaults with the user's values on top.
-json settings_for(const packages::Manifest& manifest) {
-  json values = json::object();
-  for (const packages::Setting& setting : manifest.settings)
-    if (!setting.default_json.empty()) values[setting.key] = json::parse(setting.default_json, nullptr, false);
-  const auto& saved = config().plugin_settings;
-  if (const auto it = saved.find(manifest.id); it != saved.end()) {
-    const json user = json::parse(it->second, nullptr, false);
-    if (user.is_object())
-      for (const auto& [key, value] : user.items()) values[key] = value;
-  }
-  return values;
 }
 
 void send(Process& process, const json& message) {
@@ -123,10 +168,302 @@ void reap() {
   });
 }
 
+// --- The store -----------------------------------------------------------------
+
+// The store as last written here, to tell our own writes from others'.
+std::map<std::string, std::string>& written() {
+  static std::map<std::string, std::string> texts;
+  return texts;
+}
+
+int store_watch() {
+  static const int fd = [] {
+    const int watch = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (watch < 0) return -1;
+    std::error_code error;
+    std::filesystem::create_directories(store_path("x").parent_path(), error);
+    inotify_add_watch(watch, store_path("x").parent_path().c_str(), IN_CLOSE_WRITE | IN_MOVED_TO);
+    epoll_event event{.events = EPOLLIN, .data = {.ptr = &store_tag}};
+    epoll_ctl(epoll(), EPOLL_CTL_ADD, watch, &event);
+    return watch;
+  }();
+  return fd;
+}
+
+// The store changed here: keep it, and tell the process.
+void store_changed(Process& process) {
+  save_store(process.manifest.id, process.store);
+  written()[process.manifest.id] = process.store.dump();
+  send(process, {{"type", "store"}, {"store", process.store}});
+}
+
+// Someone else (the settings app) wrote a store: reload the running plugins'.
+bool reload_stores() {
+  alignas(inotify_event) char buffer[4096];
+  bool any = false;
+  while (::read(store_watch(), buffer, sizeof buffer) > 0) any = true;
+  if (!any) return false;
+  bool changed = false;
+  for (auto& [id, process] : running()) {
+    json fresh = load_store(id);
+    if (fresh.dump() == process->store.dump()) continue;
+    process->store = std::move(fresh);
+    written()[id] = process->store.dump();
+    send(*process, {{"type", "store"}, {"store", process->store}});
+    changed = true;
+  }
+  return changed;
+}
+
+// --- Redraws a view asked for --------------------------------------------------
+
+int refresh_timer() {
+  static const int fd = [] {
+    const int timer = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (timer >= 0) {
+      epoll_event event{.events = EPOLLIN, .data = {.ptr = &refresh_tag}};
+      epoll_ctl(epoll(), EPOLL_CTL_ADD, timer, &event);
+    }
+    return timer;
+  }();
+  return fd;
+}
+
+Clock::time_point& next_refresh() {
+  static Clock::time_point when = Clock::time_point::max();
+  return when;
+}
+
+// One timer for every plugin: armed for the earliest redraw asked for.
+void request_refresh(double milliseconds) {
+  const auto when = Clock::now() + std::chrono::milliseconds(static_cast<long>(std::clamp(milliseconds, 16.0, 3'600'000.0)));
+  if (when >= next_refresh() && next_refresh() > Clock::now()) return;
+  next_refresh() = when;
+  const auto delay = std::chrono::duration_cast<std::chrono::nanoseconds>(when - Clock::now()).count();
+  itimerspec spec{};
+  spec.it_value.tv_sec = std::max<long>(0, delay / 1'000'000'000);
+  spec.it_value.tv_nsec = std::max<long>(1, delay % 1'000'000'000);
+  timerfd_settime(refresh_timer(), 0, &spec, nullptr);
+}
+
+// --- What plugins may ask of the shell -----------------------------------------
+
+bool permitted(const Process& process, const char* permission) {
+  if (process.manifest.has_permission(permission)) return true;
+  log(process, std::format("needs the \"{}\" permission for that", permission));
+  return false;
+}
+
+void run_command(Process& process, std::vector<std::string> words) {
+  if (!permitted(process, "shell")) return;
+  // A plugin can't drive the package manager or other plugins through this.
+  if (words.empty() || words[0] == "plugin" || words[0] == "plugins") return;
+  bool ok = true, changed = false;
+  if (const std::string reply = ipc::execute(words, ok, changed); !ok) log(process, reply);
+}
+
+std::vector<std::string> words_of(std::string_view text) {
+  std::vector<std::string> words;
+  std::istringstream stream{std::string(text)};
+  for (std::string word; stream >> word;) words.push_back(word);
+  return words;
+}
+
+void notify(Process& process, const std::string& summary, const std::string& body) {
+  if (!permitted(process, "notifications")) return;
+  vw::spawn({"notify-send", "--app-name", process.manifest.name.empty() ? process.manifest.id : process.manifest.name,
+             summary, body});
+}
+
+// --- Facet views ---------------------------------------------------------------
+
+std::string text_arg(facet::Arguments arguments, std::size_t index) {
+  return index < arguments.size() ? arguments[index].to_string() : std::string();
+}
+
+facet::Value actions_for(const std::string& id) {
+  const auto with = [id](auto body) {
+    return facet::Value([id, body](facet::Arguments arguments) -> facet::Value {
+      if (Process* process = find_running(id)) body(*process, arguments);
+      return facet::Value();
+    });
+  };
+  facet::Value::Object actions;
+  // get(key, fallback): a stored value, or the fallback while there is none
+  // (reading a missing field of state.store is an error in Facet).
+  actions.emplace("get", facet::Value([id](facet::Arguments arguments) -> facet::Value {
+    const facet::Value fallback = arguments.size() > 1 ? arguments[1] : facet::Value();
+    const Process* process = find_running(id);
+    if (process == nullptr || arguments.empty()) return fallback;
+    const auto it = process->store.find(arguments[0].to_string());
+    return it == process->store.end() || it->is_null() ? fallback : to_value(*it);
+  }));
+  actions.emplace("set", with([](Process& process, facet::Arguments arguments) {
+    if (arguments.empty()) return;
+    process.store[arguments[0].to_string()] = arguments.size() > 1 ? to_json(arguments[1]) : json(nullptr);
+    store_changed(process);
+  }));
+  actions.emplace("send", with([](Process& process, facet::Arguments arguments) {
+    send(process, {{"type", "action"}, {"data", arguments.empty() ? json(nullptr) : to_json(arguments[0])}});
+  }));
+  actions.emplace("refresh", with([](Process&, facet::Arguments arguments) {
+    request_refresh(arguments.empty() || !arguments[0].is_number() ? 1000 : arguments[0].number());
+  }));
+  actions.emplace("log", with([](Process& process, facet::Arguments arguments) { log(process, text_arg(arguments, 0)); }));
+  actions.emplace("run", with([](Process& process, facet::Arguments arguments) {
+    std::vector<std::string> words;
+    if (!arguments.empty() && arguments[0].is_list())
+      for (const auto& word : arguments[0].list()) words.push_back(word.to_string());
+    else
+      words = words_of(text_arg(arguments, 0));
+    run_command(process, std::move(words));
+  }));
+  actions.emplace("notify", with([](Process& process, facet::Arguments arguments) {
+    notify(process, text_arg(arguments, 0), text_arg(arguments, 1));
+  }));
+  actions.emplace("spawn", with([](Process& process, facet::Arguments arguments) {
+    if (!permitted(process, "spawn") || arguments.empty() || !arguments[0].is_list()) return;
+    std::vector<std::string> argv;
+    for (const auto& word : arguments[0].list()) argv.push_back(word.to_string());
+    if (!argv.empty()) vw::spawn(argv);
+  }));
+  actions.emplace("open", with([](Process& process, facet::Arguments arguments) {
+    if (permitted(process, "spawn") && !arguments.empty()) vw::spawn({"xdg-open", arguments[0].to_string()});
+  }));
+  return facet::Value(std::move(actions));
+}
+
+facet::Value state_for(const Process& process) {
+  const auto now = std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}.get_local_time();
+  const auto day = std::chrono::floor<std::chrono::days>(now);
+  const std::chrono::hh_mm_ss clock{std::chrono::floor<std::chrono::seconds>(now - day)};
+  facet::Value::Object time{{"hour", facet::Value(static_cast<int>(clock.hours().count()))},
+                            {"minute", facet::Value(static_cast<int>(clock.minutes().count()))},
+                            {"second", facet::Value(static_cast<int>(clock.seconds().count()))},
+                            {"text", facet::Value(std::format("{:02}:{:02}", clock.hours().count(), clock.minutes().count()))}};
+  facet::Value::Object state{{"store", to_value(process.store)},
+                             {"backend", to_value(process.backend)},
+                             {"ready", facet::Value(!process.backend.empty())},
+                             {"colours", colour_values()},
+                             {"fonts", font_values()},
+                             {"time", facet::Value(std::move(time))},
+                             {"plugin", to_value({{"id", process.manifest.id}, {"version", process.manifest.version}})}};
+  return facet::Value(std::move(state));
+}
+
+// --- Native plugins ------------------------------------------------------------
+
+std::string NativeHost::get(std::string_view key) const {
+  const Process* process = find_running(id_);
+  if (process == nullptr) return {};
+  const auto it = process->store.find(std::string(key));
+  return it == process->store.end() || it->is_null() ? std::string() : it->dump();
+}
+
+void NativeHost::set(std::string_view key, std::string_view value) {
+  Process* process = find_running(id_);
+  if (process == nullptr) return;
+  json parsed = json::parse(value, nullptr, false);
+  if (parsed.is_discarded()) parsed = std::string(value);  // plain text is kept as text
+  process->store[std::string(key)] = std::move(parsed);
+  store_changed(*process);
+}
+
+std::string NativeHost::backend() const {
+  const Process* process = find_running(id_);
+  return process == nullptr ? "{}" : process->backend.dump();
+}
+
+void NativeHost::send(std::string_view value) {
+  if (Process* process = find_running(id_)) {
+    const json data = json::parse(value, nullptr, false);
+    plugins::send(*process, {{"type", "action"}, {"data", data.is_discarded() ? json(std::string(value)) : data}});
+  }
+}
+
+void NativeHost::refresh(int milliseconds) { request_refresh(milliseconds); }
+
+bool NativeHost::run(std::string_view command) {
+  Process* process = find_running(id_);
+  if (process == nullptr || !process->manifest.has_permission("shell")) return false;
+  run_command(*process, words_of(command));
+  return true;
+}
+
+void NativeHost::notify(std::string_view summary, std::string_view body) {
+  if (Process* process = find_running(id_)) plugins::notify(*process, std::string(summary), std::string(body));
+}
+
+void NativeHost::log(std::string_view text) {
+  if (const Process* process = find_running(id_)) plugins::log(*process, text);
+}
+
+void load_native(Process& process) {
+  process.native.reset();
+  if (process.manifest.native.empty()) return;
+  if (!process.manifest.has_permission("native")) {
+    log(process, "has a native library but not the \"native\" permission; not loading it");
+    return;
+  }
+  const std::string path = (process.manifest.directory / process.manifest.native).string();
+  void* library = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+  if (library == nullptr) {
+    log(process, std::format("can't load {}: {}", process.manifest.native, dlerror()));
+    return;
+  }
+  using AbiFunction = const char* (*)();
+  using CreateFunction = blxshell::Plugin* (*)();
+  const auto abi = reinterpret_cast<AbiFunction>(dlsym(library, "blxshell_plugin_abi"));
+  const auto create = reinterpret_cast<CreateFunction>(dlsym(library, "blxshell_plugin_create"));
+  if (abi == nullptr || create == nullptr) {
+    log(process, "its library doesn't end with BLXSHELL_PLUGIN(…)");
+    dlclose(library);
+    return;
+  }
+  // Built against another blxshell or compiler: its classes may not match ours.
+  if (std::string_view(abi()) != BLXSHELL_PLUGIN_ABI) {
+    log(process, std::format("its library was built for {}, this is {}; rebuild it", abi(), BLXSHELL_PLUGIN_ABI));
+    dlclose(library);
+    return;
+  }
+  auto native = std::make_unique<Native>();
+  native->library = library;
+  try {
+    native->plugin.reset(create());
+  } catch (const std::exception& error) {
+    log(process, std::string("its library failed to start: ") + error.what());
+    return;
+  }
+  native->host = std::make_unique<NativeHost>(process.manifest.id);
+  process.native = std::move(native);
+}
+
+// --- Starting and stopping -------------------------------------------------------
+
+void load_views(Process& process) {
+  process.views.reset();
+  if (process.manifest.facet.empty()) return;
+  try {
+    auto plugin = std::make_unique<facet::Plugin>(facet::Plugin::load(process.manifest.directory / process.manifest.facet));
+    register_components(*plugin);
+    plugin->on_error([id = process.manifest.id](const std::exception& error) {
+      std::cerr << "blxshell: plugin " << id << ": " << error.what() << '\n';
+    });
+    process.views = std::move(plugin);
+  } catch (const std::exception& error) {
+    log(process, error.what());
+  }
+}
+
 bool start(Process& process) {
   const packages::Manifest& m = process.manifest;
+  store_watch();
+  process.store = load_store(m.id);
+  written()[m.id] = process.store.dump();
+  if (!process.views) load_views(process);
+  if (!process.native) load_native(process);
   if (m.exec.empty()) {
-    process.state = "running";  // nothing to run: a declaration-only plugin
+    process.state = "running";  // views only, no process
     return true;
   }
   int pair[2];
@@ -183,18 +520,12 @@ bool start(Process& process) {
   process.starts.push_back(Clock::now());
   epoll_event event{.events = EPOLLIN | EPOLLRDHUP, .data = {.ptr = &process}};
   epoll_ctl(epoll(), EPOLL_CTL_ADD, process.fd, &event);
-
-  json modules = json::array();
-  for (const auto& module : m.bar_modules) modules.push_back(module.id);
-  const json settings = settings_for(m);
-  process.settings = settings.dump();
   send(process, {{"type", "hello"},
                  {"api", packages::api_version},
                  {"shell", packages::shell_version()},
                  {"compositor", packages::compositor()},
                  {"plugin", {{"id", m.id}, {"version", m.version}, {"dir", m.directory.string()}}},
-                 {"modules", modules},
-                 {"settings", settings},
+                 {"store", process.store},
                  {"colours", colour_roles()}});
   return true;
 }
@@ -207,8 +538,8 @@ void stop(Process& process) {
     dying().push_back(process.pid);
     process.pid = -1;
   }
-  process.modules.clear();
   process.desktop.clear();
+  process.backend = json::object();
   process.state = "stopped";
 }
 
@@ -226,7 +557,6 @@ void ended(Process& process) {
     }
     process.pid = -1;
   }
-  process.modules.clear();
   process.desktop.clear();
   if (process.stopping) return;
   const std::string& policy = process.manifest.restart;
@@ -246,6 +576,53 @@ void ended(Process& process) {
   start(process);
 }
 
+// --- Messages from a process -------------------------------------------------------
+
+bool handle_desktop(Process& process, const json& message) {
+  // The whole area at once: items it leaves out are gone.
+  const std::string id = message.value("id", "");
+  if (id.empty() || id.size() > 64 || !std::ranges::all_of(id, [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_'; })) {
+    log(process, "sent a desktop message with a bad id (letters, digits, - and _)");
+    return false;
+  }
+  if (!message.contains("items") || !message["items"].is_array()) {
+    log(process, "sent a desktop message without an items array");
+    return false;
+  }
+  const auto string = [](const json& object, const char* key, std::size_t limit) {
+    return object.contains(key) && object[key].is_string() ? object[key].get<std::string>().substr(0, limit) : std::string();
+  };
+  std::vector<DesktopItem> items;
+  for (const json& entry : message["items"]) {
+    if (items.size() >= 500) break;
+    if (!entry.is_object() || !entry.contains("id") || !entry["id"].is_string()) continue;
+    DesktopItem item{.id = string(entry, "id", 512), .label = string(entry, "label", 256), .image = string(entry, "image", 4096),
+                     .glyph = string(entry, "glyph", 64)};
+    if (entry.contains("icon")) {
+      if (entry["icon"].is_string()) item.icons.push_back(entry["icon"].get<std::string>().substr(0, 4096));
+      else if (entry["icon"].is_array())
+        for (const json& name : entry["icon"])
+          if (name.is_string() && item.icons.size() < 8) item.icons.push_back(name.get<std::string>().substr(0, 4096));
+    }
+    // Images must be absolute paths: the shell loads them itself.
+    if (!item.image.empty() && !item.image.starts_with('/')) item.image.clear();
+    if (entry.contains("actions") && entry["actions"].is_array())
+      for (const json& action : entry["actions"]) {
+        if (item.actions.size() >= 16 || !action.is_object() || !action.contains("id") || !action["id"].is_string()) continue;
+        item.actions.push_back({.id = string(action, "id", 128), .label = string(action, "label", 128),
+                                .glyph = string(action, "glyph", 64),
+                                .danger = action.contains("danger") && action["danger"].is_boolean() && action["danger"].get<bool>()});
+      }
+    items.push_back(std::move(item));
+  }
+  if (process.desktop.size() >= 8 && !process.desktop.contains(id)) {
+    log(process, "uses more than 8 desktop areas");
+    return false;
+  }
+  process.desktop[id] = std::move(items);
+  return true;
+}
+
 bool handle(Process& process, const std::string& line) {
   const json message = json::parse(line, nullptr, false);
   if (!message.is_object()) {
@@ -253,96 +630,34 @@ bool handle(Process& process, const std::string& line) {
     return false;
   }
   const std::string type = message.value("type", "");
-  if (type == "module") {
-    const std::string id = message.value("id", "");
-    const bool declared = std::ranges::any_of(process.manifest.bar_modules, [&](const auto& module) { return module.id == id; });
-    if (!declared) {
-      log(process, std::format("sent module \"{}\", which its manifest doesn't declare", id));
-      return false;
-    }
-    Module& module = process.modules[id];
-    const Module before = module;
-    // Fields that are present update; the rest keep their value.
-    if (message.contains("text") && message["text"].is_string()) module.text = message["text"].get<std::string>().substr(0, 256);
-    if (message.contains("icon") && message["icon"].is_string()) module.icon = message["icon"];
-    if (message.contains("tone") && message["tone"].is_string()) module.tone = message["tone"];
-    if (message.contains("visible") && message["visible"].is_boolean()) module.visible = message["visible"];
-    if (message.contains("progress")) {
-      if (message["progress"].is_number()) module.progress = std::clamp(message["progress"].get<float>(), 0.0F, 1.0F);
-      else module.progress.reset();
-    }
-    return module.text != before.text || module.icon != before.icon || module.tone != before.tone ||
-           module.visible != before.visible || module.progress != before.progress;
-  }
-  if (type == "desktop") {
-    // The whole area at once: items it leaves out are gone.
-    const std::string id = message.value("id", "");
-    const bool declared = std::ranges::any_of(process.manifest.desktop_areas, [&](const auto& area) { return area.id == id; });
-    if (!declared) {
-      log(process, std::format("sent desktop area \"{}\", which its manifest doesn't declare", id));
-      return false;
-    }
-    if (!message.contains("items") || !message["items"].is_array()) {
-      log(process, "sent a desktop message without an items array");
-      return false;
-    }
-    const auto string = [](const json& object, const char* key, std::size_t limit) {
-      return object.contains(key) && object[key].is_string() ? object[key].get<std::string>().substr(0, limit) : std::string();
-    };
-    std::vector<DesktopItem> items;
-    for (const json& entry : message["items"]) {
-      if (items.size() >= 500) break;
-      if (!entry.is_object() || !entry.contains("id") || !entry["id"].is_string()) continue;
-      DesktopItem item{.id = string(entry, "id", 512), .label = string(entry, "label", 256), .image = string(entry, "image", 4096),
-                       .glyph = string(entry, "glyph", 64)};
-      if (entry.contains("icon")) {
-        if (entry["icon"].is_string()) item.icons.push_back(entry["icon"].get<std::string>().substr(0, 4096));
-        else if (entry["icon"].is_array())
-          for (const json& name : entry["icon"])
-            if (name.is_string() && item.icons.size() < 8) item.icons.push_back(name.get<std::string>().substr(0, 4096));
-      }
-      // Images must be absolute paths: the shell loads them itself.
-      if (!item.image.empty() && !item.image.starts_with('/')) item.image.clear();
-      if (entry.contains("actions") && entry["actions"].is_array())
-        for (const json& action : entry["actions"]) {
-          if (item.actions.size() >= 16 || !action.is_object() || !action.contains("id") || !action["id"].is_string()) continue;
-          item.actions.push_back({.id = string(action, "id", 128), .label = string(action, "label", 128),
-                                  .glyph = string(action, "glyph", 64),
-                                  .danger = action.contains("danger") && action["danger"].is_boolean() && action["danger"].get<bool>()});
-        }
-      items.push_back(std::move(item));
-    }
-    process.desktop[id] = std::move(items);
+  if (type == "state") {
+    // Data for its views, as state.backend (Host::backend() for C++).
+    if (!message.contains("state")) return false;
+    process.backend = message["state"];
     return true;
   }
+  if (type == "set") {
+    // A value for its store, e.g. a setting it changed itself.
+    if (!message.contains("key") || !message["key"].is_string()) return false;
+    process.store[message["key"].get<std::string>()] = message.contains("value") ? message["value"] : json(nullptr);
+    save_store(process.manifest.id, process.store);
+    written()[process.manifest.id] = process.store.dump();
+    return true;
+  }
+  if (type == "desktop") return handle_desktop(process, message);
   if (type == "shell") {
-    if (!process.manifest.has_permission("shell")) {
-      log(process, "asked for a shell command without the \"shell\" permission");
-      return false;
-    }
-    std::vector<std::string> args;
+    std::vector<std::string> words;
     if (message.contains("command") && message["command"].is_array()) {
       for (const auto& word : message["command"])
-        if (word.is_string()) args.push_back(word);
+        if (word.is_string()) words.push_back(word);
     } else if (message.contains("command") && message["command"].is_string()) {
-      std::istringstream words(message["command"].get<std::string>());
-      for (std::string word; words >> word;) args.push_back(word);
+      words = words_of(message["command"].get<std::string>());
     }
-    // A plugin can't drive the package manager or other plugins through this.
-    if (args.empty() || args[0] == "plugin" || args[0] == "plugins") return false;
-    bool changed = false;
-    bool ok = true;
-    const std::string reply = ipc::execute(args, ok, changed);
-    if (!ok) log(process, reply);
-    return changed;
+    run_command(process, std::move(words));
+    return true;
   }
   if (type == "notify") {
-    if (!process.manifest.has_permission("notifications")) {
-      log(process, "sent a notification without the \"notifications\" permission");
-      return false;
-    }
-    vw::spawn({"notify-send", "--app-name", process.manifest.name.empty() ? process.manifest.id : process.manifest.name,
-               message.value("summary", process.manifest.name), message.value("body", "")});
+    notify(process, message.value("summary", process.manifest.name), message.value("body", ""));
     return false;
   }
   if (type == "log") {
@@ -391,9 +706,169 @@ std::pair<std::string, std::string> split(const std::string& bar_id) {
   return {bar_id.substr(0, colon), bar_id.substr(colon + 1)};
 }
 
+// A plugin's view names: its Facet file's, then its library's.
+std::vector<std::string> view_names(const Process& process) {
+  std::vector<std::string> names;
+  if (process.views) names = process.views->views();
+  if (process.native) {
+    try {
+      for (std::string& name : process.native->plugin->views()) names.push_back(std::move(name));
+    } catch (const std::exception&) {
+    }
+  }
+  return names;
+}
+
 }  // namespace
 
-int event_fd() { return epoll(); }
+// --- Shared with the settings app ---------------------------------------------------
+
+std::filesystem::path store_path(const std::string& id) {
+  const char* state = std::getenv("XDG_STATE_HOME");
+  const char* home = std::getenv("HOME");
+  const std::filesystem::path base = state != nullptr && *state ? std::filesystem::path(state)
+                                                                 : std::filesystem::path(home != nullptr ? home : ".") / ".local/state";
+  return base / "blxshell" / "plugins" / (id + ".json");
+}
+
+json load_store(const std::string& id) {
+  std::ifstream input(store_path(id));
+  json saved = json::parse(input, nullptr, false);
+  return saved.is_object() ? saved : json::object();
+}
+
+void save_store(const std::string& id, const json& store) {
+  const auto file = store_path(id);
+  std::error_code error;
+  std::filesystem::create_directories(file.parent_path(), error);
+  {
+    std::ofstream output(file.string() + ".tmp");
+    output << store.dump(2) << '\n';
+  }
+  std::filesystem::rename(file.string() + ".tmp", file, error);
+}
+
+facet::Value to_value(const json& value) {
+  if (value.is_boolean()) return facet::Value(value.get<bool>());
+  if (value.is_number()) return facet::Value(value.get<double>());
+  if (value.is_string()) return facet::Value(value.get<std::string>());
+  if (value.is_array()) {
+    facet::Value::List list;
+    for (const json& item : value) list.push_back(to_value(item));
+    return facet::Value(std::move(list));
+  }
+  if (value.is_object()) {
+    facet::Value::Object object;
+    for (const auto& [key, item] : value.items()) object.emplace(key, to_value(item));
+    return facet::Value(std::move(object));
+  }
+  return facet::Value();
+}
+
+json to_json(const facet::Value& value) {
+  if (value.is_bool()) return value.boolean();
+  if (value.is_number()) return value.number();
+  if (value.is_text()) return value.text();
+  if (value.is_color()) return hex(value.color());
+  if (value.is_list()) {
+    json list = json::array();
+    for (const auto& item : value.list()) list.push_back(to_json(item));
+    return list;
+  }
+  if (value.is_object()) {
+    json object = json::object();
+    for (const auto& [key, item] : value.object()) object[key] = to_json(item);
+    return object;
+  }
+  return nullptr;
+}
+
+facet::Value colour_values() {
+  facet::Value::Object colours;
+  for (const char* role : colour_role_names) colours.emplace(role, facet::Value(role_colour(role)));
+  return facet::Value(std::move(colours));
+}
+
+facet::Value font_values() {
+  return to_value({{"text", font::utility}, {"display", font::display}, {"icon", font::icon}});
+}
+
+namespace {
+
+float number_or(const facet::Value& value, float fallback) {
+  return value.is_number() ? static_cast<float>(value.number()) : fallback;
+}
+
+// A Facet handler as a vw handler, with the event as Facet passes it.
+template <class Event, class Convert>
+std::function<void(const Event&)> handler(const facet::Value& function, Convert convert) {
+  if (!function.is_function()) return {};
+  return [function, convert](const Event& event) {
+    try {
+      const facet::Value argument = convert(event);
+      function(facet::Arguments(&argument, 1));
+    } catch (const std::exception& error) {
+      std::cerr << "blxshell: plugin handler: " << error.what() << '\n';
+    }
+  };
+}
+
+}  // namespace
+
+void register_components(facet::Plugin& plugin) {
+  // Native(name: Pill, color: …, on_click: …) { … }: children in a row on a
+  // rounded background sized to them, the way bar modules look.
+  plugin.component("Pill", [](vw::Ui& ui, const facet::Value& props, const facet::Children& children) {
+    const auto click = [](const vw::ClickEvent& e) {
+      return facet::Value(facet::Value::Object{{"x", e.x}, {"y", e.y}, {"button", e.button}, {"left", e.left()},
+                                               {"right", e.right()}, {"middle", e.middle()}});
+    };
+    const auto scroll = [](const vw::ScrollEvent& e) {
+      return facet::Value(facet::Value::Object{{"x", e.x}, {"y", e.y}, {"delta", e.delta}});
+    };
+    const vw::Color colour = props["color"].is_color() ? props["color"].color() : colours().surface_container;
+    const float height = number_or(props["height"], 34);
+    vw::Input input{.on_click = handler<vw::ClickEvent>(props["on_click"], click),
+                    .on_right_click = handler<vw::ClickEvent>(props["on_right_click"], click),
+                    .on_middle_click = handler<vw::ClickEvent>(props["on_middle_click"], click),
+                    .on_scroll = handler<vw::ScrollEvent>(props["on_scroll"], scroll)};
+    if (input.on_click || input.on_right_click || input.on_middle_click)
+      input.hover = vw::Hover{.color = mix(colour, colours().text, 0.08F), .duration = 0.12F};
+    const float radius = number_or(props["radius"], height / 2);
+    const vw::Widget back = ui.rectangle({.width = 1, .height = 1, .color = colour, .input = std::move(input)});
+    const std::vector<vw::Widget> items = children(ui);
+    const vw::Widget content = ui.row(items, {.gap = number_or(props["gap"], 6), .padding = number_or(props["padding"], 6),
+                                              .height = height});
+    const vw::Widget pill = facet::behind(ui, back, content);
+    // Its radius once it has its size: vw clamps it to half the 1x1 placeholder.
+    ui.scene().rectangles[back.begin].radius = std::min(radius, std::min(content.width, content.height) / 2);
+    return pill;
+  });
+
+  plugin.component("Icon", [](vw::Ui& ui, const facet::Value& props, const facet::Children&) {
+    const float size = props["size"].is_number() ? static_cast<float>(props["size"].number()) : 20.0F;
+    const vw::Color color = props["color"].is_color() ? props["color"].color() : colours().text;
+    const std::string glyph = props["glyph"].is_text() ? props["glyph"].text() : props["value"].to_string();
+    return draw::capture(ui, size, size, [&] { draw::glyph(ui, glyph, size / 2, size / 2, size, color); });
+  });
+  plugin.component("Ring", [](vw::Ui& ui, const facet::Value& props, const facet::Children&) {
+    const float size = props["size"].is_number() ? static_cast<float>(props["size"].number()) : 26.0F;
+    const float stroke = props["stroke"].is_number() ? static_cast<float>(props["stroke"].number()) : 2.0F;
+    const float progress = props["progress"].is_number() ? static_cast<float>(props["progress"].number())
+                           : props["value"].is_number()  ? static_cast<float>(props["value"].number())
+                                                         : 0.0F;
+    const vw::Color color = props["color"].is_color() ? props["color"].color() : colours().primary;
+    return draw::capture(ui, size, size, [&] { blob::ring(ui, {0, 0, size, size}, stroke, 0, progress, color); });
+  });
+}
+
+// --- The running set --------------------------------------------------------------
+
+int event_fd() {
+  refresh_timer();
+  store_watch();
+  return epoll();
+}
 
 bool drain() {
   reap();
@@ -403,7 +878,18 @@ bool drain() {
     const int count = epoll_wait(epoll(), events, 16, 0);
     if (count <= 0) break;
     for (int index = 0; index < count; ++index) {
-      auto* process = static_cast<Process*>(events[index].data.ptr);
+      void* tag = events[index].data.ptr;
+      if (tag == &refresh_tag) {  // a redraw a view asked for
+        std::uint64_t expirations = 0;
+        if (::read(refresh_timer(), &expirations, sizeof expirations) > 0) changed = true;
+        next_refresh() = Clock::time_point::max();
+        continue;
+      }
+      if (tag == &store_tag) {
+        changed |= reload_stores();
+        continue;
+      }
+      auto* process = static_cast<Process*>(tag);
       // It may have been stopped by an earlier event in this batch.
       const bool alive = std::ranges::any_of(running(), [&](const auto& entry) { return entry.second.get() == process; });
       if (alive && process->fd >= 0) changed |= read_from(*process);
@@ -416,7 +902,6 @@ bool drain() {
 void sync() {
   auto& processes = running();
   const auto& enabled = config().plugins_enabled;
-  bool changed = false;
   for (auto it = processes.begin(); it != processes.end();) {
     if (listed(enabled, it->first)) {
       ++it;
@@ -424,19 +909,9 @@ void sync() {
     }
     stop(*it->second);
     it = processes.erase(it);
-    changed = true;
   }
   for (const std::string& id : enabled) {
-    if (const auto it = processes.find(id); it != processes.end()) {
-      // Settings edited in config.json reach the running plugin.
-      Process& process = *it->second;
-      const json settings = settings_for(process.manifest);
-      if (settings.dump() != process.settings) {
-        process.settings = settings.dump();
-        send(process, {{"type", "settings"}, {"settings", settings}});
-      }
-      continue;
-    }
+    if (processes.contains(id)) continue;
     auto manifest = packages::find(id, packages::Kind::plugin);
     if (!manifest) {
       std::cerr << "blxshell: plugin " << id << " is enabled but not installed\n";
@@ -450,9 +925,7 @@ void sync() {
     process->manifest = std::move(*manifest);
     start(*process);
     processes.emplace(id, std::move(process));
-    changed = true;
   }
-  (void)changed;
 }
 
 void colours_changed() {
@@ -474,24 +947,58 @@ void stop_all() {
 
 bool is_plugin_module(const std::string& bar_id) { return bar_id.find(':') != std::string::npos; }
 
-const Module* module(const std::string& bar_id) {
-  const auto [plugin, id] = split(bar_id);
-  const auto it = running().find(plugin);
-  if (it == running().end()) return nullptr;
-  const auto found = it->second->modules.find(id);
-  return found == it->second->modules.end() ? nullptr : &found->second;
+std::vector<std::string> bar_views() {
+  std::vector<std::string> ids;
+  for (const auto& [id, process] : running())
+    for (const std::string& view : view_names(*process))
+      if (view.starts_with("Bar")) ids.push_back(id + ":" + view);
+  return ids;
 }
 
-void click(const std::string& bar_id, const std::string& button) {
-  const auto [plugin, id] = split(bar_id);
-  if (const auto it = running().find(plugin); it != running().end())
-    send(*it->second, {{"type", "event"}, {"module", id}, {"event", "click"}, {"button", button}});
+bool has_view(const std::string& bar_id) {
+  const auto [plugin, view] = split(bar_id);
+  const Process* process = find_running(plugin);
+  if (process == nullptr) return false;
+  const auto names = view_names(*process);
+  return std::ranges::find(names, view) != names.end();
 }
 
-void scroll(const std::string& bar_id, double delta) {
-  const auto [plugin, id] = split(bar_id);
-  if (const auto it = running().find(plugin); it != running().end())
-    send(*it->second, {{"type", "event"}, {"module", id}, {"event", "scroll"}, {"delta", delta}});
+std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id) {
+  const auto [plugin, view] = split(bar_id);
+  Process* process = find_running(plugin);
+  if (process == nullptr) return std::nullopt;
+  const auto failed = [&](const std::exception& error) -> std::optional<vw::Widget> {
+    if (process->last_error != error.what()) log(*process, process->last_error = error.what());
+    return std::nullopt;
+  };
+  if (process->views) {
+    const auto names = process->views->views();
+    if (std::ranges::find(names, view) != names.end()) {
+      // Edits to the .facet file show up within a second.
+      if (Clock::now() - process->checked > std::chrono::seconds(1)) {
+        process->checked = Clock::now();
+        try {
+          if (process->views->reload()) process->last_error.clear();
+        } catch (const std::exception& error) {
+          failed(error);
+        }
+      }
+      try {
+        const facet::Value arguments[] = {state_for(*process), actions_for(plugin)};
+        return process->views->view(ui, view, arguments);
+      } catch (const std::exception& error) {
+        return failed(error);
+      }
+    }
+  }
+  if (process->native) {
+    try {
+      return process->native->plugin->view(ui, view, *process->native->host);
+    } catch (const std::exception& error) {
+      return failed(error);
+    }
+  }
+  return std::nullopt;
 }
 
 std::vector<Desktop> desktops() {
@@ -504,42 +1011,52 @@ std::vector<Desktop> desktops() {
 
 void desktop_action(const std::string& source, const std::string& item, const std::string& action) {
   const auto [plugin, area] = split(source);
-  if (const auto it = running().find(plugin); it != running().end())
-    send(*it->second, {{"type", "event"}, {"desktop", area}, {"item", item}, {"event", "action"}, {"action", action}});
+  if (Process* process = find_running(plugin))
+    send(*process, {{"type", "event"}, {"desktop", area}, {"item", item}, {"event", "action"}, {"action", action}});
 }
 
 std::string call(const std::string& id, const std::string& command, const std::vector<std::string>& args, bool& ok) {
-  const auto it = running().find(id);
+  Process* process = find_running(id);
   ok = false;
-  if (it == running().end()) return std::format("plugin {} isn't running", id);
-  Process& process = *it->second;
-  if (std::ranges::find(process.manifest.commands, command) == process.manifest.commands.end())
-    return std::format("plugin {} has no command {}", id, command);
-  send(process, {{"type", "command"}, {"name", command}, {"args", args}});
+  if (process == nullptr) return std::format("plugin {} isn't running", id);
+  if (process->fd < 0) return std::format("plugin {} has no process to take commands", id);
+  send(*process, {{"type", "command"}, {"name", command}, {"args", args}});
   ok = true;
   return "ok";
 }
 
 std::string restart(const std::string& id, bool& ok) {
-  const auto it = running().find(id);
+  Process* process = find_running(id);
   ok = false;
-  if (it == running().end()) return std::format("plugin {} isn't enabled", id);
-  Process& process = *it->second;
-  stop(process);
-  process.stopping = false;
-  process.starts.clear();
+  if (process == nullptr) return std::format("plugin {} isn't enabled", id);
+  stop(*process);
+  process->stopping = false;
+  process->starts.clear();
   // Pick up an update installed since it started.
-  if (auto manifest = packages::find(id, packages::Kind::plugin); manifest && manifest->valid()) process.manifest = std::move(*manifest);
-  ok = start(process);
+  if (auto manifest = packages::find(id, packages::Kind::plugin); manifest && manifest->valid()) process->manifest = std::move(*manifest);
+  process->views.reset();
+  process->native.reset();
+  ok = start(*process);
   return ok ? "ok" : std::format("plugin {} didn't start", id);
 }
 
 std::string status() {
   std::string text;
-  for (const auto& [id, process] : running())
-    text += std::format("{:<36} {:<10} {}{}\n", id, process->manifest.version, process->state,
-                        process->pid > 0 ? std::format(" (pid {})", process->pid) : "");
+  for (const auto& [id, process] : running()) {
+    std::string kinds;
+    if (process->views) kinds += " facet";
+    if (process->native) kinds += " native";
+    if (process->pid > 0) kinds += std::format(" process (pid {})", process->pid);
+    text += std::format("{:<36} {:<10} {}{}\n", id, process->manifest.version, process->state, kinds);
+  }
   return text.empty() ? "no plugins enabled\n" : text;
+}
+
+std::string views() {
+  std::string text;
+  for (const auto& [id, process] : running())
+    for (const std::string& view : view_names(*process)) text += id + ":" + view + '\n';
+  return text;
 }
 
 }  // namespace blx::plugins

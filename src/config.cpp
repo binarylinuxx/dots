@@ -207,8 +207,6 @@ void apply(Config& c, const json& root) {
   read(appearance, "theme", c.theme);
   read(section(root, "plugins"), "enabled", c.plugins_enabled);
   read(section(root, "plugins"), "repositories", c.plugin_repositories);
-  for (const auto& [id, values] : section(section(root, "plugins"), "settings").items())
-    if (values.is_object()) c.plugin_settings[id] = values.dump();
   read(appearance, "sdfOutlineEnabled", c.sdf_outline_enabled);
   read(appearance, "sdfOutlineWidth", c.sdf_outline_width);
   read(appearance, "sdfOutlineColorRole", c.sdf_outline_color_role);
@@ -381,13 +379,6 @@ json serialize(const Config& c) {
   out["appearance"]["colourPreset"] = c.colour_preset;
   out["plugins"]["enabled"] = c.plugins_enabled;
   out["plugins"]["repositories"] = c.plugin_repositories;
-  out["plugins"]["settings"] = json::object();
-  for (const auto& [id, values] : c.plugin_settings) {
-    try {
-      out["plugins"]["settings"][id] = json::parse(values);
-    } catch (const std::exception&) {
-    }
-  }
   return out;
 }
 

@@ -15,6 +15,8 @@
 #include <filesystem>
 #include <format>
 #include <functional>
+#include <sstream>
+#include <map>
 #include <string>
 #include <utility>
 #include <variant>
@@ -26,7 +28,9 @@
 #include <nlohmann/json.hpp>
 
 #include "config.hpp"
+#include "ipc.hpp"
 #include "packages.hpp"
+#include "plugins.hpp"
 #include "draw.hpp"
 #include "style.hpp"
 #include "system.hpp"
@@ -455,6 +459,20 @@ int choice_lines(const Row& row) {
   return (static_cast<int>(row.options.size()) + choices_per_line - 1) / choices_per_line;
 }
 
+// A plugin's own settings page: the Settings view in its Facet file, drawn
+// here with its store. Writing the store is all it takes: the shell sees the
+// file change and tells the plugin.
+struct SettingsView {
+  std::unique_ptr<facet::Plugin> plugin;
+  std::string id;
+  float height = 120;  // as last drawn
+};
+
+std::map<std::string, SettingsView>& settings_views() {
+  static std::map<std::string, SettingsView> views;
+  return views;
+}
+
 float height_of(const Row& row) {
   switch (row.kind) {
     case Kind::header: return 44;
@@ -468,10 +486,10 @@ float height_of(const Row& row) {
     case Kind::colour: return 68;
     case Kind::app: return row.id == expanded_app() ? 130 : 72;
     case Kind::plugin: return 84;
-    case Kind::plugin_setting:
-      if (row.type == "bool") return row.detail.empty() ? 64 : 76;
-      if (row.type == "choice") return 52 + static_cast<float>(choice_lines(row)) * (chip_height + 3) + 13;
-      return 118;
+    case Kind::plugin_setting: {
+      const auto it = settings_views().find(row.id);
+      return it == settings_views().end() ? 120 : it->second.height;
+    }
   }
   return 60;
 }
@@ -814,29 +832,6 @@ void draw_colour(vw::Ui& ui, const Row& row, float width, float height) {
 
 // --- Plugins -------------------------------------------------------------------
 
-// A plugin's settings as saved: its object in config.json's plugins.settings.
-nlohmann::json plugin_values(const std::string& id) {
-  const auto& saved = config().plugin_settings;
-  const auto it = saved.find(id);
-  nlohmann::json values = it == saved.end() ? nlohmann::json::object() : nlohmann::json::parse(it->second, nullptr, false);
-  return values.is_object() ? values : nlohmann::json::object();
-}
-
-// The setting's value: the user's, else the manifest's default.
-nlohmann::json plugin_value(const Row& row) {
-  const nlohmann::json values = plugin_values(row.id);
-  if (values.contains(row.key)) return values[row.key];
-  return row.fallback.empty() ? nlohmann::json() : nlohmann::json::parse(row.fallback, nullptr, false);
-}
-
-// Saved to config.json; the shell sends it to the running plugin.
-void set_plugin_value(const std::string& id, const std::string& key, nlohmann::json value) {
-  nlohmann::json values = plugin_values(id);
-  values[key] = std::move(value);
-  config().plugin_settings[id] = values.dump();
-  commit(true);
-}
-
 // The plugin, its version and what it does, with a switch to run it.
 void draw_plugin(vw::Ui& ui, const Row& row, float width, float height) {
   const Colours& c = colours();
@@ -856,44 +851,80 @@ void draw_plugin(vw::Ui& ui, const Row& row, float width, float height) {
   }});
 }
 
-void draw_plugin_setting(vw::Ui& ui, const Row& row, float width, float height) {
-  const Colours& c = colours();
-  const nlohmann::json value = plugin_value(row);
-  if (row.type == "bool") {
-    row_label(ui, row, width - 100, height);
-    const bool on = value.is_boolean() && value.get<bool>();
-    draw_switch(ui, "plugin." + row.id + "." + row.key, on, width, height);
-    draw::state_layer(ui, 0, 0, width, height, 6, c.text, {.on_click = [id = row.id, key = row.key, on](const vw::ClickEvent&) {
-      set_plugin_value(id, key, !on);
-    }});
-    return;
+// Loads (or reloads, when the file changed) a plugin's Facet file; nullptr
+// when it has none, it doesn't parse, or it has no Settings view.
+SettingsView* settings_view(const packages::Manifest& m) {
+  if (m.facet.empty()) return nullptr;
+  auto& views = settings_views();
+  auto it = views.find(m.id);
+  try {
+    if (it == views.end()) {
+      SettingsView view{.plugin = std::make_unique<facet::Plugin>(facet::Plugin::load(m.directory / m.facet)), .id = m.id};
+      plugins::register_components(*view.plugin);
+      it = views.emplace(m.id, std::move(view)).first;
+    } else {
+      it->second.plugin->reload();
+    }
+  } catch (const std::exception&) {
+    return nullptr;
   }
-  if (row.type == "choice") {
-    draw_chips(ui, row, width, value.is_string() ? value.get<std::string>() : "",
-               [id = row.id, key = row.key](const std::string& picked) { set_plugin_value(id, key, picked); });
-    return;
+  const auto names = it->second.plugin->views();
+  return std::ranges::find(names, "Settings") != names.end() ? &it->second : nullptr;
+}
+
+facet::Value settings_actions(const std::string& id) {
+  facet::Value::Object actions;
+  actions.emplace("get", facet::Value([id](facet::Arguments arguments) -> facet::Value {
+    const facet::Value fallback = arguments.size() > 1 ? arguments[1] : facet::Value();
+    if (arguments.empty()) return fallback;
+    const nlohmann::json store = plugins::load_store(id);
+    const auto it = store.find(arguments[0].to_string());
+    return it == store.end() || it->is_null() ? fallback : plugins::to_value(*it);
+  }));
+  actions.emplace("set", facet::Value([id](facet::Arguments arguments) -> facet::Value {
+    if (arguments.empty()) return facet::Value();
+    nlohmann::json store = plugins::load_store(id);
+    store[arguments[0].to_string()] = arguments.size() > 1 ? plugins::to_json(arguments[1]) : nlohmann::json(nullptr);
+    plugins::save_store(id, store);
+    return facet::Value();
+  }));
+  // The rest only make sense in the shell: here they do nothing.
+  for (const char* name : {"send", "refresh", "log", "run", "notify", "spawn", "open"})
+    actions.emplace(name, facet::Value([](facet::Arguments) { return facet::Value(); }));
+  return facet::Value(std::move(actions));
+}
+
+void draw_plugin_setting(vw::Ui& ui, const Row& row, float width, float) {
+  auto& views = settings_views();
+  const auto it = views.find(row.id);
+  if (it == views.end()) return;
+  facet::Value::Object state{{"store", plugins::to_value(plugins::load_store(row.id))},
+                             {"backend", facet::Value(facet::Value::Object{})},
+                             {"colours", plugins::colour_values()},
+                             {"fonts", plugins::font_values()},
+                             {"width", facet::Value(width - 40)},
+                             {"plugin", plugins::to_value({{"id", row.id}})}};
+  try {
+    const facet::Value arguments[] = {facet::Value(std::move(state)), settings_actions(row.id)};
+    const vw::Widget widget = it->second.plugin->view(ui, "Settings", arguments);
+    ui.row({widget}, {.place = {.x = 20, .y = 16}});
+    // Its height decides the row's next time round.
+    if (std::abs(widget.height + 32 - it->second.height) > 0.5F) {
+      it->second.height = widget.height + 32;
+      vw::request_animation_continuation();
+    }
+  } catch (const std::exception& error) {
+    draw::text(ui, error.what(), 20, 16, {.size = 12, .color = colours().error, .max_width = width - 40, .max_lines = 3});
   }
-  // Number or text: a field. A number that doesn't parse isn't saved.
-  draw::text_middle(ui, row.label, 20, 24, {.size = 15, .color = c.text, .family = font::utility});
-  draw::text_middle(ui, row.detail, 20, 44, {.size = 12, .color = c.text_muted, .family = font::utility});
-  const std::string shown = value.is_string() ? value.get<std::string>() : value.is_null() ? "" : value.dump();
-  ui.text_field({.id = "plugin." + row.id + "." + row.key, .value = shown, .width = width - 40, .height = 44, .radius = 16,
-                 .border_width = 1, .color = c.surface_container_highest, .border_color = c.surface_container_highest,
-                 .focus_color = c.primary, .text_color = c.text, .placeholder_color = c.text_muted,
-                 .caret_color = c.primary, .font = font::utility, .size = 14,
-                 .on_change = [id = row.id, key = row.key, number = row.type == "number"](const std::string& text) {
-                   if (!number) {
-                     set_plugin_value(id, key, text);
-                     return;
-                   }
-                   try {
-                     std::size_t used = 0;
-                     const double parsed = std::stod(text, &used);
-                     if (used == text.size()) set_plugin_value(id, key, parsed);
-                   } catch (const std::exception&) {
-                   }
-                 },
-                 .place = {.x = 20, .y = 60}});
+}
+
+// "<plugin id>:<view>" for every view the running shell's plugins have.
+std::vector<std::string> running_views() {
+  std::vector<std::string> lines;
+  std::istringstream reply(ipc::request("plugin views"));
+  for (std::string line; std::getline(reply, line);)
+    if (line.find(':') != std::string::npos && !line.starts_with("error")) lines.push_back(line);
+  return lines;
 }
 
 // One group per installed plugin: the plugin, then (while it's on) its bar
@@ -922,16 +953,11 @@ const std::vector<Row>& plugin_rows(const Page& page) {
                     .id = m.id,
                     .problem = problem});
     if (!problem.empty() || !listed(config().plugins_enabled, m.id)) continue;
-    for (const packages::BarModule& module : m.bar_modules)
-      rows.push_back({.kind = Kind::module, .label = (module.name.empty() ? module.id : module.name) + " in the bar",
-                      .id = m.id + ":" + module.id});
-    for (const packages::Setting& setting : m.settings) {
-      Row row{.kind = Kind::plugin_setting, .label = setting.label.empty() ? setting.key : setting.label,
-              .detail = setting.description, .id = m.id, .key = setting.key, .type = setting.type,
-              .fallback = setting.default_json};
-      for (const std::string& option : setting.choices) row.options.push_back({option, option});
-      rows.push_back(std::move(row));
-    }
+    // Its views, from the running shell (Facet and C++ alike).
+    for (const std::string& line : running_views())
+      if (line.starts_with(m.id + ":") && line.substr(m.id.size() + 1).starts_with("Bar"))
+        rows.push_back({.kind = Kind::module, .label = line.substr(m.id.size() + 1) + " in the bar", .id = line});
+    if (settings_view(m) != nullptr) rows.push_back({.kind = Kind::plugin_setting, .label = "Settings", .id = m.id});
   }
   rows.push_back(header("More"));
   rows.push_back(action("Open plugins folder",

@@ -23,7 +23,7 @@ namespace blx::packages {
 // than half understood.
 inline constexpr int schema_version = 1;
 // The plugin protocol this build speaks (manifest "plugin.api").
-inline constexpr int api_version = 1;
+inline constexpr int api_version = 2;
 inline constexpr const char* manifest_name = "manifest.json";
 inline constexpr const char* extension = ".blx";
 
@@ -34,24 +34,6 @@ struct Author {
   std::string name;
   std::string email;
   std::string url;
-};
-
-// A plugin's bar module: placed in the bar as "<plugin id>:<module id>".
-struct BarModule {
-  std::string id;
-  std::string name;
-  std::string description;
-};
-
-// A setting a plugin exposes; its value reaches the plugin in the hello
-// message. type: "bool", "number", "string" or "choice".
-struct Setting {
-  std::string key;
-  std::string type;
-  std::string label;
-  std::string description;
-  std::string default_json;  // the default, as JSON text
-  std::vector<std::string> choices;
 };
 
 struct Manifest {
@@ -74,16 +56,16 @@ struct Manifest {
   // Compositors it works under ("zwwm", "hyprland"), or "any".
   std::vector<std::string> compositors;
 
-  // Plugins only.
+  // Plugins only (api 2). Any of the three entry points, at least one:
   int api = 0;
-  std::vector<std::string> exec;  // argv; [0] is relative to the package
+  // Its views, in Facet (a .facet file in the package), drawn by the shell.
+  std::string facet;
+  // A process in any language behind it: argv, [0] relative to the package.
+  std::vector<std::string> exec;
+  // A C++ library (needs the "native" permission), see <blxshell/plugin.hpp>.
+  std::string native;
   std::string restart = "on-failure";  // "never", "on-failure", "always"
   std::vector<std::string> permissions;
-  std::vector<BarModule> bar_modules;
-  // Areas of desktop items it fills (icons on the wallpaper), same fields.
-  std::vector<BarModule> desktop_areas;
-  std::vector<std::string> commands;
-  std::vector<Setting> settings;
 
   // The whole manifest, for themes to be applied from.
   std::string json;

@@ -41,7 +41,7 @@ using nlohmann::json;
 // Compositors a manifest may name. Others only warn, so a package made for a
 // newer blxshell that knows more of them still installs.
 constexpr std::array known_compositors{"zwwm", "hyprland", "halley"};
-constexpr std::array known_permissions{"shell", "notifications", "network", "filesystem", "spawn"};
+constexpr std::array known_permissions{"shell", "notifications", "network", "filesystem", "spawn", "native"};
 // A theme is one colour for each of these roles: no generated palette, no
 // light/dark variants (a light theme is just another list).
 constexpr std::array colour_roles{
@@ -266,73 +266,43 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
     return;
   }
   Reader r{m, plugin, "plugin: "};
-  r.only({"api", "exec", "restart", "permissions", "barModules", "desktop", "commands", "settings"});
-  if (r.get("api", m.api, true) && (m.api < 1 || m.api > api_version))
-    m.errors.push_back(std::format("plugin.api {} is not supported (this blxshell speaks {})", m.api, api_version));
+  r.only({"api", "facet", "exec", "native", "restart", "permissions"});
+  for (const char* gone : {"barModules", "desktop", "commands", "settings"})
+    if (plugin.contains(gone))
+      m.errors.push_back(std::format("plugin.{} is gone in api 2: views come from the plugin's Facet file or library, "
+                                     "settings live in its store", gone));
+  if (r.get("api", m.api, true) && m.api != api_version)
+    m.errors.push_back(std::format("plugin.api {} is not supported: this blxshell speaks {}", m.api, api_version));
+  const auto inside = [&](const std::string& path, const char* key, bool built) {
+    if (path.starts_with('/') || path.find("..") != std::string::npos)
+      m.errors.push_back(std::format("plugin.{} must be a path inside the package", key));
+    // A program or library a build.sh makes isn't in the source, only in the .blx.
+    else if (!built && !has_file(files, path))
+      m.errors.push_back(std::format("plugin.{} \"{}\" is not in the package", key, path));
+  };
+  const bool build_script = !files.empty() && has_file(files, "build.sh");
+  if (r.get("facet", m.facet)) {
+    if (!m.facet.ends_with(".facet")) m.errors.push_back("plugin.facet must be a .facet file");
+    inside(m.facet, "facet", false);
+  }
   if (r.get("exec", m.exec)) {
     if (m.exec.empty() || m.exec[0].empty()) m.errors.push_back("plugin.exec must name a program");
-    else if (m.exec[0].starts_with('/') || m.exec[0].find("..") != std::string::npos)
-      m.errors.push_back("plugin.exec[0] must be a path inside the package");
-    else if (!has_file(files, m.exec[0]))
-      m.errors.push_back(std::format("plugin.exec[0] \"{}\" is not in the package", m.exec[0]));
+    else inside(m.exec[0], "exec", build_script);
   }
+  if (r.get("native", m.native)) {
+    if (!m.native.ends_with(".so")) m.errors.push_back("plugin.native must be a shared library (.so)");
+    inside(m.native, "native", build_script);
+  }
+  if (m.facet.empty() && m.exec.empty() && m.native.empty())
+    m.errors.push_back("a plugin needs at least one of plugin.facet, plugin.exec and plugin.native");
   if (r.get("restart", m.restart) && m.restart != "never" && m.restart != "on-failure" && m.restart != "always")
     m.errors.push_back("plugin.restart must be never, on-failure or always");
   if (r.get("permissions", m.permissions))
     for (const std::string& permission : m.permissions)
       if (std::ranges::find(known_permissions, permission) == known_permissions.end())
         m.warnings.push_back(std::format("plugin.permissions: unknown permission \"{}\"", permission));
-  r.get("commands", m.commands);
-  if (plugin.contains("barModules")) {
-    if (!plugin["barModules"].is_array()) m.errors.push_back("plugin.barModules must be an array");
-    else
-      for (const json& entry : plugin["barModules"]) {
-        BarModule module;
-        Reader mr{m, entry, "plugin.barModules[]: "};
-        mr.only({"id", "name", "description"});
-        mr.get("id", module.id, true);
-        mr.get("name", module.name);
-        mr.get("description", module.description);
-        if (!module.id.empty() && !std::ranges::all_of(module.id, [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_'; }))
-          m.errors.push_back(std::format("bar module id \"{}\" may hold only letters, digits, - and _", module.id));
-        m.bar_modules.push_back(std::move(module));
-      }
-  }
-  if (plugin.contains("desktop")) {
-    if (!plugin["desktop"].is_array()) m.errors.push_back("plugin.desktop must be an array");
-    else
-      for (const json& entry : plugin["desktop"]) {
-        BarModule area;
-        Reader ar{m, entry, "plugin.desktop[]: "};
-        ar.only({"id", "name", "description"});
-        ar.get("id", area.id, true);
-        ar.get("name", area.name);
-        ar.get("description", area.description);
-        if (!area.id.empty() && !std::ranges::all_of(area.id, [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_'; }))
-          m.errors.push_back(std::format("desktop area id \"{}\" may hold only letters, digits, - and _", area.id));
-        m.desktop_areas.push_back(std::move(area));
-      }
-  }
-  if (!m.bar_modules.empty() && m.exec.empty()) m.errors.push_back("plugin.barModules needs plugin.exec to fill them");
-  if (!m.desktop_areas.empty() && m.exec.empty()) m.errors.push_back("plugin.desktop needs plugin.exec to fill it");
-  if (plugin.contains("settings")) {
-    if (!plugin["settings"].is_array()) m.errors.push_back("plugin.settings must be an array");
-    else
-      for (const json& entry : plugin["settings"]) {
-        Setting setting;
-        Reader sr{m, entry, "plugin.settings[]: "};
-        sr.only({"key", "type", "label", "description", "default", "choices"});
-        sr.get("key", setting.key, true);
-        sr.get("type", setting.type, true);
-        sr.get("label", setting.label);
-        sr.get("description", setting.description);
-        sr.get("choices", setting.choices);
-        if (entry.is_object() && entry.contains("default")) setting.default_json = entry["default"].dump();
-        if (setting.type != "bool" && setting.type != "number" && setting.type != "string" && setting.type != "choice")
-          m.errors.push_back(std::format("setting \"{}\": type must be bool, number, string or choice", setting.key));
-        m.settings.push_back(std::move(setting));
-      }
-  }
+  if (!m.native.empty() && !m.has_permission("native"))
+    m.errors.push_back("a plugin with plugin.native must list the \"native\" permission: it runs inside the shell");
 }
 
 }  // namespace
@@ -939,8 +909,9 @@ void print_info(const Manifest& m) {
     std::string permissions;
     for (const auto& permission : m.permissions) permissions += (permissions.empty() ? "" : ", ") + permission;
     std::cout << "  permissions: " << (permissions.empty() ? "none" : permissions) << '\n';
-    for (const BarModule& module : m.bar_modules) std::cout << "  bar module:  " << m.id << ':' << module.id << '\n';
-    for (const std::string& name : m.commands) std::cout << "  command:     " << name << '\n';
+    if (!m.facet.empty()) std::cout << "  views:       " << m.facet << " (Facet)\n";
+    if (!m.native.empty()) std::cout << "  native:      " << m.native << " (C++, runs inside the shell)\n";
+    if (!m.exec.empty()) std::cout << "  process:     " << m.exec[0] << '\n';
   }
   if (!m.directory.empty()) std::cout << "  folder:      " << m.directory.string() << '\n';
   if (const auto why = incompatibility(m)) std::cout << "  won't run here: " << *why << '\n';
@@ -974,8 +945,7 @@ int set_enabled(const std::string& id, bool enable) {
   }
   std::cout << (enable ? "enabled " : "disabled ") << m->id << '\n';
   if (enable)
-    for (const BarModule& module : m->bar_modules)
-      std::cout << "  add \"" << m->id << ':' << module.id << "\" to bar.left, bar.center or bar.right to show it\n";
+    std::cout << "  place its bar modules in Settings → Plugins, or as \"" << m->id << ":<view>\" in bar.left/center/right\n";
   return EXIT_SUCCESS;
 }
 

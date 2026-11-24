@@ -150,6 +150,7 @@ Reply run(std::vector<std::string> args) {
     const std::string sub = arg.empty() ? "status" : std::string(arg);
     bool done = false;
     if (sub == "status" || sub == "list") return {plugins::status(), false};
+    if (sub == "views") return {plugins::views(), false};
     if (sub == "call" && args.size() >= 4) {
       const std::string reply = plugins::call(args[2], args[3], {args.begin() + 4, args.end()}, done);
       return done ? Reply{"ok\n", false} : error(reply);
@@ -249,6 +250,14 @@ void close(int fd) {
   if (fd < 0) return;
   ::close(fd);
   ::unlink(socket_path().c_str());
+}
+
+std::string request(std::string_view line) {
+  try {
+    return vw::unix_request(socket_path(), std::string(line) + '\n');
+  } catch (const std::exception&) {
+    return {};
+  }
 }
 
 int send(int argc, char** argv) {

@@ -1,27 +1,59 @@
 #pragma once
 
+#include <nlohmann/json.hpp>
+#include <vw/facet_runtime.hpp>
+#include <vw/ui.hpp>
+
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
 
-// Running plugins. An enabled plugin with "exec" is a child process of the
-// shell, in any language, that speaks JSON lines on stdin/stdout: one JSON
-// object per line each way. The protocol is in docs/packages.md.
+// Running plugins (api 2). A plugin has any of three entry points:
 //
-// The process runs as the user, like anything else they start: permissions
-// in the manifest gate what it may ask *the shell* to do (shell commands,
-// notifications) and tell the store's reviewers what it does; they are not
-// a sandbox.
+//   facet   its views in Facet, drawn by the shell (the usual way)
+//   exec    a process in any language behind them, speaking JSON lines on
+//           stdin/stdout (docs/packages.md has the protocol)
+//   native  a C++ library with views drawn by vw (<blxshell/plugin.hpp>);
+//           runs inside the shell, so it needs the "native" permission
+//
+// Views named Bar… are bar modules, "<plugin id>:<view>"; a view named
+// Settings is the plugin's page in the settings app.
+//
+// Every plugin has one store, a JSON object kept in
+// ~/.local/state/blxshell/plugins/<id>.json: its settings and whatever else it
+// wants to keep. Views read and write it, its settings page edits it, and its
+// process gets it in hello and every time it changes.
+//
+// Processes run as the user: permissions gate what a plugin may ask the shell
+// to do (shell commands, notifications, spawning) and tell reviewers what it
+// does. Only Facet views are confined to what the shell hands them.
 namespace blx::plugins {
 
-// What a plugin's bar module shows, as last sent by the plugin.
-struct Module {
-  std::string text;
-  std::string icon;     // a Material Symbols name
-  std::string tone;     // a colour role: "primary", "error", ... ("" is the default)
-  std::optional<float> progress;  // 0..1: a ring around the icon
-  bool visible = true;
-};
+// Facet views get (state, actions):
+//
+//   state.store      the plugin's store
+//   state.backend    what its process last sent as {"type": "state", ...}
+//   state.ready      true once it has sent something (read backend fields
+//                    only then: a missing field is an error in Facet)
+//   state.colours    the colour roles, as colours
+//   state.fonts      text, display and icon: the shell's fonts
+//   state.time       hour, minute, second, and text ("14:05")
+//   state.plugin     id and version
+//   actions.get(key, fallback) a stored value, or the fallback
+//   actions.set(key, value)    store a value
+//   actions.send(value)        to its process, as {"type": "action", "data": value}
+//   actions.refresh(ms)        draw again after ms (clocks, timers)
+//   actions.run("launcher toggle")   a blxshell command   (permission "shell")
+//   actions.notify(summary, body)    a notification       (permission "notifications")
+//   actions.spawn(["prog", "arg"]), actions.open(path)    (permission "spawn")
+//   actions.log(text)
+//
+// Native(name: Icon, glyph: "timer", size: 20, color: …) draws a Material
+// Symbols icon, Native(name: Ring, progress: 0.4, size: 26, color: …) the bar's
+// progress ring, and Native(name: Pill, color: …, on_click: …, on_right_click:
+// …, on_middle_click: …, on_scroll: …) { … } lays its children in a row on a
+// rounded background sized to them, like the bar's own modules.
 
 // An action in a desktop item's popup menu.
 struct DesktopAction {
@@ -31,7 +63,7 @@ struct DesktopAction {
   bool danger = false;  // shown in the error colour (delete, trash, ...)
 };
 
-// One icon on the desktop, as last sent by the plugin.
+// One icon on the desktop, as last sent by a plugin's process.
 struct DesktopItem {
   std::string id;
   std::string label;
@@ -47,36 +79,48 @@ struct Desktop {
   std::vector<DesktopItem> items;
 };
 
-// One epoll fd covering every plugin's socket; pass to vw::App::on_event.
+// One epoll fd covering every plugin's socket, the refresh timer and the
+// store watch; pass to vw::App::on_event.
 int event_fd();
 // Reads what plugins sent; true when anything shown changed.
 bool drain();
-// Starts and stops plugins to match config().plugins_enabled, and sends
-// changed settings. Call at startup and after the config changes.
+// Starts and stops plugins to match config().plugins_enabled. Call at
+// startup and after the config changes.
 void sync();
 // Tells running plugins the colour scheme changed.
 void colours_changed();
 // Stops every plugin (on exit).
 void stop_all();
 
-// A bar module by its bar id, "<plugin id>:<module id>"; nullptr when the
-// plugin isn't running or hasn't sent it yet.
-const Module* module(const std::string& bar_id);
+// Bar modules: views named Bar…, as "<plugin id>:<view>".
 bool is_plugin_module(const std::string& bar_id);
-// Pointer input on a bar module: event "click" (button "left", "right",
-// "middle") or "scroll" (delta).
-void click(const std::string& bar_id, const std::string& button);
-void scroll(const std::string& bar_id, double delta);
+std::vector<std::string> bar_views();
+bool has_view(const std::string& bar_id);
+// Draws a running plugin's view; nullopt when it isn't running or the view
+// failed (the error is logged).
+std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id);
 
 // Every running plugin's desktop items, in plugin order.
 std::vector<Desktop> desktops();
 // The user picked `action` on `item` of a desktop area (source as above).
 void desktop_action(const std::string& source, const std::string& item, const std::string& action);
 
-// For IPC: `plugin call <id> <command> [args…]`, `plugin restart <id>`,
-// `plugin status`. Returns the reply text; ok is false on an error.
+// For IPC: `plugin call <id> <command> [args…]` (sent to its process),
+// `plugin restart <id>`, `plugin status`, `plugin views`.
 std::string call(const std::string& id, const std::string& command, const std::vector<std::string>& args, bool& ok);
 std::string restart(const std::string& id, bool& ok);
 std::string status();
+std::string views();
+
+// Shared with the settings app, which draws plugins' Settings views.
+std::filesystem::path store_path(const std::string& id);
+nlohmann::json load_store(const std::string& id);
+void save_store(const std::string& id, const nlohmann::json& store);
+facet::Value to_value(const nlohmann::json& value);
+nlohmann::json to_json(const facet::Value& value);
+facet::Value colour_values();
+facet::Value font_values();
+// Icon, Ring and Pill, for Native(name: …).
+void register_components(facet::Plugin& plugin);
 
 }  // namespace blx::plugins

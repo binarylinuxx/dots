@@ -190,8 +190,6 @@ struct Config {
   // Extra package repositories, after the official one: "owner/name" on
   // GitHub, or the URL of an index.json.
   std::vector<std::string> plugin_repositories;
-  // Plugin id -> its settings, as a JSON object's text.
-  std::map<std::string, std::string> plugin_settings;
   bool sdf_outline_enabled = false;
   float sdf_outline_width = 1;
   std::string sdf_outline_color_role = "outline";

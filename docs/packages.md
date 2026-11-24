@@ -234,10 +234,16 @@ same theme always looks the same.
 
 ## Plugins
 
-A plugin is a program in any language, run by the shell as a child process.
-It talks to the shell in **JSON lines**: one JSON object per line on its
-stdin (from the shell) and stdout (to the shell). stderr goes to the
-shell's log.
+A plugin (api 2) has any of three entry points, at least one:
+
+| | | |
+|---|---|---|
+| `facet` | its views in [Facet](https://github.com/binarylinuxx/vw/tree/main/facet), interpreted by the shell | the usual way: draws natively, reloads live, sees only what the shell hands it |
+| `exec` | a process in any language behind the views, over JSON lines | logic that needs a real language: reading `/proc`, timers, files, the network |
+| `native` | a C++ library drawing with vw (`<blxshell/plugin.hpp>`) | when Facet isn't enough; runs inside the shell, so it needs the `native` permission |
+
+The manifest only says who the plugin is and what it may do. What it shows,
+and its settings, live in its code:
 
 ```json
 {
@@ -248,132 +254,198 @@ shell's log.
   "version": "1.0.0",
   "compositors": ["any"],
   "plugin": {
-    "api": 1,
-    "exec": ["bin/cpu.py", "--fast"],
+    "api": 2,
+    "facet": "plugin.facet",
+    "exec": ["bin/cpu.py"],
     "restart": "on-failure",
-    "permissions": ["shell"],
-    "barModules": [{ "id": "usage", "name": "CPU usage" }],
-    "commands": ["refresh"],
-    "settings": [
-      { "key": "interval", "type": "number", "label": "Update every (s)", "default": 2 },
-      { "key": "unit", "type": "choice", "choices": ["percent", "load"], "default": "percent" }
-    ]
+    "permissions": ["shell"]
   }
 }
 ```
 
-| `plugin` key | |
-|---|---|
-| `api` | protocol version, `1` |
-| `exec` | program inside the package, then its arguments. It runs from the package folder, in its own process group, with `BLXSHELL_PLUGIN_ID`, `BLXSHELL_PLUGIN_DIR` and `BLXSHELL_PLUGIN_API` set. Mark it executable; give scripts a `#!` line. |
-| `restart` | `"on-failure"` (default), `"always"` or `"never"`. More than 5 restarts in a minute and it stays stopped until `blxshell plugin restart <id>`. |
-| `permissions` | below |
-| `barModules` | modules it fills; users place them in the bar as `"<plugin id>:<module id>"` |
-| `desktop` | desktop areas it fills with icons on the wallpaper: `[{ "id", "name", "description" }]` |
-| `commands` | names `blxshell plugin call <id> <name> [args]` accepts |
-| `settings` | `key`, `type` (`bool`, `number`, `string`, `choice`), `label`, `description`, `default`, `choices` |
+Plugins are installed off. `blxshell plugin enable <id>` (or the switch in
+**Settings → Plugins**) turns one on.
 
-Plugins are installed off. `blxshell plugin enable <id>` adds the id to
-`plugins.enabled` in config.json, and the running shell starts it. User
-values for settings go in `plugins.settings.<id>` in config.json:
+### Views
 
-```json
-"plugins": {
-  "enabled": ["io.github.you.cpu"],
-  "settings": { "io.github.you.cpu": { "interval": 5 } }
+Views named `Bar…` are bar modules, placed as `"<plugin id>:<view>"` in
+`bar.left`, `bar.center` or `bar.right` (or from **Settings → Plugins**). A
+view named `Settings` is the plugin's page in **Settings → Plugins**.
+
+```facet
+let [ vw.ui as ui, vw.layout as layout ] in
+
+view Bar(state, actions) {
+    let tick = actions.refresh(1000)
+    Native(name: Pill, color: state.colours.surfaceContainer,
+           on_click: () => actions.set("clicks", actions.get("clicks", 0) + 1)) {
+        Native(name: Ring, progress: (state.time.second / 60), size: 22, color: state.colours.primary)
+        ui.Text(text: state.time.text, font: state.fonts.display, size: 14, color: state.colours.primary)
+    }
+}
+
+view Settings(state, actions) {
+    ui.Toggle(id: "seconds", value: actions.get("seconds", false),
+              on_change: (on) => actions.set("seconds", on))
 }
 ```
 
-### Desktop items
+Every view gets `(state, actions)`:
 
-The shell lays a plugin's desktop items out on the wallpaper in a grid from
-the top left. A click opens a popup with the item's actions; a double-click
-runs its first. Users can drag items to another cell (dropping on an item
-swaps them); the cells are remembered in `~/.local/state/blxshell/desktop.json`,
-keyed by area and item id, so keep ids stable (a file name, not an index).
+| | |
+|---|---|
+| `state.store` | the plugin's store (below) |
+| `state.backend` | what its process last sent as `{"type": "state", "state": …}` |
+| `state.ready` | true once it has: read `state.backend` only then, since a missing field is an error in Facet |
+| `state.colours` | the 21 colour roles, as colours |
+| `state.fonts` | `text`, `display`, `icon`: the shell's fonts (Facet's own default is monospace) |
+| `state.time` | `hour`, `minute`, `second`, `text` ("14:05") |
+| `state.plugin` | `id`, `version` |
+| `state.width` | Settings views only: the width they have |
+| `actions.get(key, fallback)` | a stored value, or the fallback |
+| `actions.set(key, value)` | store a value |
+| `actions.send(value)` | to its process, as `{"type": "action", "data": value}` |
+| `actions.refresh(ms)` | draw again after `ms` (clocks, timers) |
+| `actions.run("launcher toggle")` | a `blxshell` command; needs `shell` |
+| `actions.notify(summary, body)` | a notification; needs `notifications` |
+| `actions.spawn(["prog", "arg"])`, `actions.open(path)` | needs `spawn` |
+| `actions.log(text)` | a line in the shell's log |
 
-### Permissions
+The shell adds three components, used as `Native(name: …)`:
 
-A plugin runs as the user, like anything else they start. **Permissions
-are not a sandbox.** They do two things: gate what the plugin may ask *the
-shell* to do, and tell users and store reviewers what it does.
+| | |
+|---|---|
+| `Pill` | children in a row on a rounded background sized to them, like the bar's modules; takes `color`, `padding`, `gap`, `height`, `radius`, `on_click`, `on_right_click`, `on_middle_click`, `on_scroll` |
+| `Icon` | a Material Symbols icon: `glyph`, `size`, `color` |
+| `Ring` | the bar's progress ring: `progress` (0–1), `size`, `stroke`, `color` |
 
-| Permission | Enforced | |
-|---|---|---|
-| `shell` | yes | may send `shell` messages (run shell commands) |
-| `notifications` | yes | may send `notify` messages |
-| `network` | declared | talks to the network |
-| `filesystem` | declared | reads or writes files outside its folder |
-| `spawn` | declared | starts other programs |
+Edits to a plugin's `.facet` file show up within a second. Wrap arithmetic in
+a named argument in parentheses (`progress: (a / 60)`): Facet's parser
+currently reads only the first operand otherwise.
 
-### Protocol, api 1
+### The store
 
-Every message is one line holding one JSON object with a `"type"`. Key
-order is not fixed, so don't match on it. Unknown types and keys are
-ignored, so later versions can add to either side.
+Every plugin has one store, a JSON object kept in
+`~/.local/state/blxshell/plugins/<id>.json`. It holds its settings and
+anything else it wants to keep. Views read it with `actions.get` and write it
+with `actions.set`; its Settings view edits it from the settings app; its
+process gets it in `hello` and again in a `store` message whenever it
+changes, and can write to it with `set`. Defaults live in the code
+(`actions.get("interval", 2)`), not in the manifest.
 
-**Shell → plugin**
+### Process protocol, api 2
+
+One JSON object per line on the process's stdin (from the shell) and stdout
+(to the shell); stderr goes to the shell's log. It runs from the package
+folder with `BLXSHELL_PLUGIN_ID`, `BLXSHELL_PLUGIN_DIR` and
+`BLXSHELL_PLUGIN_API` set, and should exit when its stdin closes.
+
+**Shell → process**
 
 | `type` | Fields | When |
 |---|---|---|
-| `hello` | `api`, `shell` (version), `compositor`, `plugin` {`id`, `version`, `dir`}, `modules` (bar module ids), `settings` (defaults with the user's values on top), `colours` (role → `#rrggbb`) | first line after start |
-| `settings` | `settings` | the user changed them |
+| `hello` | `api`, `shell`, `compositor`, `plugin` {`id`, `version`, `dir`}, `store`, `colours` | first line after start |
+| `store` | `store` | the store changed (a view, the settings app) |
+| `action` | `data` | a view called `actions.send(data)` |
+| `command` | `name`, `args` | `blxshell plugin call <id> <name> [args…]` |
 | `colours` | `colours` | the scheme changed |
-| `event` | `module`, `event`: `"click"` with `button` (`left`, `right`, `middle`), or `"scroll"` with `delta` | pointer on one of its bar modules |
-| `event` | `desktop` (area id), `item`, `event`: `"action"`, `action` | the user picked an action on one of its desktop items (a double-click picks the first) |
-| `command` | `name`, `args` (strings) | `blxshell plugin call <id> <name> [args…]` |
+| `event` | `desktop`, `item`, `event: "action"`, `action` | the user picked an action on one of its desktop items |
 
-When its stdin closes, the plugin should exit. On disable or shutdown the
-shell closes it and sends SIGTERM to the plugin's process group.
-
-**Plugin → shell**
+**Process → shell**
 
 | `type` | Fields | |
 |---|---|---|
-| `module` | `id`, and any of `text`, `icon` (a Material Symbols name), `tone` (a colour role, `""` for the default), `progress` (0–1 draws a ring around the icon; `null` removes it), `visible` | updates a bar module. Fields left out keep their last value. `id` must be in `barModules`. |
-| `desktop` | `id`, `items`: `[{ "id", "label", "icon", "image", "glyph", "actions": [{ "id", "label", "glyph", "danger" }] }]` | replaces a desktop area's items (up to 500). `icon` is a theme icon name or a list tried in order; `image` an absolute path shown as a thumbnail; `glyph` the Material Symbols fallback; `danger` draws an action in the error colour. `id` must be in `desktop`. |
-| `shell` | `command`: `["launcher", "toggle"]` or `"launcher toggle"` | runs a `blxshell` command (see `blxshell help`). Needs `shell`. `plugin …` commands are refused. |
-| `notify` | `summary`, `body` | desktop notification. Needs `notifications`. |
+| `state` | `state` | data for its views, as `state.backend` |
+| `set` | `key`, `value` | a value for its store |
+| `desktop` | `id`, `items` | its desktop items (below) |
+| `shell` | `command`: `["launcher", "toggle"]` or `"launcher toggle"` | needs `shell`; `plugin …` commands are refused |
+| `notify` | `summary`, `body` | needs `notifications` |
 | `log` | `message` | a line in the shell's log |
 
-Lines over 64 KiB are dropped. If the plugin stops reading, messages to it
-are dropped rather than the shell waiting.
+Lines over 64 KiB are dropped. If the process stops reading, messages to it
+are dropped rather than the shell waiting. `restart` decides what happens when
+it exits: `on-failure` (default) restarts it after a crash, `always` after any
+exit, `never` doesn't; more than 5 restarts in a minute and it stays stopped
+until `blxshell plugin restart <id>`.
 
-A minimal plugin in Python:
+### C++ plugins
 
-```python
-#!/usr/bin/env python3
-import json, sys, threading, time
+```cpp
+#include <blxshell/plugin.hpp>
 
-def send(**message):
-    print(json.dumps(message), flush=True)
-
-def tick():
-    n = 0
-    while True:
-        n += 1
-        send(type="module", id="counter", icon="timer", text=str(n))
-        time.sleep(1)
-
-for line in sys.stdin:            # ends when the shell closes stdin
-    message = json.loads(line)
-    if message["type"] == "hello":
-        threading.Thread(target=tick, daemon=True).start()
-    elif message["type"] == "event" and message.get("button") == "right":
-        send(type="shell", command=["sidebar", "both"])   # needs "shell"
+class Clicks final : public blxshell::Plugin {
+ public:
+  std::vector<std::string> views() const override { return {"Bar"}; }
+  vw::Widget view(vw::Ui& ui, std::string_view, blxshell::Host& host) override {
+    const std::string stored = host.get("clicks");
+    const int clicks = stored.empty() ? 0 : std::stoi(stored);
+    return blxshell::pill(ui, host.colour("surfaceContainer"),
+                          {.on_click = [&host, clicks](const vw::ClickEvent&) { host.set("clicks", std::to_string(clicks + 1)); }},
+                          [&] { return ui.text({.text = std::to_string(clicks), .font = host.font("text"),
+                                                .size = 13, .color = host.colour("text")}); });
+  }
+};
+BLXSHELL_PLUGIN(Clicks)
 ```
 
-`packages/plugins/dev.blxshell.cpu` is a complete example in POSIX sh.
+`blxshell::Host` offers what Facet views get: `get`/`set` on the store (JSON
+text), `backend()`, `send`, `refresh`, `colour`, `font`, `run`, `notify`,
+`log`. vw draws in the order widgets are built, so build backgrounds first;
+`blxshell::pill` does that for a background sized to its content.
+
+The library must be built against the same blxshell version with the same
+compiler: `BLXSHELL_PLUGIN_ABI` carries both, and blxshell refuses a library
+whose tag differs ("rebuild it") rather than risk a crash. The manifest lists
+it as `"native": "lib/plugin.so"` with the `native` permission. Native code
+runs inside the shell with no limits, so the official repository only takes it
+as source plus a `build.sh`, built by its CI. `packages/plugins/dev.blxshell.native`
+is a complete example; blxshell's CMake builds it.
+
+### Desktop items
+
+A process sends `{"type": "desktop", "id": "files", "items": [...]}` to put
+icons on the wallpaper (up to 8 areas, 500 items each):
+
+```json
+{ "id": "notes.txt", "label": "notes.txt", "icon": ["text-plain", "text-x-generic"],
+  "image": "/abs/path/to/thumbnail.png", "glyph": "description",
+  "actions": [{ "id": "open", "label": "Open", "glyph": "open_in_new" },
+              { "id": "trash", "label": "Move to trash", "glyph": "delete", "danger": true }] }
+```
+
+The shell lays them out in a grid from the top left. A click opens a popup
+with the item's actions; a double-click runs the first. Users can drag items to
+another cell (dropping on an item swaps them); the cells are remembered in
+`~/.local/state/blxshell/desktop.json`, keyed by area and item id, so keep ids
+stable (a file name, not an index).
+
+### Permissions
+
+A plugin's process runs as the user, like anything else they start.
+**Permissions are not a sandbox** for processes or native code: they gate
+what a plugin may ask *the shell* to do, and tell users and reviewers what it
+does. Facet views are the exception: they can only reach what the shell hands
+them, so for them the gates are real.
+
+| Permission | Enforced | |
+|---|---|---|
+| `shell` | yes | run `blxshell` commands |
+| `notifications` | yes | post notifications |
+| `spawn` | for views | start programs (`actions.spawn`, `actions.open`) |
+| `native` | yes | required for a `native` library |
+| `network` | declared | talks to the network |
+| `filesystem` | declared | reads or writes files outside its folder |
 
 ### Shell commands for plugins
 
 | | |
 |---|---|
-| `blxshell plugin list` | installed plugins and whether they're enabled or can run here |
+| `blxshell plugin list` | installed plugins and whether they're on or can run here |
 | `blxshell plugin enable\|disable <id>` | |
-| `blxshell plugin status` | what the running shell has running, with pids |
+| `blxshell plugin status` | what the running shell has running: views, native, process |
+| `blxshell plugin views` | every running view, as `<plugin id>:<view>` |
 | `blxshell plugin restart <id>` | restarts it and picks up an update |
-| `blxshell plugin call <id> <command> [args]` | sends it a `command` message |
+| `blxshell plugin call <id> <command> [args]` | sends its process a `command` message |
 
 ## For the store
 

@@ -296,37 +296,25 @@ struct Module {
   std::function<void(float x)> draw;
 };
 
-// A plugin's module ("<plugin id>:<module id>"): icon and text as the
-// plugin last sent them, its clicks and scrolls sent back.
+// A plugin's bar view ("<plugin id>:<view>"), Facet or C++. It is measured
+// in a scratch scene, then drawn for real where the bar puts it: a widget
+// built ahead of its turn would point at primitives the modules laid out
+// before it have moved. Everything the view draws, between two markers,
+// moves as one block, so a view whose widget doesn't cover all it drew can
+// only break itself.
 Module plugin_module(vw::Ui& ui, const Screen& screen, const std::string& id) {
-  const plugins::Module* module = plugins::module(id);
-  if (module == nullptr || !module->visible || (module->text.empty() && module->icon.empty())) return {};
-  const Colours& c = colours();
+  vw::Scene scratch_scene;
+  vw::Ui scratch(scratch_scene);
+  const auto measured = plugins::draw_view(scratch, id);
+  if (!measured || measured->width < 1) return {};
   const float centre_y = bar_centre(screen);
-  constexpr float icon_size = 20;
-  constexpr float padding = 10;
-  constexpr float text_size = 13;
-  const bool icon = !module->icon.empty();
-  const bool label = !module->text.empty();
-  const float text_width = label ? draw::measure(module->text, text_size * props::font_scale, vw::weight::medium) : 0;
-  const float width = padding * 2 + (icon ? icon_size : 0) + (icon && label ? 6 : 0) + text_width;
-  const vw::Color accent = module->tone.empty() ? c.primary : role_colour(module->tone);
-  const vw::Color ink = module->tone.empty() ? c.text : accent;
-  return {width, [&ui, &c, id, width, centre_y, icon, label, accent, ink, module = *module](float x) {
-            if (config().bar_pills) draw::rect(ui, x, centre_y - pill_height / 2, width, pill_height, pill_height / 2, c.surface_container);
-            float cursor = x + padding;
-            if (icon) {
-              if (module.progress)
-                blob::ring(ui, {cursor - 3, centre_y - icon_size / 2 - 3, icon_size + 6, icon_size + 6}, 2, 0, *module.progress, accent);
-              draw::glyph(ui, module.icon, cursor + icon_size / 2, centre_y, module.progress ? icon_size - 6 : icon_size, accent);
-              cursor += icon_size + (label ? 6 : 0);
-            }
-            if (label) draw::text_middle(ui, module.text, cursor, centre_y, {.size = text_size, .color = ink, .weight = vw::weight::medium});
-            draw::state_layer(ui, x, centre_y - pill_height / 2, width, pill_height, pill_height / 2, accent,
-                              {.on_click = [id](const vw::ClickEvent& click) {
-                                 plugins::click(id, click.button == 273 ? "right" : click.button == 274 ? "middle" : "left");
-                               },
-                               .on_scroll = [id](const vw::ScrollEvent& event) { plugins::scroll(id, event.delta); }});
+  return {measured->width, [&ui, id, centre_y](float x) {
+            const vw::Widget first = ui.hit_area({.width = 1, .height = 1});
+            const auto drawn = plugins::draw_view(ui, id);
+            const vw::Widget last = ui.hit_area({.width = 1, .height = 1});
+            if (!drawn) return;
+            ui.row({vw::Widget{first.begin, last.end, drawn->width, drawn->height}},
+                   {.place = {.x = x, .y = centre_y - drawn->height / 2}});
           }};
 }
 

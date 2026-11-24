@@ -13,6 +13,8 @@ include(GNUInstallDirs)
 set(VW_SOURCE_DIR "$ENV{VW_SOURCE_DIR}" CACHE PATH "vw source checkout to build instead of find_package(vw)")
 if(VW_SOURCE_DIR)
   set(VW_WITH_LUA OFF CACHE BOOL "" FORCE)
+  # Facet's interpreter runs plugins' views (libvw-facet, vw::facet).
+  set(VW_WITH_FACET ON CACHE BOOL "" FORCE)
   set(VW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   add_subdirectory("${VW_SOURCE_DIR}" vw EXCLUDE_FROM_ALL)
 else()
@@ -64,7 +66,10 @@ add_library(blxshell-core STATIC
 # .blx packages are zstd-compressed tar archives.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
-target_link_libraries(blxshell-core PUBLIC vw::vw PRIVATE PkgConfig::ZSTD)
+# C++ plugins: <blxshell/plugin.hpp>, stamped with this version (its ABI tag).
+configure_file(include/blxshell/plugin.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/include/blxshell/plugin.hpp" @ONLY)
+target_include_directories(blxshell-core PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include")
+target_link_libraries(blxshell-core PUBLIC vw::vw vw::facet PRIVATE PkgConfig::ZSTD ${CMAKE_DL_LIBS})
 add_dependencies(blxshell-core blxshell-shaders)
 # Shaders are found in the build tree while developing, or in
 # <prefix>/share/blxshell when installed.
@@ -100,3 +105,12 @@ install(DIRECTORY translations/ DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/t
 # manifest schema for package authors.
 install(DIRECTORY packages/themes/ DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/themes")
 install(FILES schemas/manifest.schema.json DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/schemas")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/include/blxshell/plugin.hpp" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/blxshell")
+
+# The example C++ plugin (packages/plugins/dev.blxshell.native), built here so
+# its ABI tag matches this blxshell: build/plugins/dev.blxshell.native/lib/plugin.so.
+add_library(blxshell-native-example MODULE packages/plugins/dev.blxshell.native/src/plugin.cpp)
+target_include_directories(blxshell-native-example PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/include")
+target_link_libraries(blxshell-native-example PRIVATE vw::vw)
+set_target_properties(blxshell-native-example PROPERTIES PREFIX "" OUTPUT_NAME plugin
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins/dev.blxshell.native/lib")

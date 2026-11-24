@@ -19,6 +19,7 @@
 #include "config.hpp"
 #include "draw.hpp"
 #include "parts.hpp"
+#include "plugins.hpp"
 #include "state.hpp"
 #include "system.hpp"
 #include "services.hpp"
@@ -601,6 +602,14 @@ void wallpaper_surface(vw::Ui& ui) {
                       });
   }
   // Plugins' desktop icons, over the wallpaper and under the widgets' veil.
+  // A plugin's Wallpaper view (dynamic or layered wallpapers) over the image.
+  {
+    const auto list = system::workspaces();
+    int index = 0;
+    for (std::size_t i = 0; i < list.size(); ++i)
+      if (list[i].active) index = static_cast<int>(i);
+    plugins::draw_wallpaper(ui, screen.width, screen.height, index, static_cast<int>(list.size()));
+  }
   draw_desktop(ui, screen, input);
   // Fade and rise come up out of the surface colour, widgets included (the
   // iris only clips the wallpaper).

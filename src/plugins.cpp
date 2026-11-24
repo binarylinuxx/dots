@@ -333,7 +333,7 @@ facet::Value actions_for(const std::string& id) {
   return facet::Value(std::move(actions));
 }
 
-facet::Value state_for(const Process& process) {
+facet::Value state_for(const Process& process, const json& extra = json::object()) {
   const auto now = std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}.get_local_time();
   const auto day = std::chrono::floor<std::chrono::days>(now);
   const std::chrono::hh_mm_ss clock{std::chrono::floor<std::chrono::seconds>(now - day)};
@@ -348,6 +348,7 @@ facet::Value state_for(const Process& process) {
                              {"fonts", font_values()},
                              {"time", facet::Value(std::move(time))},
                              {"plugin", to_value({{"id", process.manifest.id}, {"version", process.manifest.version}})}};
+  for (const auto& [key, value] : extra.items()) state.insert_or_assign(key, to_value(value));
   return facet::Value(std::move(state));
 }
 
@@ -845,6 +846,40 @@ void register_components(facet::Plugin& plugin) {
     return pill;
   });
 
+  // Native(name: Parallax, …): full-screen image layers, back first, each
+  // shifted by its depth as `shift` goes 0..1, gliding to its place.
+  plugin.component("Parallax", [](vw::Ui& ui, const facet::Value& props, const facet::Children&) {
+    const vw::Size size = vw::surface_size();
+    const float width = number_or(props["width"], size.width > 0 ? static_cast<float>(size.width) : 1920.0F);
+    const float height = number_or(props["height"], size.height > 0 ? static_cast<float>(size.height) : 1080.0F);
+    const float shift = std::clamp(number_or(props["shift"], 0.5F), 0.0F, 1.0F);
+    const float strength = std::clamp(number_or(props["strength"], 0.05F), 0.0F, 0.5F);
+    const double glide = std::clamp(number_or(props["glide"], 700), 0.0F, 5000.0F) / 1000.0;
+    const std::string key = props["id"].is_text() ? props["id"].text() : "parallax";
+    const vw::Widget first = ui.hit_area({.width = 1, .height = 1});
+    if (props["layers"].is_list()) {
+      std::size_t index = 0;
+      for (const facet::Value& layer : props["layers"].list()) {
+        ++index;
+        if (!layer.is_object() || !layer["path"].is_text()) continue;
+        const float depth = std::max(0.0F, number_or(layer["depth"], 0));
+        const float opacity = std::clamp(number_or(layer["opacity"], 1), 0.0F, 1.0F);
+        if (opacity <= 0.001F) continue;
+        // Wider than the screen by its travel, so its edges never show.
+        const float travel = width * strength * depth;
+        const float target = -travel * 2 * shift;
+        const auto x = static_cast<float>(vw::animate(std::format("{}.{}", key, index), target,
+                                                      {.duration = glide, .easing = vw::Easing::out_expo}));
+        try {
+          ui.image({.path = layer["path"].text(), .width = width + travel * 2, .height = height, .fit = vw::ImageFit::cover,
+                    .tint = {1, 1, 1, opacity}, .place = {.x = x, .y = 0}});
+        } catch (const std::exception&) {
+        }
+      }
+    }
+    const vw::Widget last = ui.hit_area({.width = 1, .height = 1});
+    return vw::Widget{first.begin, last.end, width, height};
+  });
   plugin.component("Icon", [](vw::Ui& ui, const facet::Value& props, const facet::Children&) {
     const float size = props["size"].is_number() ? static_cast<float>(props["size"].number()) : 20.0F;
     const vw::Color color = props["color"].is_color() ? props["color"].color() : colours().text;
@@ -999,6 +1034,25 @@ std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id) {
     }
   }
   return std::nullopt;
+}
+
+bool draw_wallpaper(vw::Ui& ui, float width, float height, int workspace, int workspaces) {
+  for (auto& [id, process] : running()) {
+    if (!process->views) continue;
+    const auto names = process->views->views();
+    if (std::ranges::find(names, "Wallpaper") == names.end()) continue;
+    try {
+      const json extra{{"screen", {{"width", width}, {"height", height}}},
+                       {"workspace", {{"index", workspace}, {"count", workspaces}}}};
+      const facet::Value arguments[] = {state_for(*process, extra), actions_for(id)};
+      process->views->view(ui, "Wallpaper", arguments);
+      return true;
+    } catch (const std::exception& error) {
+      if (process->last_error != error.what()) log(*process, process->last_error = error.what());
+      return false;
+    }
+  }
+  return false;
 }
 
 std::vector<Desktop> desktops() {

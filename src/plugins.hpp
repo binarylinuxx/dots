@@ -18,7 +18,9 @@
 //           runs inside the shell, so it needs the "native" permission
 //
 // Views named Bar… are bar modules, "<plugin id>:<view>"; a view named
-// Settings is the plugin's page in the settings app.
+// Settings is the plugin's page in the settings app; a view named Wallpaper
+// is drawn full-screen over the wallpaper (the first enabled plugin's wins),
+// under the desktop icons and widgets.
 //
 // Every plugin has one store, a JSON object kept in
 // ~/.local/state/blxshell/plugins/<id>.json: its settings and whatever else it
@@ -40,6 +42,8 @@ namespace blx::plugins {
 //   state.fonts      text, display and icon: the shell's fonts
 //   state.time       hour, minute, second, and text ("14:05")
 //   state.plugin     id and version
+//   state.screen     width and height (Wallpaper views)
+//   state.workspace  index (0-based) and count (Wallpaper views)
 //   actions.get(key, fallback) a stored value, or the fallback
 //   actions.set(key, value)    store a value
 //   actions.send(value)        to its process, as {"type": "action", "data": value}
@@ -54,6 +58,10 @@ namespace blx::plugins {
 // progress ring, and Native(name: Pill, color: …, on_click: …, on_right_click:
 // …, on_middle_click: …, on_scroll: …) { … } lays its children in a row on a
 // rounded background sized to them, like the bar's own modules.
+// Native(name: Parallax, layers: [{path, depth, opacity}], shift: 0..1,
+// strength: 0.05, glide: 700) stacks full-screen images, back first: each
+// slides by depth * strength of the screen width as shift goes 0 to 1 (and
+// glides there over glide ms); opacity crossfades.
 
 // An action in a desktop item's popup menu.
 struct DesktopAction {
@@ -100,6 +108,10 @@ bool has_view(const std::string& bar_id);
 // failed (the error is logged).
 std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id);
 
+// The first running plugin's Wallpaper view, full-screen at (0, 0); false
+// when no plugin has one (or it failed).
+bool draw_wallpaper(vw::Ui& ui, float width, float height, int workspace, int workspaces);
+
 // Every running plugin's desktop items, in plugin order.
 std::vector<Desktop> desktops();
 // The user picked `action` on `item` of a desktop area (source as above).
@@ -120,7 +132,7 @@ facet::Value to_value(const nlohmann::json& value);
 nlohmann::json to_json(const facet::Value& value);
 facet::Value colour_values();
 facet::Value font_values();
-// Icon, Ring and Pill, for Native(name: …).
+// Icon, Ring, Pill and Parallax, for Native(name: …).
 void register_components(facet::Plugin& plugin);
 
 }  // namespace blx::plugins

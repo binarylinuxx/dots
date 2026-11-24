@@ -270,7 +270,9 @@ Plugins are installed off. `blxshell plugin enable <id>` (or the switch in
 
 Views named `Bar…` are bar modules, placed as `"<plugin id>:<view>"` in
 `bar.left`, `bar.center` or `bar.right` (or from **Settings → Plugins**). A
-view named `Settings` is the plugin's page in **Settings → Plugins**.
+view named `Settings` is the plugin's page in **Settings → Plugins**. A view
+named `Wallpaper` is drawn full-screen over the wallpaper, under the desktop
+icons and widgets; the first enabled plugin that has one wins.
 
 ```facet
 let [ vw.ui as ui, vw.layout as layout ] in
@@ -302,6 +304,8 @@ Every view gets `(state, actions)`:
 | `state.time` | `hour`, `minute`, `second`, `text` ("14:05") |
 | `state.plugin` | `id`, `version` |
 | `state.width` | Settings views only: the width they have |
+| `state.screen` | Wallpaper views only: `width`, `height` |
+| `state.workspace` | Wallpaper views only: `index` (from 0) and `count` |
 | `actions.get(key, fallback)` | a stored value, or the fallback |
 | `actions.set(key, value)` | store a value |
 | `actions.send(value)` | to its process, as `{"type": "action", "data": value}` |
@@ -318,6 +322,7 @@ The shell adds three components, used as `Native(name: …)`:
 | `Pill` | children in a row on a rounded background sized to them, like the bar's modules; takes `color`, `padding`, `gap`, `height`, `radius`, `on_click`, `on_right_click`, `on_middle_click`, `on_scroll` |
 | `Icon` | a Material Symbols icon: `glyph`, `size`, `color` |
 | `Ring` | the bar's progress ring: `progress` (0–1), `size`, `stroke`, `color` |
+| `Parallax` | full-screen image `layers` (`[{path, depth, opacity}]`, back first) for Wallpaper views: each slides by `depth` × `strength` of the screen width as `shift` goes 0 to 1, gliding there over `glide` ms; `opacity` crossfades |
 
 Edits to a plugin's `.facet` file show up within a second. Wrap arithmetic in
 a named argument in parentheses (`progress: (a / 60)`): Facet's parser

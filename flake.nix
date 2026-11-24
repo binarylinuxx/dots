@@ -22,11 +22,13 @@
           default = vw.lib.mkShell {
             inherit system;
             pname = "blxshell";
+            # Facet's interpreter (vw::facet) runs plugins' views.
+            facet = true;
             # Only what the build reads, so editing the dotfiles in .config
             # doesn't rebuild the shell.
             src = nixpkgs.lib.fileset.toSource {
               root = ./.;
-              fileset = nixpkgs.lib.fileset.unions [ ./CMakeLists.txt ./src ./shaders ./wallpapers/runix-m3.png ./icons/runix-logo.svg ./translations ];
+              fileset = nixpkgs.lib.fileset.unions [ ./CMakeLists.txt ./src ./shaders ./include ./packages ./schemas ./wallpapers/runix-m3.png ./icons/runix-logo.svg ./translations ];
             };
           };
         });

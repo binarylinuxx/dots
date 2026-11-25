@@ -19,6 +19,8 @@
 #include <spawn.h>
 #include <sstream>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
+#include <mutex>
 #include <sys/inotify.h>
 #include <sys/socket.h>
 #include <sys/timerfd.h>
@@ -30,6 +32,7 @@
 #include "draw.hpp"
 #include "ipc.hpp"
 #include "packages.hpp"
+#include "shapes.hpp"
 #include "style.hpp"
 
 extern char** environ;
@@ -73,10 +76,120 @@ class NativeHost final : public blxshell::Host {
   bool run(std::string_view command) override;
   void notify(std::string_view summary, std::string_view body) override;
   void log(std::string_view text) override;
+  void desktop(std::string_view json) override;
+  std::string applications(std::string_view query) override;
+  bool launch(std::string_view id, const std::vector<std::string>& files) override;
 
  private:
   std::string id_;
 };
+
+// Desktop items native plugins sent, maybe from their threads, until drain()
+// takes them up on the shell's: (plugin id, message).
+std::mutex& native_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+std::vector<std::pair<std::string, std::string>>& native_queue() {
+  static std::vector<std::pair<std::string, std::string>> queue;
+  return queue;
+}
+int native_tag = 0;
+int epoll();
+int native_event() {
+  static const int fd = [] {
+    const int event = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (event >= 0) {
+      epoll_event watch{.events = EPOLLIN, .data = {.ptr = &native_tag}};
+      epoll_ctl(epoll(), EPOLL_CTL_ADD, event, &watch);
+    }
+    return event;
+  }();
+  return fd;
+}
+
+std::string NativeHost::applications(std::string_view query) {
+  json list = json::array();
+  try {
+    for (const vw::applications::Application& app : vw::applications::search(query, 0))
+      list.push_back({{"id", app.id}, {"name", app.display_name.empty() ? app.name : app.display_name},
+                      {"icon", app.icon}, {"iconPath", app.icon_path}, {"file", app.filename},
+                      {"exec", app.commandline}, {"terminal", app.terminal}, {"categories", app.categories}});
+  } catch (const std::exception&) {
+  }
+  return list.dump();
+}
+
+// An Exec line's words, quoting as the desktop entry spec has it.
+std::vector<std::string> exec_words(const std::string& line) {
+  std::vector<std::string> words;
+  std::string word;
+  bool quoted = false;
+  bool any = false;
+  for (std::size_t i = 0; i < line.size(); ++i) {
+    const char c = line[i];
+    if (quoted && c == '\\' && i + 1 < line.size()) word.push_back(line[++i]);
+    else if (c == '"') quoted = !quoted, any = true;
+    else if (!quoted && (c == ' ' || c == '\t')) {
+      if (any || !word.empty()) words.push_back(std::move(word));
+      word.clear();
+      any = false;
+    } else word.push_back(c);
+  }
+  if (any || !word.empty()) words.push_back(std::move(word));
+  return words;
+}
+
+bool NativeHost::launch(std::string_view id, const std::vector<std::string>& files) {
+  try {
+    if (files.empty()) {
+      vw::applications::launch(id);
+      return true;
+    }
+    for (const vw::applications::Application& app : vw::applications::search(id, 0)) {
+      if (app.id != id) continue;
+      std::vector<std::string> argv;
+      bool placed = false;
+      for (const std::string& word : exec_words(app.commandline)) {
+        if (word == "%f" || word == "%u") {
+          argv.push_back(files.front());
+          placed = true;
+        } else if (word == "%F" || word == "%U") {
+          argv.insert(argv.end(), files.begin(), files.end());
+          placed = true;
+        } else if (word.size() == 2 && word[0] == '%') {
+          if (word[1] == '%') argv.emplace_back("%");
+        } else {
+          std::string expanded;
+          for (std::size_t i = 0; i < word.size(); ++i) {
+            if (word[i] == '%' && i + 1 < word.size()) {
+              if (word[++i] == '%') expanded.push_back('%');
+            } else expanded.push_back(word[i]);
+          }
+          argv.push_back(std::move(expanded));
+        }
+      }
+      // An Exec without a field code still gets the file, as GLib does.
+      if (!placed) argv.push_back(files.front());
+      if (argv.empty()) return false;
+      if (app.terminal) argv.insert(argv.begin(), "xdg-terminal-exec");
+      return vw::spawn(argv) > 0;
+    }
+  } catch (const std::exception& error) {
+    log(std::string("launch ") + std::string(id) + ": " + error.what());
+  }
+  return false;
+}
+
+void NativeHost::desktop(std::string_view json) {
+  {
+    std::lock_guard lock(native_mutex());
+    if (native_queue().size() < 256) native_queue().emplace_back(id_, std::string(json));
+  }
+  const std::uint64_t one = 1;
+  const auto written = ::write(native_event(), &one, sizeof one);
+  (void)written;
+}
 
 // A loaded C++ plugin library.
 struct Native {
@@ -210,6 +323,13 @@ bool reload_stores() {
     process->store = std::move(fresh);
     written()[id] = process->store.dump();
     send(*process, {{"type", "store"}, {"store", process->store}});
+    if (process->native) {
+      try {
+        process->native->plugin->store_changed(*process->native->host);
+      } catch (const std::exception& error) {
+        log(*process, std::string("store_changed: ") + error.what());
+      }
+    }
     changed = true;
   }
   return changed;
@@ -593,6 +713,18 @@ bool handle_desktop(Process& process, const json& message) {
   const auto string = [](const json& object, const char* key, std::size_t limit) {
     return object.contains(key) && object[key].is_string() ? object[key].get<std::string>().substr(0, limit) : std::string();
   };
+  // The look of every icon in the area; an item may set its own.
+  const json style = message.contains("style") && message["style"].is_object() ? message["style"] : json::object();
+  const auto shape_of = [&](const json& object, const std::string& fallback) {
+    std::string shape = object.contains("shape") ? string(object, "shape", 32) : fallback;
+    return shape == "none" ? std::string() : shape;
+  };
+  const auto tint_of = [&](const json& object, const std::string& fallback) {
+    const std::string tint = object.contains("tint") ? string(object, "tint", 16) : fallback;
+    return tint == "colour" || tint == "color" ? std::string("colour") : tint == "themed" ? tint : std::string();
+  };
+  const std::string area_shape = shape_of(style, "");
+  const std::string area_tint = tint_of(style, "");
   std::vector<DesktopItem> items;
   for (const json& entry : message["items"]) {
     if (items.size() >= 500) break;
@@ -605,6 +737,8 @@ bool handle_desktop(Process& process, const json& message) {
         for (const json& name : entry["icon"])
           if (name.is_string() && item.icons.size() < 8) item.icons.push_back(name.get<std::string>().substr(0, 4096));
     }
+    item.shape = shape_of(entry, area_shape);
+    item.tint = tint_of(entry, area_tint);
     // Images must be absolute paths: the shell loads them itself.
     if (!item.image.empty() && !item.image.starts_with('/')) item.image.clear();
     if (entry.contains("actions") && entry["actions"].is_array())
@@ -886,6 +1020,23 @@ void register_components(facet::Plugin& plugin) {
     const std::string glyph = props["glyph"].is_text() ? props["glyph"].text() : props["value"].to_string();
     return draw::capture(ui, size, size, [&] { draw::glyph(ui, glyph, size / 2, size / 2, size, color); });
   });
+  // Native(name: Shape, shape: "cookie9sided", size: 40, color: …, on_click: …):
+  // a Material shape (see shapes.hpp); a new shape for the same id morphs.
+  plugin.component("Shape", [](vw::Ui& ui, const facet::Value& props, const facet::Children&) {
+    const float size = number_or(props["size"], 40);
+    const vw::Color color = props["color"].is_color() ? props["color"].color() : colours().primary;
+    const std::string shape = props["shape"].is_text() ? props["shape"].text() : std::string("circle");
+    const std::string id = "facet." + (props["id"].is_text() ? props["id"].text() : shape);
+    const auto click = [](const vw::ClickEvent& e) {
+      return facet::Value(facet::Value::Object{{"x", e.x}, {"y", e.y}, {"button", e.button}});
+    };
+    auto on_click = handler<vw::ClickEvent>(props["on_click"], click);
+    return draw::capture(ui, size, size, [&] {
+      shapes::draw(ui, id, shape, 0, 0, size, color);
+      if (on_click)
+        ui.hit_area({.width = size, .height = size, .place = {.x = 0, .y = 0}, .input = {.on_click = std::move(on_click)}});
+    });
+  });
   plugin.component("Ring", [](vw::Ui& ui, const facet::Value& props, const facet::Children&) {
     const float size = props["size"].is_number() ? static_cast<float>(props["size"].number()) : 26.0F;
     const float stroke = props["stroke"].is_number() ? static_cast<float>(props["stroke"].number()) : 2.0F;
@@ -905,7 +1056,42 @@ int event_fd() {
   return epoll();
 }
 
+// What native plugins sent with Host::desktop, on the shell's thread now.
+bool drain_native() {
+  std::uint64_t count = 0;
+  while (::read(native_event(), &count, sizeof count) > 0) {
+  }
+  std::vector<std::pair<std::string, std::string>> queue;
+  {
+    std::lock_guard lock(native_mutex());
+    queue.swap(native_queue());
+  }
+  bool changed = false;
+  for (const auto& [id, text] : queue) {
+    Process* process = find_running(id);
+    if (process == nullptr || !process->native) continue;
+    try {
+      changed |= handle_desktop(*process, json::parse(text));
+    } catch (const std::exception& error) {
+      log(*process, std::string("sent desktop items that aren't JSON: ") + error.what());
+    }
+  }
+  return changed;
+}
+
+// A native plugin's start(), once it's in running() so its host can reach it.
+void start_native(Process& process) {
+  if (!process.native) return;
+  try {
+    process.native->plugin->start(*process.native->host);
+  } catch (const std::exception& error) {
+    log(process, std::string("its library failed to start: ") + error.what());
+    process.native.reset();
+  }
+}
+
 bool drain() {
+  native_event();
   reap();
   bool changed = false;
   epoll_event events[16];
@@ -922,6 +1108,10 @@ bool drain() {
       }
       if (tag == &store_tag) {
         changed |= reload_stores();
+        continue;
+      }
+      if (tag == &native_tag) {
+        changed |= drain_native();
         continue;
       }
       auto* process = static_cast<Process*>(tag);
@@ -959,7 +1149,8 @@ void sync() {
     auto process = std::make_unique<Process>();
     process->manifest = std::move(*manifest);
     start(*process);
-    processes.emplace(id, std::move(process));
+    Process& added = *processes.emplace(id, std::move(process)).first->second;
+    start_native(added);
   }
 }
 
@@ -1065,14 +1256,32 @@ std::vector<Desktop> desktops() {
 
 void desktop_action(const std::string& source, const std::string& item, const std::string& action) {
   const auto [plugin, area] = split(source);
-  if (Process* process = find_running(plugin))
-    send(*process, {{"type", "event"}, {"desktop", area}, {"item", item}, {"event", "action"}, {"action", action}});
+  Process* process = find_running(plugin);
+  if (process == nullptr) return;
+  if (process->native) {
+    try {
+      process->native->plugin->desktop_action(*process->native->host, area, item, action);
+    } catch (const std::exception& error) {
+      log(*process, std::string("desktop_action: ") + error.what());
+    }
+  }
+  send(*process, {{"type", "event"}, {"desktop", area}, {"item", item}, {"event", "action"}, {"action", action}});
 }
 
 std::string call(const std::string& id, const std::string& command, const std::vector<std::string>& args, bool& ok) {
   Process* process = find_running(id);
   ok = false;
   if (process == nullptr) return std::format("plugin {} isn't running", id);
+  if (process->native) {
+    try {
+      if (process->native->plugin->command(*process->native->host, command, args)) {
+        ok = true;
+        return "ok";
+      }
+    } catch (const std::exception& error) {
+      return std::format("plugin {}: {}", id, error.what());
+    }
+  }
   if (process->fd < 0) return std::format("plugin {} has no process to take commands", id);
   send(*process, {{"type", "command"}, {"name", command}, {"args", args}});
   ok = true;
@@ -1091,6 +1300,7 @@ std::string restart(const std::string& id, bool& ok) {
   process->views.reset();
   process->native.reset();
   ok = start(*process);
+  start_native(*process);
   return ok ? "ok" : std::format("plugin {} didn't start", id);
 }
 

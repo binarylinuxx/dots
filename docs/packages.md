@@ -453,6 +453,21 @@ another cell (dropping on an item swaps them); the cells are remembered in
 `~/.local/state/blxshell/desktop.json`, keyed by area and item id, so keep ids
 stable (a file name, not an index).
 
+`"style": {"shape": "cookie9sided", "tint": "themed"}` beside `items` sets how
+every icon is drawn; an item can carry its own `shape` and `tint`:
+
+- `shape`: a Material shape the icon sits on, inset like an Android adaptive
+  icon (a photo `image` fills it instead): `circle`, `square`, `slanted`,
+  `arch`, `pill`, `diamond`, `gem`, `pentagon`, `sunny`, `verysunny`,
+  `cookie4sided`, `cookie6sided`, `cookie7sided`, `cookie9sided`,
+  `cookie12sided`, `clover4leaf`, `clover8leaf`, `softburst`, `flower`,
+  `puffy`, `ghostish`, `bun`, `heart` and the rest of MaterialShapes.
+  `"none"` or leaving it out draws the icon as it is. Changing it morphs.
+  Facet views can draw one with `Native(name: Shape, shape:, size:, color:)`.
+- `tint`: `"colour"` leans icons toward the accent, keeping their shading;
+  `"themed"` makes them one colour, the accent on its container, like
+  Android's themed icons. Leaving it out keeps their own colours.
+
 ### Permissions
 
 A plugin's process runs as the user, like anything else they start.

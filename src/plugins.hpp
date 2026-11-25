@@ -58,6 +58,8 @@ namespace blx::plugins {
 // progress ring, and Native(name: Pill, color: …, on_click: …, on_right_click:
 // …, on_middle_click: …, on_scroll: …) { … } lays its children in a row on a
 // rounded background sized to them, like the bar's own modules.
+// Native(name: Shape, shape: "cookie9sided", size: 40, color: …, on_click: …)
+// draws a Material shape.
 // Native(name: Parallax, layers: [{path, depth, opacity}], shift: 0..1,
 // strength: 0.05, glide: 700) stacks full-screen images, back first: each
 // slides by depth * strength of the screen width as shift goes 0 to 1 (and
@@ -79,6 +81,13 @@ struct DesktopItem {
   std::string image;               // an image file shown as the icon (a thumbnail)
   std::string glyph;               // Material Symbols fallback
   std::vector<DesktopAction> actions;
+  // How the icon is drawn, from the message's "style" or the item's own:
+  // shape is a Material shape name ("cookie9sided", "clover4leaf", ...) the
+  // icon sits on, like Android's adaptive icons, or empty for none; tint is
+  // "colour" (recoloured toward the theme), "themed" (monochrome in the
+  // accent, like Android's themed icons) or empty for none.
+  std::string shape;
+  std::string tint;
 };
 
 // A plugin's desktop area: "<plugin id>:<area id>" and its items.
@@ -132,7 +141,7 @@ facet::Value to_value(const nlohmann::json& value);
 nlohmann::json to_json(const facet::Value& value);
 facet::Value colour_values();
 facet::Value font_values();
-// Icon, Ring, Pill and Parallax, for Native(name: …).
+// Icon, Ring, Pill, Shape and Parallax, for Native(name: …).
 void register_components(facet::Plugin& plugin);
 
 }  // namespace blx::plugins

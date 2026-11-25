@@ -40,7 +40,7 @@
 #else
 #define BLXSHELL_PLUGIN_COMPILER "gcc " __VERSION__
 #endif
-#define BLXSHELL_PLUGIN_ABI "blxshell-plugin-2/" BLXSHELL_PLUGIN_PROJECT "/" BLXSHELL_PLUGIN_VERSION "/" BLXSHELL_PLUGIN_COMPILER
+#define BLXSHELL_PLUGIN_ABI "blxshell-plugin-3/" BLXSHELL_PLUGIN_PROJECT "/" BLXSHELL_PLUGIN_VERSION "/" BLXSHELL_PLUGIN_COMPILER
 
 namespace blxshell {
 
@@ -70,14 +70,37 @@ class Host {
   // Needs the "notifications" permission.
   virtual void notify(std::string_view summary, std::string_view body) = 0;
   virtual void log(std::string_view text) = 0;
+  // Puts icons on the desktop: the same object a process sends as
+  // {"type": "desktop", ...}, without "type": {"id": "files", "items": [...],
+  // "style": {...}} (see docs/packages.md, Desktop items). The one call that
+  // is safe from any thread: the shell takes it up on its own.
+  virtual void desktop(std::string_view json) = 0;
+  // Installed applications, from vw's applications service, as a JSON array
+  // best match first ("" lists them all): [{"id": "firefox.desktop", "name",
+  // "icon" (theme name or path), "iconPath" (resolved file), "file" (its
+  // .desktop), "exec", "terminal", "categories"}]. Safe from any thread.
+  virtual std::string applications(std::string_view query) = 0;
+  // Starts an application by desktop id, with files (paths or URIs) for its
+  // %f %F %u %U; false when it isn't installed or won't start.
+  virtual bool launch(std::string_view id, const std::vector<std::string>& files) = 0;
 };
 
+// Everything is optional. The shell calls these on its own thread; a plugin
+// that works in the background joins its threads in its destructor.
 class Plugin {
  public:
   virtual ~Plugin() = default;
   // Its views: "Bar…" ones are bar modules ("<plugin id>:<view>").
-  virtual std::vector<std::string> views() const = 0;
-  virtual vw::Widget view(vw::Ui& ui, std::string_view name, Host& host) = 0;
+  virtual std::vector<std::string> views() const { return {}; }
+  virtual vw::Widget view(vw::Ui&, std::string_view, Host&) { return {}; }
+  // Running, with its store readable; `host` lives as long as the plugin.
+  virtual void start(Host&) {}
+  // Its store changed (its Settings page, or `set` from anywhere).
+  virtual void store_changed(Host&) {}
+  // The user picked `action` on `item` in one of its desktop areas.
+  virtual void desktop_action(Host&, std::string_view /*area*/, std::string_view /*item*/, std::string_view /*action*/) {}
+  // `blxshell plugin call <id> <name> [args…]`; false when it has no such command.
+  virtual bool command(Host&, std::string_view /*name*/, const std::vector<std::string>& /*args*/) { return false; }
 };
 
 // vw draws in the order things are built, so a background must be built

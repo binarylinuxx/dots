@@ -21,6 +21,7 @@
 #include "draw.hpp"
 #include "parts.hpp"
 #include "plugins.hpp"
+#include "shapes.hpp"
 #include "style.hpp"
 
 namespace blx {
@@ -172,16 +173,46 @@ std::array<std::int32_t, 4> region(float x, float y, float width, float height) 
           static_cast<std::int32_t>(std::ceil(width)), static_cast<std::int32_t>(std::ceil(height))};
 }
 
-// The item's picture: its image, else the first icon that loads, else its glyph.
+// An app or file icon's tint: "colour" leans it toward the accent keeping its
+// own shading; "themed" makes it one colour, the accent, like Android's
+// themed icons. Photos (item.image) are never tinted.
+vw::ImageEffect tint_effect(const std::string& tint) {
+  const Colours& c = colours();
+  if (tint == "themed") return {.saturation = 0, .colorize = c.primary, .colorize_amount = 1};
+  if (tint == "colour") return {.colorize = c.primary, .colorize_amount = 0.55F};
+  return {};
+}
+
+// The item's picture: its image, else the first icon that loads, else its
+// glyph. With a shape the icon sits on it, inset like an adaptive icon, and
+// a photo fills it; changing the shape morphs to the new one.
 void draw_picture(vw::Ui& ui, const plugins::DesktopItem& item, float x, float y) {
   const Colours& c = colours();
-  if (!item.image.empty() && draw::icon(ui, item.image, "", x, y, icon_size, std::nullopt, 10, vw::ImageFit::cover)) return;
+  const bool shaped = !item.shape.empty();
+  const vw::ImageEffect effect = tint_effect(item.tint);
+  if (!item.image.empty()) {
+    const bool drawn = shaped ? draw::icon(ui, item.image, "", x, y, icon_size, std::nullopt, 0, vw::ImageFit::cover, {},
+                                           shapes::mask(item.shape))
+                              : draw::icon(ui, item.image, "", x, y, icon_size, std::nullopt, 10, vw::ImageFit::cover);
+    if (drawn) return;
+  }
+  float inner = icon_size;
+  float inset = 0;
+  if (shaped) {
+    const vw::Color backdrop = item.tint == "themed" ? c.primary_container : c.surface_container_highest;
+    shapes::draw(ui, "desktop." + item.id, item.shape, x, y, icon_size, backdrop);
+    inner = std::round(icon_size * 0.68F);
+    inset = (icon_size - inner) / 2;
+  }
   for (const std::string& icon : item.icons) {
     const bool file = icon.starts_with('/');
-    if (draw::icon(ui, file ? icon : "", file ? "" : icon, x, y, icon_size)) return;
+    if (draw::icon(ui, file ? icon : "", file ? "" : icon, x + inset, y + inset, inner, std::nullopt, 0,
+                   vw::ImageFit::contain, effect))
+      return;
   }
-  draw::rect(ui, x, y, icon_size, icon_size, 14, c.primary_container);
-  draw::glyph(ui, item.glyph.empty() ? "draft" : item.glyph, x + icon_size / 2, y + icon_size / 2, 28, c.primary);
+  if (!shaped) draw::rect(ui, x, y, icon_size, icon_size, 14, c.primary_container);
+  draw::glyph(ui, item.glyph.empty() ? "draft" : item.glyph, x + icon_size / 2, y + icon_size / 2, shaped ? 24 : 28,
+              c.primary);
 }
 
 // The icon and its name in a cell at (x, y).

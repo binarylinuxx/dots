@@ -109,7 +109,12 @@ add_executable(blxshell-preview EXCLUDE_FROM_ALL src/preview.cpp)
 target_link_libraries(blxshell-preview PRIVATE blxshell-core)
 target_compile_options(blxshell-preview PRIVATE ${BLXSHELL_WARNINGS})
 
-install(TARGETS blxshell blxshell-greeter RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+# The plugin and theme store, a window of its own.
+add_executable(blxshell-store src/store.cpp)
+target_link_libraries(blxshell-store PRIVATE blxshell-core)
+target_compile_options(blxshell-store PRIVATE ${BLXSHELL_WARNINGS})
+
+install(TARGETS blxshell blxshell-greeter blxshell-store RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(FILES ${BLXSHELL_SHADERS} DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell")
 # The default wallpaper, for the shell and the greeter alike.
 install(FILES wallpapers/runix-m3.png DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/wallpapers")

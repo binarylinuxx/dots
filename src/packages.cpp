@@ -699,6 +699,13 @@ std::vector<Remote> available(std::vector<std::string>& problems) {
         remote.requires_shell = entry.value("blxshell", "");
         remote.compositors = entry.value("compositors", std::vector<std::string>{});
         remote.permissions = entry.value("permissions", std::vector<std::string>{});
+        remote.tags = entry.value("tags", std::vector<std::string>{});
+        for (const std::string& preview : entry.value("previews", std::vector<std::string>{}))
+          if (preview.starts_with("https://")) remote.previews.push_back(preview);
+        if (const std::string readme = entry.value("readme", ""); readme.starts_with("https://")) remote.readme = readme;
+        remote.license = entry.value("license", "");
+        for (const json& author : entry.value("authors", json::array()))
+          if (author.is_string()) remote.authors.push_back(author.get<std::string>());
         remote.url = entry.at("url").get<std::string>();
         remote.sha256 = entry.at("sha256").get<std::string>();
         remote.size = entry.value("size", std::uint64_t{0});
@@ -742,6 +749,35 @@ std::optional<fs::path> download(const Remote& remote, std::string& message) {
     return std::nullopt;
   }
   return file;
+}
+
+std::optional<fs::path> cached_file(const std::string& url, bool fresh) {
+  if (!url.starts_with("https://")) return std::nullopt;
+  std::string extension_of = fs::path(url).extension().string();
+  if (extension_of != ".png" && extension_of != ".jpg" && extension_of != ".jpeg" && extension_of != ".webp" &&
+      extension_of != ".svg" && extension_of != ".md")
+    extension_of = ".bin";
+  const fs::path folder = cache_directory() / "files";
+  const fs::path file = folder / (sha256(url).substr(0, 24) + extension_of);
+  std::error_code error;
+  if (!fresh && fs::is_regular_file(file, error) && fs::file_size(file, error) > 0) return file;
+  fs::create_directories(folder, error);
+  const fs::path partial = file.string() + ".part";
+  if (!fetch(url, partial).empty()) {
+    fs::remove(partial, error);
+    return std::nullopt;
+  }
+  fs::rename(partial, file, error);
+  if (error) return std::nullopt;
+  return file;
+}
+
+std::optional<std::string> remote_incompatibility(const Remote& remote) {
+  Manifest m;
+  m.project = remote.project;
+  m.compositors = remote.compositors;
+  m.requires_shell = remote.requires_shell;
+  return incompatibility(m);
 }
 
 bool newer(const std::string& candidate, const std::string& installed) {
@@ -979,13 +1015,7 @@ std::string joined(const std::vector<std::string>& list) {
 
 // Why a repository package won't run here, from its index entry alone (so
 // nothing is downloaded for it).
-std::optional<std::string> remote_incompatibility(const Remote& remote) {
-  Manifest m;
-  m.project = remote.project;
-  m.compositors = remote.compositors;
-  m.requires_shell = remote.requires_shell;
-  return incompatibility(m);
-}
+std::optional<std::string> remote_problem(const Remote& remote) { return remote_incompatibility(remote); }
 
 // Runs this blxshell again with `arguments`, quietly; for asking the running
 // shell to restart an updated plugin.
@@ -1013,7 +1043,7 @@ void run_self(std::vector<std::string> arguments) {
 // Downloads, checks and installs a repository package. An enabled plugin is
 // restarted in the running shell so the new version takes over.
 bool install_remote(const Remote& remote, bool force) {
-  if (const auto why = remote_incompatibility(remote); why && !force) {
+  if (const auto why = remote_problem(remote); why && !force) {
     std::cerr << "blxshell: " << remote.id << " won't run here: " << *why << " (--force to install anyway)\n";
     return false;
   }

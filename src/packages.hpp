@@ -135,6 +135,11 @@ struct Remote {
   std::string requires_shell;
   std::vector<std::string> compositors;
   std::vector<std::string> permissions;
+  std::vector<std::string> tags;
+  std::vector<std::string> previews;  // image URLs
+  std::string readme;                 // its README.md's URL, when it has one
+  std::string license;
+  std::vector<std::string> authors;
   std::string url;
   std::string sha256;
   std::uint64_t size = 0;
@@ -151,6 +156,11 @@ std::vector<Remote> available(std::vector<std::string>& problems);
 // Downloads a package and checks its size and sha256 against the index;
 // the verified .blx, or nullopt with a message.
 std::optional<std::filesystem::path> download(const Remote& remote, std::string& message);
+// A file from an https URL (a preview, a README) in the cache, downloaded
+// once, or again when `fresh`; nullopt when it can't be fetched.
+std::optional<std::filesystem::path> cached_file(const std::string& url, bool fresh = false);
+// Why a repository package won't run here, from its index entry alone.
+std::optional<std::string> remote_incompatibility(const Remote& remote);
 // True when `candidate` is a newer version than `installed`.
 bool newer(const std::string& candidate, const std::string& installed);
 

@@ -25,7 +25,7 @@ find_program(GLSLC glslc REQUIRED)
 # Compiled to vw's .vws format: vw then knows these shaders never sample the
 # backdrop and skips the full-surface copy it would otherwise make per frame.
 set(BLXSHELL_SHADERS)
-foreach(shader blob shape)
+foreach(shader blob shape wave)
   vw_compile_shader(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${shader}.vws"
                     SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${shader}.comp")
   list(APPEND BLXSHELL_SHADERS "${CMAKE_CURRENT_BINARY_DIR}/${shader}.vws")

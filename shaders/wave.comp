@@ -1,0 +1,104 @@
+#version 450
+
+// Wavy progress (src/widgets.cpp): a sine-modulated stroke with round caps,
+// along a line (MaterialSlider's wave) or around a circle (CircularProgress,
+// wavy or flat). A fixed shader with its numbers in the data buffer, so a
+// value that changes every frame costs nothing but the numbers.
+//
+// vw's rectangle push constants carry:
+//   color          the stroke's colour
+//   clip_params.y  first word of the data in the data buffer
+// Data (floats; positions are from the rectangle's top-left, so the stroke
+// follows wherever layout moves it):
+//   0 mode: 0 line, 1 arc
+//   1 stroke width   2 amplitude   3 phase (radians)
+//   line: 4 wavelength   5 start x   6 length   7 centre y
+//   arc:  4 waves per radian   5 centre x   6 centre y   7 radius
+//         8 start angle (radians, clockwise from +x)   9 sweep (radians)
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rgba8, set = 0, binding = 0) uniform image2D target_image;
+layout(std430, set = 0, binding = 1) readonly buffer Data { uint words[]; } data;
+
+layout(push_constant) uniform Rectangle {
+  vec4 bounds;
+  vec4 params;
+  vec4 color;
+  vec4 color2;
+  vec4 border_color;
+  vec4 clip;
+  vec4 clip_params;
+  vec4 shader_params;
+} rectangle;
+
+const float TAU = 6.28318530718;
+
+float value(uint index) { return uintBitsToFloat(data.words[uint(rectangle.clip_params.y) + index]); }
+
+void blend(ivec2 destination, vec4 color, float amount) {
+  float alpha = color.a * clamp(amount, 0.0, 1.0);
+  if (alpha <= 0.0) return;
+  vec4 source = vec4(color.rgb * alpha, alpha);
+  vec4 current = imageLoad(target_image, destination);
+  imageStore(target_image, destination, source + current * (1.0 - source.a));
+}
+
+// Distance from p to the line's wave, caps included.
+float line_distance(vec2 p, float amplitude, float phase) {
+  float wavelength = max(value(4u), 1.0);
+  float start = value(5u);
+  float length = value(6u);
+  float centre = value(7u);
+  float k = TAU / wavelength;
+  vec2 a = vec2(start, centre + amplitude * sin(phase));
+  vec2 b = vec2(start + length, centre + amplitude * sin(k * length + phase));
+  float nearest = min(distance(p, a), distance(p, b));
+  float u = p.x - start;
+  if (u >= 0.0 && u <= length) {
+    float y = centre + amplitude * sin(k * u + phase);
+    float slope = amplitude * k * cos(k * u + phase);
+    nearest = min(nearest, abs(p.y - y) / sqrt(1.0 + slope * slope));
+  }
+  return nearest;
+}
+
+vec2 arc_point(vec2 centre, float radius, float angle, float offset, float amplitude, float k, float phase) {
+  float r = radius + amplitude * sin(k * offset + phase);
+  return centre + vec2(cos(angle), sin(angle)) * r;
+}
+
+// Distance from p to the arc's wave, caps included.
+float arc_distance(vec2 p, float amplitude, float phase) {
+  float k = value(4u);
+  vec2 centre = vec2(value(5u), value(6u));
+  float radius = value(7u);
+  float start = value(8u);
+  float sweep = value(9u);
+  float nearest = min(distance(p, arc_point(centre, radius, start, 0.0, amplitude, k, phase)),
+                      distance(p, arc_point(centre, radius, start + sweep, sweep, amplitude, k, phase)));
+  vec2 d = p - centre;
+  float r = length(d);
+  float offset = mod(atan(d.y, d.x) - start, TAU);
+  if (offset <= sweep && r > 0.0) {
+    float wave = radius + amplitude * sin(k * offset + phase);
+    float slope = amplitude * k * cos(k * offset + phase) / max(r, 1.0);
+    nearest = min(nearest, abs(r - wave) / sqrt(1.0 + slope * slope));
+  }
+  return nearest;
+}
+
+void main() {
+  ivec2 local = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(local, ivec2(ceil(rectangle.bounds.zw))))) return;
+  ivec2 destination = ivec2(floor(rectangle.bounds.xy)) + local;
+  if (any(lessThan(destination, ivec2(0))) ||
+      any(greaterThanEqual(destination, imageSize(target_image)))) return;
+  if (rectangle.clip_params.z < 8.0) return;
+
+  vec2 p = vec2(destination) + vec2(0.5) - rectangle.bounds.xy;
+  float stroke = value(1u);
+  float amplitude = value(2u);
+  float phase = value(3u);
+  float d = value(0u) < 0.5 ? line_distance(p, amplitude, phase) : arc_distance(p, amplitude, phase);
+  blend(destination, rectangle.color, stroke * 0.5 + 0.5 - d);
+}

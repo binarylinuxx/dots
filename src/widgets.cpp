@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <map>
 #include <numbers>
@@ -32,6 +34,68 @@ void canvas(vw::Ui& ui, const std::string& id, float x, float y, float width, fl
 }
 
 double unit(double value) { return std::clamp(value, 0.0, 1.0); }
+
+// shaders/wave.comp: BLXSHELL_SHADER_DIR, the build tree, then
+// <prefix>/share/blxshell.
+const std::string& wave_shader() {
+  static const std::string path = [] {
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    if (const char* directory = std::getenv("BLXSHELL_SHADER_DIR"); directory && *directory)
+      candidates.emplace_back(directory);
+#ifdef BLXSHELL_BUILD_SHADER_DIR
+    candidates.emplace_back(BLXSHELL_BUILD_SHADER_DIR);
+#endif
+    std::error_code error;
+    const auto executable = fs::read_symlink("/proc/self/exe", error);
+    if (!error) candidates.push_back(executable.parent_path().parent_path() / "share" / "blxshell");
+    for (const auto& directory : candidates)
+      if (fs::exists(directory / "wave.vws", error)) return (directory / "wave.vws").string();
+    return std::string();
+  }();
+  return path;
+}
+
+// Seconds on a steady clock, for wave phases.
+double seconds() {
+  static const Clock::time_point start = Clock::now();
+  return std::chrono::duration<double>(Clock::now() - start).count();
+}
+
+// A full turn of phase every `period` seconds.
+float phase(double period) { return static_cast<float>(std::fmod(seconds(), period) / period * 2 * pi); }
+
+// One wave.comp stroke in the rectangle (x, y, width, height); `data` as
+// the shader reads it, positions from the rectangle's corner.
+void wave_stroke(vw::Ui& ui, float x, float y, float width, float height, vw::Color colour,
+                 std::vector<float> data) {
+  if (wave_shader().empty() || width < 1 || height < 1 || colour[3] <= 0) return;
+  ui.rectangle({.width = width, .height = height, .color = colour, .shader = wave_shader(),
+                .shader_data = std::move(data), .place = {.x = x, .y = y}});
+}
+
+// An arc of a circle of `radius` centred in a size x size square at (x, y),
+// from `start` for `sweep` degrees (clockwise from +x); wavy with amplitude.
+void arc(vw::Ui& ui, float x, float y, float size, float radius, float stroke, double start, double sweep,
+         vw::Color colour, float amplitude = 0, float waves_per_radian = 0, float wave_phase = 0) {
+  if (sweep <= 0.05) return;
+  constexpr double degrees = pi / 180;
+  wave_stroke(ui, x, y, size, size, colour,
+              {1, stroke, amplitude, wave_phase, waves_per_radian, size / 2, size / 2, radius,
+               static_cast<float>(start * degrees), static_cast<float>(std::min(sweep, 359.99) * degrees)});
+}
+
+// A slider's drag, so it shows where the pointer is while dragging and keeps
+// that value after release until the source (a player's position) catches up.
+struct SliderDrag {
+  bool dragging = false;
+  double value = 0;
+  Clock::time_point released{};
+};
+std::map<std::string, SliderDrag>& slider_drags() {
+  static std::map<std::string, SliderDrag> drags;
+  return drags;
+}
 
 // Material shapes as smooth polar profiles: r(t) between 1-depth and 1.
 struct Profile {
@@ -136,45 +200,32 @@ void circular_progress(vw::Ui& ui, const std::string& id, float x, float y, floa
   const double gap = radius > 0 ? (o.stroke + 3) / radius * 180 / pi : 0;
   const double sweep = std::clamp<double>(o.sweep_angle, 0, 360);
   const vw::Color endpoint = progress > threshold ? o.critical : o.accent;
-  // Quantised so an unchanged value reuses the cached canvas.
-  const double shown = std::round(progress * 400) / 400;
-  std::string code = std::format(
-      "const P=Math.PI/180,R={},C={},S0={},W={};"
-      "function arc(a,b,col,w){{if(b<=0.05)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;"
-      "ctx.lineCap='round';ctx.arc(C,C,R,a*P,(a+b)*P,false);ctx.stroke();}}"
-      "function draw(ctx,canvas,time){{ctx.clearRect(0,0,canvas.width,canvas.height);{}",
-      num(radius), num(size / 2.0), num(o.start_angle), num(o.stroke),
-      o.indeterminate ? "const S=S0+(time%1.3)/1.3*360;" : "const S=S0;");
-  const bool partial = shown > 0 && shown < 1;
-  if (shown < 0.999)
-    code += std::format("arc(S+{}+{},{}-{},'{}',W);", num(shown * sweep), num(partial ? gap : 0),
-                        num(std::max(0.01, sweep * (1 - shown))), num(partial ? gap : 0),
-                        css(o.active ? o.track : with_alpha(o.track, o.track[3] * 0.55F)));
-  if (o.wavy && shown > 0) {
-    // A sine-modulated arc whose phase runs a full turn every 1.5 s.
-    code += std::format(
-        "ctx.beginPath();ctx.strokeStyle='{0}';ctx.lineWidth=W;ctx.lineCap='round';ctx.lineJoin='round';"
-        "const p={1},sw={2},N=Math.max(8,Math.ceil(p*sw/4)),ph=(time%1.5)/1.5*Math.PI*2;"
-        "for(let i=0;i<=N;i++){{const f=i/N,a=(S+sw*p*f)*P,r=R+Math.sin(f*p*8*Math.PI*2+ph)*W*0.38;"
-        "const px=C+Math.cos(a)*r,py=C+Math.sin(a)*r;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}}"
-        "ctx.stroke();",
-        css(endpoint), num(shown), num(sweep));
+  const bool spinning = o.indeterminate || (o.wavy && o.active);
+  const double begin = o.start_angle + (o.indeterminate ? std::fmod(seconds(), 1.3) / 1.3 * 360 : 0);
+  const auto r = static_cast<float>(radius);
+  const bool partial = progress > 0 && progress < 1;
+  if (progress < 0.999)
+    arc(ui, x, y, size, r, o.stroke, begin + progress * sweep + (partial ? gap : 0),
+        std::max(0.01, sweep * (1 - progress)) - (partial ? gap : 0),
+        o.active ? o.track : with_alpha(o.track, o.track[3] * 0.55F));
+  if (o.wavy && progress > 0) {
+    // Eight waves round a full sweep, the phase a full turn every 1.5 s.
+    arc(ui, x, y, size, r, o.stroke, begin, progress * sweep, endpoint, o.stroke * 0.38F,
+        static_cast<float>(8 / (sweep * pi / 180)), o.active ? phase(1.5) : 0);
   } else {
-    code += std::format("arc(S,{},'{}',W);", num(std::max(0.01, std::min(shown, threshold) * sweep)),
-                        css(o.accent));
-    if (shown > threshold)
-      code += std::format("arc(S+{},{},'{}',W);", num(threshold * sweep),
-                          num((shown - threshold) * sweep), css(o.critical));
+    arc(ui, x, y, size, r, o.stroke, begin, std::max(0.01, std::min(progress, threshold) * sweep), o.accent);
+    if (progress > threshold)
+      arc(ui, x, y, size, r, o.stroke, begin + threshold * sweep, (progress - threshold) * sweep, o.critical);
   }
-  if (o.show_end_indicator && shown < 0.995)
-    code += std::format(
-        "{{const a=(S+{})*P,d=Math.min(4,W);ctx.beginPath();ctx.fillStyle='{}';"
-        "ctx.arc(C+Math.cos(a)*R,C+Math.sin(a)*R,d/2,0,Math.PI*2);ctx.fill();}}",
-        num(sweep), css(endpoint));
-  code += "}";
+  if (o.show_end_indicator && progress < 0.995) {
+    const double a = (begin + sweep) * pi / 180;
+    const float dot = std::min(4.0F, o.stroke);
+    draw::rect(ui, x + size / 2 + static_cast<float>(std::cos(a) * radius) - dot / 2,
+               y + size / 2 + static_cast<float>(std::sin(a) * radius) - dot / 2, dot, dot, dot / 2, endpoint);
+  }
   (void)normal;
   (void)critical;
-  canvas(ui, "circular." + id, x, y, size, size, code, (o.wavy || o.indeterminate) && o.active);
+  if (spinning) vw::request_animation_continuation();
   if (o.show_label) {
     if (!o.icon.empty())
       draw::glyph(ui, o.icon, x + size / 2, y + size / 2, 18, o.active ? endpoint : vw::Color{0.6F, 0.6F, 0.6F, 1});
@@ -243,7 +294,14 @@ void shape(vw::Ui& ui, const std::string& id, const std::string& type, float x, 
 
 void material_slider(vw::Ui& ui, const std::string& id, float x, float y, float width,
                      float height, const SliderOptions& o) {
-  const double value = unit(o.value);
+  // While dragging, where the pointer is; just after, that value until the
+  // source reports something close to it (or 1.5 s pass).
+  SliderDrag& drag = slider_drags()[id];
+  if (!drag.dragging && drag.released != Clock::time_point{} &&
+      (std::abs(unit(o.value) - drag.value) < 0.01 || Clock::now() - drag.released > std::chrono::milliseconds(1500)))
+    drag.released = {};
+  const bool held = drag.dragging || drag.released != Clock::time_point{};
+  const double value = held ? drag.value : unit(o.value);
   const float inset = o.handle_diameter / 2 + o.endpoint_padding;
   const float track_x = x + inset;
   const float track_width = std::max(0.0F, width - inset * 2);
@@ -258,18 +316,12 @@ void material_slider(vw::Ui& ui, const std::string& id, float x, float y, float 
                o.track_thickness / 2, o.track);
   if (fill > 0) {
     if (o.wave) {
+      // wave.comp: the fill length and phase are data, so neither playback
+      // nor a drag rebuilds anything; the phase runs a full turn every 0.9 s.
       const float pad = o.wave_amplitude + o.track_thickness;
-      const std::string code = std::format(
-          "function draw(ctx,canvas,time){{ctx.clearRect(0,0,canvas.width,canvas.height);"
-          "ctx.strokeStyle='{}';ctx.lineWidth={};ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();"
-          "const cy={},L={},A={},E={},ph=(time%0.9)/0.9*Math.PI*2;ctx.moveTo({},cy);"
-          "for(let x=2;x<E;x+=2)ctx.lineTo({}+x,cy+Math.sin(x/L*Math.PI*2+ph)*A);"
-          "ctx.lineTo({}+E,cy);ctx.stroke();}}",
-          css(o.fill), num(o.track_thickness), num(pad), num(o.wave_length), num(o.wave_amplitude),
-          num(std::round(fill)), num(o.track_thickness / 2), num(o.track_thickness / 2),
-          num(o.track_thickness / 2));
-      canvas(ui, "slider." + id, track_x - o.track_thickness / 2, centre_y - pad,
-             std::round(fill) + o.track_thickness, pad * 2, code, true);
+      wave_stroke(ui, track_x - o.track_thickness / 2, centre_y - pad, fill + o.track_thickness, pad * 2, o.fill,
+                  {0, o.track_thickness, o.wave_amplitude, phase(0.9), o.wave_length, o.track_thickness / 2, fill, pad});
+      vw::request_animation_continuation();
     } else {
       draw::rect(ui, track_x - o.track_thickness / 2, centre_y - o.track_thickness / 2,
                  fill + o.track_thickness, o.track_thickness, o.track_thickness / 2, o.fill);
@@ -287,18 +339,28 @@ void material_slider(vw::Ui& ui, const std::string& id, float x, float y, float 
   const auto at = [track_x, track_width](double pointer) {
     return track_width <= 0 ? 0.0 : unit((pointer - track_x) / track_width);
   };
+  const auto hold = [id](double to, bool dragging) {
+    SliderDrag& state = slider_drags()[id];
+    state.value = to;
+    state.dragging = dragging;
+    state.released = dragging ? Clock::time_point{} : Clock::now();
+  };
   ui.hit_area({.width = width, .height = height, .place = {.x = x, .y = y},
-               .input = {.on_click = [at, moved = o.moved, released = o.released](const vw::ClickEvent& e) {
+               .input = {.on_click = [at, hold, moved = o.moved, released = o.released](const vw::ClickEvent& e) {
+                           hold(at(e.x), false);
                            if (moved) moved(at(e.x));
                            if (released) released(at(e.x));
                          },
-                         .on_drag_start = [at, moved = o.moved](const vw::DragEvent& e) {
+                         .on_drag_start = [at, hold, moved = o.moved](const vw::DragEvent& e) {
+                           hold(at(e.x), true);
                            if (moved) moved(at(e.x));
                          },
-                         .on_drag = [at, moved = o.moved](const vw::DragEvent& e) {
+                         .on_drag = [at, hold, moved = o.moved](const vw::DragEvent& e) {
+                           hold(at(e.x), true);
                            if (moved) moved(at(e.x));
                          },
-                         .on_drag_end = [at, released = o.released](const vw::DragEvent& e) {
+                         .on_drag_end = [at, hold, released = o.released](const vw::DragEvent& e) {
+                           hold(at(e.x), false);
                            if (released) released(at(e.x));
                          }}});
 }

@@ -6,7 +6,10 @@
 // centred stroke meshes.
 //
 // vw's rectangle push constants carry:
-//   shader_params  x, y, size of the shape's square in surface pixels
+//   shader_params  z: the size of the shape's square in pixels. The square
+//                  sits centred in the rectangle (padded for the stroke), so
+//                  its corner comes from the rectangle's own bounds and the
+//                  shape follows wherever layout moves it.
 //   params.y       stroke width (vw's border width)
 //   color          fill
 //   color2         stroke
@@ -51,7 +54,8 @@ void main() {
   float size = rectangle.shader_params.z;
   uint count = uint(rectangle.clip_params.z) / 2u;
   if (count < 3u || size <= 0.0) return;
-  vec2 point = (vec2(destination) + vec2(0.5) - rectangle.shader_params.xy) / size;
+  vec2 origin = rectangle.bounds.xy + (rectangle.bounds.zw - vec2(size)) * 0.5;
+  vec2 point = (vec2(destination) + vec2(0.5) - origin) / size;
 
   // Distance to the nearest segment, and the non-zero winding number.
   float nearest = 1e9;

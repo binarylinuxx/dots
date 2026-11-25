@@ -574,7 +574,7 @@ void draw(vw::Ui& ui, const std::string& id, const std::string& type, float x, f
   const float pad = stroke_width / 2 + 1;
   ui.rectangle({.width = size + pad * 2, .height = size + pad * 2, .color = fill,
                 .color2 = stroke, .border_width = stroke_width, .shader = shader(),
-                .shader_params = {x, y, size, 0}, .shader_data = flatten(shape),
+                .shader_params = {0, 0, size, 0}, .shader_data = flatten(shape),
                 .place = {.x = x - pad, .y = y - pad}});
 }
 

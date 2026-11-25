@@ -420,10 +420,19 @@ std::pair<std::string, bool> notice_line(const pk::Remote& remote, const Status&
 void picture(vw::Ui& ui, float x, float y, float width, float height, float radius, const std::string& path, bool theme,
              vw::ImageFit fit) {
   const Colours& c = colours();
-  draw::rect(ui, x, y, width, height, radius, c.surface_container_high);
+  // Built first so it sits behind; a contained picture then squeezes it to
+  // the picture's own size, leaving no empty box beside a narrow screenshot.
+  const vw::Widget back = ui.rectangle({.width = width, .height = height, .radius = radius,
+                                        .color = c.surface_container_high, .place = {.x = x, .y = y}});
   if (!path.empty()) {
     try {
-      ui.image({.path = path, .width = width, .height = height, .fit = fit, .radius = radius, .place = {.x = x, .y = y}});
+      const vw::Widget shown =
+          ui.image({.path = path, .width = width, .height = height, .fit = fit, .radius = radius, .place = {.x = x, .y = y}});
+      if (fit == vw::ImageFit::contain && shown.width > 0 && shown.height > 0) {
+        auto& rectangle = ui.scene().rectangles[back.begin];
+        rectangle.width = shown.width;
+        rectangle.height = shown.height;
+      }
       return;
     } catch (const std::exception&) {
     }

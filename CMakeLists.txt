@@ -94,6 +94,12 @@ add_executable(blxshell-greeter src/greeter.cpp)
 target_link_libraries(blxshell-greeter PRIVATE blxshell-core)
 target_compile_options(blxshell-greeter PRIVATE ${BLXSHELL_WARNINGS})
 
+# Draws the lock screen on an overlay without locking the session, apart from
+# the shell, to look at it while working on it. Not installed.
+add_executable(blxshell-preview EXCLUDE_FROM_ALL src/preview.cpp)
+target_link_libraries(blxshell-preview PRIVATE blxshell-core)
+target_compile_options(blxshell-preview PRIVATE ${BLXSHELL_WARNINGS})
+
 install(TARGETS blxshell blxshell-greeter RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(FILES ${BLXSHELL_SHADERS} DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell")
 # The default wallpaper, for the shell and the greeter alike.

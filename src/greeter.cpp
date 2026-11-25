@@ -52,8 +52,6 @@ using Clock = std::chrono::steady_clock;
 namespace greetd = vw::greetd;
 
 constexpr const char* field_id = "greeter-answer";
-constexpr float sheet_height = 380;
-constexpr float sheet_width = 560;
 
 struct Greeter {
   std::vector<greetd::User> users;
@@ -288,34 +286,37 @@ void arrow(vw::Ui& ui, float centre_x, float centre_y, const char* glyph, int st
                       {.on_click = [step](const vw::ClickEvent&) { pick_user(step); }});
 }
 
-// The sheet, risen from the bottom edge; `reveal` 0 is below it.
+// A round icon button, tonal.
+void icon_button(vw::Ui& ui, float x, float y, float size, const char* glyph, const std::function<void()>& on_click) {
+  const Colours& c = colours();
+  draw::rect(ui, x, y, size, size, size / 2, c.surface_container_high);
+  draw::glyph(ui, glyph, x + size / 2, y + size / 2, 20, c.text);
+  draw::state_layer(ui, x, y, size, size, size / 2, c.text, {.on_click = [on_click](const vw::ClickEvent&) { on_click(); }});
+}
+
+constexpr float card_height = 384;
+
+// The login card, risen from below the bottom edge; `reveal` 0 is below it.
 void draw_sheet(vw::Ui& ui, float width, float height, float reveal, float shake) {
   const Colours& c = colours();
   const Greeter& g = greeter();
-  const float sheet = std::min(sheet_width, width - 32);
-  const float x = (width - sheet) / 2;
-  const float y = height - sheet_height * reveal;
-  ui.rectangle({.width = sheet, .height = sheet_height + 40, .color = c.surface_container,
-                .corner_radii = {40, 40, 0, 0}, .place = {.x = x, .y = y}});
-  const float centre = width / 2;
-  draw::rect(ui, centre - 16, y + 12, 32, 4, 2, c.outline_variant);
+  const SheetCard card = draw_sheet_card(ui, width, height, card_height, reveal);
+  const float centre = card.centre;
 
   // Who: the avatar between arrows when there is more than one user.
-  float cursor = y + 32;
-  constexpr float badge = 88;
+  float cursor = card.y + 40;
+  constexpr float badge = 96;
   const greetd::User* user = chosen_user();
-  shapes::draw(ui, "greeter.avatar", "cookie9sided", centre - badge / 2, cursor, badge, c.primary_container, 0, c.primary_container);
-  const std::string picture = user != nullptr ? avatar_for(*user) : std::string();
-  if (picture.empty() || !draw::icon(ui, picture, "", centre - badge / 2, cursor, badge, std::nullopt, 0,
-                                     vw::ImageFit::cover, {}, shapes::mask("cookie9sided")))
-    draw::glyph(ui, "person", centre, cursor + badge / 2, 40, c.primary);
+  draw_avatar(ui, "greeter.avatar", user != nullptr ? avatar_for(*user) : std::string(), centre, cursor, badge);
   const bool several = g.users.size() > 1;
-  arrow(ui, centre - badge / 2 - 36, cursor + badge / 2, "chevron_left", -1, several);
-  arrow(ui, centre + badge / 2 + 36, cursor + badge / 2, "chevron_right", 1, several);
-  cursor += badge + 10;
+  if (several) {
+    arrow(ui, centre - badge / 2 - 48, cursor + badge / 2, "chevron_left", -1, true);
+    arrow(ui, centre + badge / 2 + 48, cursor + badge / 2, "chevron_right", 1, true);
+  }
+  cursor += badge + 22;
   draw::text_centered(ui, user != nullptr ? display_name(*user) : "No users", centre, cursor + 12,
-                      {.size = 18, .color = c.text, .weight = vw::weight::semibold, .family = font::display});
-  cursor += 34;
+                      {.size = 22, .color = c.text, .weight = vw::weight::semibold, .family = font::display});
+  cursor += 36;
 
   // What greetd asks: usually the password.
   const greetd::State state = greetd::available() ? greetd::state() : greetd::State{};
@@ -327,42 +328,60 @@ void draw_sheet(vw::Ui& ui, float width, float height, float reveal, float shake
 
   const bool failed = g.denied && g.notice_is_error;
   constexpr float field_height = 60;
-  const float field_width = std::min(460.0F, sheet - 48);
+  const float field_width = std::min(440.0F, card.width - 56);
   const float field_x = centre - field_width / 2 + shake;
   ui.rectangle({.width = field_width, .height = field_height, .radius = field_height / 2, .color = c.surface_container_highest,
                 .border_width = failed ? 2.0F : 0.0F, .border_color = c.error, .place = {.x = field_x, .y = cursor}});
-  draw::glyph(ui, secret ? "lock" : "person", field_x + 32, cursor + field_height / 2, 22, failed ? c.error : c.primary);
-  ui.text_field({.id = field_id, .placeholder = placeholder, .width = field_width - 128, .height = field_height, .radius = 0,
+  draw::glyph(ui, secret ? "lock" : "person", field_x + 30, cursor + field_height / 2, 22, failed ? c.error : c.primary);
+  ui.text_field({.id = field_id, .placeholder = placeholder, .width = field_width - 124, .height = field_height, .radius = 0,
                  .border_width = 0, .padding = 4, .color = with_alpha(c.surface_container_highest, 0),
                  .focus_color = with_alpha(c.primary, 0), .text_color = c.text, .placeholder_color = c.text_muted,
                  .caret_color = c.primary, .font = font::utility, .size = 17, .password = secret, .autofocus = true,
                  .on_change = [](const std::string& text) { greeter().typed = text; },
                  .on_submit = [](const std::string& text) { submit(text); },
-                 .place = {.x = field_x + 58, .y = cursor}});
+                 .place = {.x = field_x + 56, .y = cursor}});
   constexpr float go = 44;
+  const bool ready = !g.typed.empty();
   const float go_x = field_x + field_width - go - 8;
-  draw::rect(ui, go_x, cursor + (field_height - go) / 2, go, go, go / 2, c.primary);
-  draw::glyph(ui, "arrow_forward", go_x + go / 2, cursor + field_height / 2, 22, c.primary_text);
-  draw::state_layer(ui, go_x, cursor + (field_height - go) / 2, go, go, go / 2, c.primary_text,
+  const float go_y = cursor + (field_height - go) / 2;
+  const float go_radius = std::max(0.0F, static_cast<float>(vw::animate("greeter.go", ready ? 14 : go / 2,
+                                                                        {.duration = 0.3, .easing = vw::Easing::out_back})));
+  draw::rect(ui, go_x, go_y, go, go, go_radius, ready ? c.primary : c.surface_container_high);
+  draw::glyph(ui, "arrow_forward", go_x + go / 2, cursor + field_height / 2, 22, ready ? c.primary_text : c.text_muted);
+  draw::state_layer(ui, go_x, go_y, go, go, go_radius, c.primary_text,
                     {.on_click = [](const vw::ClickEvent&) { submit(greeter().typed); }});
-  cursor += field_height + 22;
+  cursor += field_height + 28;
 
   const std::string line = !g.notice.empty() ? g.notice : "Press Enter to log in";
   draw::text_centered(ui, line, centre, cursor,
                       {.size = 13, .color = g.notice_is_error ? c.error : c.text_muted, .weight = vw::weight::medium,
-                       .family = font::utility, .max_width = sheet - 48});
+                       .family = font::utility, .max_width = card.width - 56});
   cursor += 26;
 
-  // Into what: the session, a chip that cycles through them.
+  // The footer: into what session, and the machine's power.
+  const float row_x = card.x + 28;
+  const float row_right = card.x + card.width - 28;
+  const float row_y = card.y + card.height - 28 - 44;
   if (const auto* session = chosen_session()) {
     const std::string label = session->name;
-    const float width_of = chip_width("desktop_windows", label);
-    chip(ui, centre - width_of / 2, cursor, "desktop_windows", label,
-         g.sessions.size() > 1 ? std::function<void()>([] { pick_session(1); }) : std::function<void()>());
+    const bool cycles = g.sessions.size() > 1;
+    const float label_width = draw::measure(label, 15, vw::weight::medium, font::utility);
+    const float chip = 16 + 22 + 8 + label_width + (cycles ? 8 + 20 : 0) + 16;
+    draw::rect(ui, row_x, row_y, chip, 44, 22, c.secondary_container);
+    draw::glyph(ui, "desktop_windows", row_x + 16 + 11, row_y + 22, 20, c.text);
+    draw::text_middle(ui, label, row_x + 16 + 22 + 8, row_y + 22,
+                      {.size = 15, .color = c.text, .weight = vw::weight::medium, .family = font::utility});
+    if (cycles) {
+      draw::glyph(ui, "unfold_more", row_x + chip - 16 - 10, row_y + 22, 20, c.text);
+      draw::state_layer(ui, row_x, row_y, chip, 44, 22, c.text,
+                        {.on_click = [](const vw::ClickEvent&) { pick_session(1); }});
+    }
   } else {
-    draw::text_centered(ui, "No sessions found", centre, cursor + 20,
-                        {.size = 13, .color = c.error, .weight = vw::weight::medium, .family = font::utility});
+    draw::text_middle(ui, "No sessions found", row_x, row_y + 22,
+                      {.size = 13, .color = c.error, .weight = vw::weight::medium, .family = font::utility});
   }
+  icon_button(ui, row_right - 44, row_y, 44, "power_settings_new", [] { vw::spawn({"systemctl", "poweroff"}); });
+  icon_button(ui, row_right - 44 - 8 - 44, row_y, 44, "restart_alt", [] { vw::spawn({"systemctl", "reboot"}); });
 }
 
 void draw_greeter(vw::Ui& ui, float width, float height) {
@@ -399,7 +418,8 @@ void draw_greeter(vw::Ui& ui, float width, float height) {
   // looks exactly like unlocking.
   draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .intro = intro,
                       .hint = g.users.empty() ? "No users to log in" : "Press any key to log in",
-                      .hint_glyph = "login", .session_widgets = false, .on_click = [] { open_sheet(); }});
+                      .hint_glyph = "login", .session_widgets = false, .on_click = [] { open_sheet(); },
+                      .sheet_room = card_height + 28});
   if (reveal < 0.99F) draw_power(ui);
 
   // A short decaying shake on a wrong password.
@@ -551,9 +571,12 @@ int main(int argc, char** argv) {
   using namespace blx::greeter;
   std::vector<std::string_view> arguments(argv + 1, argv + argc);
   bool layer = false;
+  bool sheet = false;
   for (std::size_t index = 0; index < arguments.size(); ++index) {
     if (arguments[index] == "--layer") {
       layer = true;
+    } else if (arguments[index] == "--sheet") {
+      sheet = true;  // start with the login sheet raised, e.g. for a screenshot
     } else if (arguments[index] == "--export" && index + 1 < arguments.size()) {
       const fs::path target(arguments[index + 1]);
       const char* home = std::getenv("HOME");
@@ -567,12 +590,13 @@ int main(int argc, char** argv) {
       }
       return export_theme(target, from, user);
     } else {
-      std::cerr << "usage: blxshell-greeter [--layer] | --export DIR [--from HOME] [--user NAME]\n";
+      std::cerr << "usage: blxshell-greeter [--layer] [--sheet] | --export DIR [--from HOME] [--user NAME]\n";
       return EXIT_FAILURE;
     }
   }
 
   prepare();
+  if (sheet) open_sheet();
   vw::App app;
   if (layer) {
     // One layer surface per monitor; the login lives on each.

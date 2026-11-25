@@ -8,7 +8,9 @@
 #include <cmath>
 #include <cstdlib>
 #include <format>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "net.hpp"
 #include "blob.hpp"
@@ -30,8 +32,6 @@ namespace {
 using Clock = std::chrono::steady_clock;
 
 constexpr const char* password_id = "lock-password";
-constexpr float sheet_height = lock_sheet_height;
-constexpr float sheet_width = 560;
 
 struct LockState {
   // Bumped per lock so the entrance tween starts over each time.
@@ -41,6 +41,7 @@ struct LockState {
   Clock::time_point last_input{};
   bool was_failed = false;
   Clock::time_point failed_at{};
+  bool typed = false;  // whether anything is, for the arrow button
 };
 
 LockState& lock_state() {
@@ -50,6 +51,7 @@ LockState& lock_state() {
 
 void close_sheet() {
   lock_state().sheet = false;
+  lock_state().typed = false;
   vw::reset_text_field(password_id);
 }
 
@@ -61,43 +63,68 @@ void open_sheet() {
 
 float blend(float from, float to, float t) { return from + (to - from) * t; }
 
-// A tonal chip, centred on x; returns its width.
-float chip_width(const std::string& glyph, const std::string& label) {
-  return draw::measure(label, 15, vw::weight::medium, font::utility) + 32 + (glyph.empty() ? 0 : 26);
+constexpr float pill_height = 44;
+
+draw::TextStyle pill_text() {
+  return {.size = 15, .color = colours().text, .weight = vw::weight::medium, .family = font::utility};
 }
 
-void chip(vw::Ui& ui, float x, float y, const std::string& glyph, const std::string& label) {
+// The status icons, top right, in one pill.
+void draw_status(vw::Ui& ui, float right, float fade) {
+  if (fade <= 0.01F) return;
   const Colours& c = colours();
-  constexpr float height = 40;
-  const float width = chip_width(glyph, label);
-  draw::rect(ui, x, y, width, height, height / 2, with_alpha(c.surface_container_high, 0.9F));
-  float text_x = x + 16;
-  if (!glyph.empty()) {
-    draw::glyph(ui, glyph, text_x + 10, y + height / 2, 20, c.primary);
-    text_x += 26;
-  }
-  draw::text_middle(ui, label, text_x, y + height / 2, {.size = 15, .color = c.text, .weight = vw::weight::medium, .family = font::utility});
-}
-
-void draw_status(vw::Ui& ui, float right) {
-  const Colours& c = colours();
-  float x = right;
-  const float y = 40;
-  if (const auto battery = vw::upower::display_device()) {
-    const std::string label = std::format("{}%", std::lround(battery->percentage));
-    x -= draw::measure(label, 15, vw::weight::medium, font::utility);
-    draw::text_middle(ui, label, x, y, {.size = 15, .color = c.text, .weight = vw::weight::medium, .family = font::utility});
-    x -= 16;
-    draw::glyph(ui, battery->percentage < 20 ? "battery_alert" : "battery_full", x, y, 22, c.text);
-    x -= 30;
-  }
-  if (const auto adapter = vw::bluetooth::adapter(); adapter && adapter->powered) {
-    draw::glyph(ui, "bluetooth", x, y, 20, c.text);
-    x -= 30;
-  }
+  struct Item {
+    std::string glyph;
+    std::string label;
+  };
+  std::vector<Item> items;
   const auto network = net::status();
   const bool wired = network.primary == vw::network::Kind::wired;
-  draw::glyph(ui, wired ? "cable" : network.wifi_enabled ? "wifi" : "wifi_off", x, y, 20, c.text);
+  items.push_back({wired ? "lan" : network.wifi_enabled ? "wifi" : "wifi_off", ""});
+  if (const auto adapter = vw::bluetooth::adapter(); adapter && adapter->powered) items.push_back({"bluetooth", ""});
+  if (const auto battery = vw::upower::display_device()) {
+    const char* glyph = battery->percentage < 20 ? "battery_alert" : battery->percentage < 60 ? "battery_4_bar" : "battery_full";
+    items.push_back({glyph, std::format("{}%", std::lround(battery->percentage))});
+  }
+  constexpr float icon = 20;
+  constexpr float gap = 14;
+  constexpr float pill = 40;
+  float width = 32 + gap * static_cast<float>(items.size() - 1);
+  for (const Item& item : items)
+    width += icon + (item.label.empty() ? 0 : 6 + draw::measure(item.label, 14, vw::weight::medium, font::utility));
+  constexpr float y = 22;
+  float x = right - width;
+  draw::rect(ui, x, y, width, pill, pill / 2, with_alpha(c.surface_container_high, 0.72F * fade));
+  x += 16;
+  for (const Item& item : items) {
+    draw::glyph(ui, item.glyph, x + icon / 2, y + pill / 2, icon, with_alpha(c.text, fade));
+    x += icon;
+    if (!item.label.empty()) {
+      x += 6;
+      draw::text_middle(ui, item.label, x, y + pill / 2,
+                        {.size = 14, .color = with_alpha(c.text, fade), .weight = vw::weight::medium, .family = font::utility});
+      x += draw::measure(item.label, 14, vw::weight::medium, font::utility);
+    }
+    x += gap;
+  }
+}
+
+// Date and weather in one pill.
+void draw_date_pill(vw::Ui& ui, float centre, float y, const std::string& date, const std::optional<weather::Report>& now) {
+  const Colours& c = colours();
+  float width = 40 + draw::measure(date, 15, vw::weight::medium, font::utility);
+  if (now) width += 20 + 24 + draw::measure(now->temperature, 15, vw::weight::medium, font::utility);
+  float x = centre - width / 2;
+  draw::rect(ui, x, y, width, pill_height, pill_height / 2, with_alpha(c.surface_container_high, 0.78F));
+  x += 20;
+  draw::text_middle(ui, date, x, y + pill_height / 2, pill_text());
+  x += draw::measure(date, 15, vw::weight::medium, font::utility);
+  if (now) {
+    x += 20;
+    draw::glyph(ui, now->glyph, x + 10, y + pill_height / 2, 20, c.primary);
+    x += 24;
+    draw::text_middle(ui, now->temperature, x, y + pill_height / 2, pill_text());
+  }
 }
 
 // Notifications as icons only: what arrived, never what it says.
@@ -112,7 +139,7 @@ float draw_notifications(vw::Ui& ui, float centre, float y) {
   const float count = static_cast<float>(shown) + (more ? 1 : 0);
   float x = centre - (count * disc + (count - 1) * 8) / 2;
   for (std::size_t index = 0; index < shown; ++index) {
-    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, 0.9F));
+    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, 0.85F));
     if (!draw::icon(ui, groups[index].entries.front().icon, "", x + 9, y + 9, 22))
       draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20, c.primary);
     x += disc + 8;
@@ -125,87 +152,124 @@ float draw_notifications(vw::Ui& ui, float centre, float y) {
   return y + disc;
 }
 
-float draw_media(vw::Ui& ui, float centre, float y) {
+constexpr float media_height = 104;
+
+bool has_media() {
   const auto player = vw::mpris::active();
-  if (!player || player->title.empty()) return y;
-  const Colours& c = colours();
-  constexpr float width = 460;
-  constexpr float height = 96;
-  constexpr float padding = 12;
-  const float x = centre - width / 2;
-  const bool playing = player->playback_status == "Playing";
-  draw::rect(ui, x, y, width, height, 32, with_alpha(c.surface_container_high, 0.92F));
-  constexpr float art_size = height - padding * 2;
-  draw::rect(ui, x + padding, y + padding, art_size, art_size, 22, c.primary_container);
-  if (!draw::art(ui, art::path(player->art_url), x + padding, y + padding, art_size, 22))
-    draw::glyph(ui, "music_note", x + padding + art_size / 2, y + height / 2, 30, c.primary);
-  constexpr float play_width = 64;
-  constexpr float play_height = 48;
-  const float play_x = x + width - padding - 8 - play_width;
-  const float play_y = y + (height - play_height) / 2;
-  const float text_x = x + padding + art_size + 14;
-  const float text_width = play_x - 40 - text_x;
-  draw::text(ui, player->title, text_x, y + 25, {.size = 16, .color = c.text, .weight = vw::weight::semibold, .family = font::display, .max_width = text_width});
-  draw::text(ui, player->artist.empty() ? player->name : player->artist, text_x, y + 49,
-             {.size = 13, .color = c.text_muted, .family = font::display, .max_width = text_width});
-  draw::glyph(ui, "skip_next", play_x - 22, y + height / 2, 24, player->can_go_next ? c.text : c.outline_variant);
-  if (player->can_go_next)
-    draw::state_layer(ui, play_x - 40, y + height / 2 - 18, 36, 36, 18, c.text,
-                      {.on_click = [](const vw::ClickEvent&) { vw::mpris::next(); }});
-  const float radius = std::max(0.0F, static_cast<float>(vw::animate("lock.play", playing ? 15 : play_height / 2, {.duration = 0.35, .easing = vw::Easing::out_back})));
-  draw::rect(ui, play_x, play_y, play_width, play_height, radius, c.primary);
-  draw::glyph(ui, playing ? "pause" : "play_arrow", play_x + play_width / 2, play_y + play_height / 2, 26, c.primary_text);
-  draw::state_layer(ui, play_x, play_y, play_width, play_height, radius, c.primary_text,
-                    {.on_click = [](const vw::ClickEvent&) { vw::mpris::play_pause(); }});
-  return y + height;
+  return player && !player->title.empty();
 }
 
-// The password sheet, risen from the bottom edge; `reveal` 0 is below it.
-void draw_sheet(vw::Ui& ui, float width, float height, float reveal, bool failed, float shake) {
+// Now playing: art, title and artist, skip, and a play button that morphs.
+void draw_media(vw::Ui& ui, float centre, float y) {
+  const auto player = vw::mpris::active();
+  if (!player || player->title.empty()) return;
   const Colours& c = colours();
-  Config& settings = config();
-  const float sheet = std::min(sheet_width, width - 32);
-  const float x = (width - sheet) / 2;
-  const float y = height - sheet_height * reveal;
-  ui.rectangle({.width = sheet, .height = sheet_height + 40, .color = c.surface_container,
-                .corner_radii = {40, 40, 0, 0}, .place = {.x = x, .y = y}});
-  const float centre = width / 2;
-  draw::rect(ui, centre - 16, y + 12, 32, 4, 2, c.outline_variant);
+  constexpr float width = 480;
+  constexpr float height = media_height;
+  constexpr float padding = 14;
+  const float x = centre - width / 2;
+  const bool playing = player->playback_status == "Playing";
+  draw::rect(ui, x, y, width, height, 36, with_alpha(c.surface_container_high, 0.9F));
+  constexpr float art_size = height - padding * 2;
+  draw::rect(ui, x + padding, y + padding, art_size, art_size, 24, c.primary_container);
+  if (!draw::art(ui, art::path(player->art_url), x + padding, y + padding, art_size, 24))
+    draw::glyph(ui, "music_note", x + padding + art_size / 2, y + height / 2, 32, c.primary);
+  constexpr float play_size = 56;
+  const float play_x = x + width - padding - 4 - play_size;
+  const float play_y = y + (height - play_size) / 2;
+  constexpr float skip = 40;
+  const float skip_x = play_x - 10 - skip;
+  const float skip_y = y + (height - skip) / 2;
+  const float text_x = x + padding + art_size + 16;
+  const float text_width = skip_x - 12 - text_x;
+  draw::text(ui, player->title, text_x, y + 30,
+             {.size = 16, .color = c.text, .weight = vw::weight::semibold, .family = font::display, .max_width = text_width});
+  draw::text(ui, player->artist.empty() ? player->name : player->artist, text_x, y + 56,
+             {.size = 13, .color = c.text_muted, .family = font::display, .max_width = text_width});
+  draw::glyph(ui, "skip_next", skip_x + skip / 2, y + height / 2, 22, player->can_go_next ? c.text : c.outline_variant);
+  if (player->can_go_next)
+    draw::state_layer(ui, skip_x, skip_y, skip, skip, skip / 2, c.text,
+                      {.on_click = [](const vw::ClickEvent&) { vw::mpris::next(); }});
+  // Playing: a squircle; paused: a circle, as Android's media controls do.
+  const float radius = std::max(0.0F, static_cast<float>(vw::animate("lock.play", playing ? 18 : play_size / 2,
+                                                                     {.duration = 0.35, .easing = vw::Easing::out_back})));
+  draw::rect(ui, play_x, play_y, play_size, play_size, radius, c.primary);
+  draw::glyph(ui, playing ? "pause" : "play_arrow", play_x + play_size / 2, play_y + play_size / 2, 28, c.primary_text);
+  draw::state_layer(ui, play_x, play_y, play_size, play_size, radius, c.primary_text,
+                    {.on_click = [](const vw::ClickEvent&) { vw::mpris::play_pause(); }});
+}
 
-  float cursor = y + 32;
+// The password sheet in its floating card; `reveal` 0 is below the edge.
+// `live` binds the field to the session lock's PAM check; a preview has none.
+void draw_sheet(vw::Ui& ui, float width, float height, float reveal, bool failed, float shake, bool live = true) {
+  const Colours& c = colours();
+  const Config& settings = config();
+  const float card_height = settings.lock_show_user ? 318 : 168;
+  const SheetCard card = draw_sheet_card(ui, width, height, card_height, reveal);
+  const float centre = card.centre;
+
+  float cursor = card.y + 40;
   if (settings.lock_show_user) {
-    constexpr float badge = 88;
-    shapes::draw(ui, "lock.avatar", "cookie9sided", centre - badge / 2, cursor, badge, c.primary_container, 0, c.primary_container);
-    if (!draw::icon(ui, system::avatar(), "", centre - badge / 2, cursor, badge, std::nullopt, 0, vw::ImageFit::cover, {},
-                    shapes::mask("cookie9sided")))
-      draw::glyph(ui, "person", centre, cursor + badge / 2, 40, c.primary);
-    cursor += badge + 10;
+    constexpr float badge = 96;
+    draw_avatar(ui, "lock.avatar", system::avatar(), centre, cursor, badge);
+    cursor += badge + 22;
     const char* user = std::getenv("USER");
     draw::text_centered(ui, user != nullptr ? user : "", centre, cursor + 12,
-                        {.size = 18, .color = c.text, .weight = vw::weight::semibold, .family = font::display});
-    cursor += 34;
+                        {.size = 22, .color = c.text, .weight = vw::weight::semibold, .family = font::display});
+    cursor += 36;
   }
 
   constexpr float field_height = 60;
-  const float field_width = std::min(460.0F, sheet - 48);
+  const float field_width = std::min(440.0F, card.width - 56);
   const float field_x = centre - field_width / 2 + shake;
   ui.rectangle({.width = field_width, .height = field_height, .radius = field_height / 2, .color = c.surface_container_highest,
                 .border_width = failed ? 2.0F : 0.0F, .border_color = c.error, .place = {.x = field_x, .y = cursor}});
-  draw::glyph(ui, "lock", field_x + 32, cursor + field_height / 2, 22, failed ? c.error : c.primary);
-  ui.text_field({.id = password_id, .placeholder = "Enter password", .width = field_width - 128, .height = field_height, .radius = 0,
+  draw::glyph(ui, "lock", field_x + 30, cursor + field_height / 2, 22, failed ? c.error : c.primary);
+  ui.text_field({.id = password_id, .placeholder = "Password", .width = field_width - 124, .height = field_height, .radius = 0,
                  .border_width = 0, .padding = 4, .color = with_alpha(c.surface_container_highest, 0),
                  .focus_color = with_alpha(c.primary, 0), .text_color = c.text, .placeholder_color = c.text_muted,
                  .caret_color = c.primary, .font = font::utility, .size = 17, .password = true,
-                 .authenticate = true, .autofocus = true, .place = {.x = field_x + 58, .y = cursor}});
-  // Enter submits: this is the affordance, as on Android's password bouncer.
+                 .authenticate = live, .autofocus = live,
+                 .on_change = [](const std::string& text) { lock_state().typed = !text.empty(); },
+                 .place = {.x = field_x + 56, .y = cursor}});
+  // Enter submits; the arrow lights up, and squares off, once there is
+  // something to submit.
   constexpr float go = 44;
-  draw::rect(ui, field_x + field_width - go - 8, cursor + (field_height - go) / 2, go, go, go / 2, c.primary);
-  draw::glyph(ui, "arrow_forward", field_x + field_width - 8 - go / 2, cursor + field_height / 2, 22, c.primary_text);
-  draw::text_centered(ui, failed ? "Wrong password" : "Press Enter to unlock", centre, cursor + field_height + 22,
+  const bool ready = lock_state().typed;
+  const float go_x = field_x + field_width - go - 8;
+  const float go_radius = std::max(0.0F, static_cast<float>(vw::animate("lock.go", ready ? 14 : go / 2,
+                                                                        {.duration = 0.3, .easing = vw::Easing::out_back})));
+  draw::rect(ui, go_x, cursor + (field_height - go) / 2, go, go, go_radius, ready ? c.primary : c.surface_container_high);
+  draw::glyph(ui, "arrow_forward", go_x + go / 2, cursor + field_height / 2, 22, ready ? c.primary_text : c.text_muted);
+  cursor += field_height + 28;
+  draw::text_centered(ui, failed ? "Wrong password, try again" : "Press Enter to unlock", centre, cursor,
                       {.size = 13, .color = failed ? c.error : c.text_muted, .weight = vw::weight::medium, .family = font::utility});
 }
 
 }  // namespace
+
+SheetCard draw_sheet_card(vw::Ui& ui, float width, float height, float card_height, float reveal) {
+  const Colours& c = colours();
+  constexpr float margin = 28;
+  constexpr float radius = 44;
+  SheetCard card;
+  card.width = std::min(520.0F, width - 32);
+  card.height = card_height;
+  card.x = (width - card.width) / 2;
+  card.centre = width / 2;
+  card.y = blend(height + 24, height - card_height - margin, reveal);
+  draw::rect(ui, card.x, card.y, card.width, card.height, radius, c.surface_container);
+  draw::rect(ui, card.centre - 18, card.y + 12, 36, 4, 2, c.outline_variant);
+  return card;
+}
+
+void draw_avatar(vw::Ui& ui, const std::string& id, const std::string& picture, float centre_x, float y, float size) {
+  const Colours& c = colours();
+  shapes::draw(ui, id, "cookie9sided", centre_x - size / 2, y, size, c.primary_container);
+  if (picture.empty() || !draw::icon(ui, picture, "", centre_x - size / 2, y, size, std::nullopt, 0, vw::ImageFit::cover, {},
+                                     shapes::mask("cookie9sided")))
+    draw::glyph(ui, "person", centre_x, y + size / 2, size * 0.45F, c.primary);
+}
 
 void draw_lock_page(vw::Ui& ui, const LockPage& page) {
   const Colours& c = colours();
@@ -214,6 +278,7 @@ void draw_lock_page(vw::Ui& ui, const LockPage& page) {
   const float height = page.height;
   const float reveal = page.reveal;
   const float intro = page.intro;
+  const float sheet_room = page.sheet_room > 0 ? page.sheet_room : lock_sheet_height;
 
   // Fully opaque first, whatever the wallpaper does: nothing behind a lock
   // screen may ever show.
@@ -229,58 +294,68 @@ void draw_lock_page(vw::Ui& ui, const LockPage& page) {
   }
 
   const float centre = width / 2;
+  if (settings.lock_show_status) draw_status(ui, width - 24, 1 - reveal);
 
-  if (settings.lock_show_status && reveal < 0.99F) draw_status(ui, width - 36);
+  // What sits under the clock decides where the whole block goes.
+  const std::string date = system::format_time(settings.lock_date_format);
+  const auto weather = settings.lock_show_weather ? weather::current() : std::nullopt;
+  const bool widgets = page.session_widgets && reveal < 0.2F;
+  const bool notifications = widgets && settings.lock_show_notifications && !notify::history().empty();
+  const bool media = widgets && settings.lock_show_media && has_media();
 
   // The clock: huge and stacked, shrinking out of the sheet's way.
   const std::string time = system::format_time(settings.lock_clock_format);
   const auto colon = time.find(':');
   const bool stacked = settings.lock_clock_style == "stacked" && colon != std::string::npos;
   const float base = static_cast<float>(std::clamp(settings.lock_clock_size, 48, 260)) * (stacked ? 1.6F : 1.0F);
-  const float size = blend(base, base * 0.42F, reveal);
+  const float size = blend(base, base * 0.55F, reveal);
   const float line = size * 0.86F;
-  const float room = height - sheet_height;
-  const float clock_y = blend(height * 0.05F, std::max(24.0F, room * 0.1F), reveal) - (1 - intro) * 96;
-  float y = clock_y;
+  const float clock_height = line * (stacked ? 2.0F : 1.0F);
+  const float block = clock_height + 24 + pill_height + (notifications ? 24 + 40 : 0) +
+                      (media ? 24 + media_height : 0);
+
+  // Idle: a little above the middle, clear of the hint. Raised: centred in
+  // the room the sheet leaves.
+  const float idle_top = std::max(72.0F, (height - 150 - block) * 0.45F);
+  const float raised_top = std::max(20.0F, (height - sheet_room - block) / 2);
+  float y = blend(idle_top, raised_top, reveal) - (1 - intro) * 96;
+
+
   if (stacked) {
     const draw::TextStyle top{.size = size, .color = c.primary, .weight = vw::weight::black, .family = font::display};
     const draw::TextStyle bottom{.size = size, .color = mix(c.primary, c.tertiary, 0.7F), .weight = vw::weight::black, .family = font::display};
     draw::text_centered(ui, time.substr(0, colon), centre, y + line / 2, top);
     draw::text_centered(ui, time.substr(colon + 1), centre, y + line * 1.5F, bottom);
-    y += line * 2;
   } else {
     draw::text_centered(ui, time, centre, y + line / 2, {.size = size, .color = c.primary, .weight = vw::weight::black, .family = font::display});
-    y += line;
   }
-  y += 16;
+  y += clock_height + 24;
 
-  // Date and weather under it.
-  const std::string date = system::format_time(settings.lock_date_format);
-  const auto weather = settings.lock_show_weather ? weather::current() : std::nullopt;
-  const float date_width = chip_width("", date);
-  const float weather_width = weather ? chip_width(weather->glyph, weather->temperature) : 0;
-  float chip_x = centre - (date_width + (weather ? weather_width + 8 : 0)) / 2;
-  chip(ui, chip_x, y, "", date);
-  if (weather) chip(ui, chip_x + date_width + 8, y, weather->glyph, weather->temperature);
-  y += 40 + 16;
+  draw_date_pill(ui, centre, y, date, weather);
+  y += pill_height;
 
-  // The rest leaves room for the sheet.
-  if (page.session_widgets && reveal < 0.2F) {
-    if (settings.lock_show_notifications) {
-      const float next = draw_notifications(ui, centre, y);
-      if (next > y) y = next + 16;
-    }
-    if (settings.lock_show_media) draw_media(ui, centre, y);
-  }
+  if (notifications) y = draw_notifications(ui, centre, y + 24);
+  if (media) draw_media(ui, centre, y + 24);
 
-  // The hint sinks as the sheet comes up.
+  // The way in, at the bottom: sinks as the sheet comes up.
   if (reveal < 0.6F && !page.hint.empty()) {
-    const float hint_width = chip_width(page.hint_glyph, page.hint);
-    chip(ui, centre - hint_width / 2, height - 72 + reveal * 80, page.hint_glyph, page.hint);
+    const float sink = reveal * 140;
+    constexpr float disc = 52;
+    const float disc_y = height - 132 + sink;
+    shapes::draw(ui, "lock.hint", "cookie9sided", centre - disc / 2, disc_y, disc, with_alpha(c.primary_container, 0.95F));
+    draw::glyph(ui, page.hint_glyph, centre, disc_y + disc / 2, 24, c.primary);
+    draw::text_centered(ui, page.hint, centre, disc_y + disc + 24,
+                        {.size = 14, .color = c.text_muted, .weight = vw::weight::medium, .family = font::utility});
   }
   if (intro < 0.999F)
     ui.rectangle({.width = width, .height = height, .color = with_alpha(c.surface, 1 - intro), .place = {.x = 0, .y = 0}});
+}
 
+void draw_lock_preview(vw::Ui& ui, float width, float height, bool sheet) {
+  const float reveal = sheet ? 1.0F : 0.0F;
+  draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .hint = "Press any key to unlock", .hint_glyph = "lock",
+                      .session_widgets = true});
+  draw_sheet(ui, width, height, reveal, false, 0, false);
 }
 
 void lock_session() {

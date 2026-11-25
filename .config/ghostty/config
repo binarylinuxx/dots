@@ -8,7 +8,7 @@ freetype-load-flags = no-force-autohint,no-hinting
 # THEMING
 background-opacity= 1
 background-blur = true
-theme = Matugen.conf                                    
+theme = blxshell
 
 # WINDOW PADDING
 window-padding-x = 5,5

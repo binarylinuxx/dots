@@ -1,5 +1,7 @@
 #include "style.hpp"
 
+#include <vw/vw.hpp>
+
 #include <algorithm>
 #include <set>
 #include <vector>
@@ -11,6 +13,9 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <cmath>
+#include <iterator>
+#include <format>
 #include <optional>
 #include <sys/inotify.h>
 #include <unistd.h>
@@ -179,8 +184,79 @@ Colours load() {
   return result;
 }
 
+std::string hex_of(vw::Color colour) {
+  const auto channel = [](float value) { return static_cast<int>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255)); };
+  return std::format("#{:02x}{:02x}{:02x}", channel(colour[0]), channel(colour[1]), channel(colour[2]));
+}
+
+vw::Color blend_colour(vw::Color from, vw::Color to, float t) {
+  return {from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t, 1};
+}
+
+// Ghostty's colours from the shell's own, presets, themes and overrides
+// included: ~/.config/ghostty/themes/blxshell, for `theme = blxshell`. Only
+// written when Ghostty is configured here and the colours changed; Ghostty
+// reloads on SIGUSR2.
+void export_ghostty(const Colours& c) {
+  const char* home = std::getenv("HOME");
+  if (home == nullptr) return;
+  const fs::path folder = fs::path(home) / ".config/ghostty";
+  std::error_code error;
+  if (!fs::is_directory(folder, error)) return;
+  const bool dark = config().matugen_mode != "light";
+  const vw::Color white{1, 1, 1, 1};
+  const vw::Color bright = dark ? white : vw::Color{0, 0, 0, 1};
+  std::string text = "# Written by blxshell from its colours; changes are overwritten.\n\n";
+  const auto line = [&](std::string_view key, vw::Color colour) { text += std::format("{} = {}\n", key, hex_of(colour)); };
+  const auto slot = [&](int index, vw::Color colour) { text += std::format("palette = {}={}\n", index, hex_of(colour)); };
+  line("background", c.surface);
+  line("foreground", c.text);
+  line("selection-background", c.primary);
+  line("selection-foreground", c.primary_text);
+  line("cursor-color", c.primary);
+  line("cursor-text", c.primary_text);
+  text += "\n";
+  slot(0, c.surface_container_high);
+  slot(1, c.error);
+  slot(2, c.primary);
+  slot(3, blend_colour(c.primary, c.tertiary, 0.5F));
+  slot(4, c.secondary);
+  slot(5, c.tertiary);
+  slot(6, blend_colour(c.secondary, c.tertiary, 0.5F));
+  slot(7, c.text);
+  slot(8, c.outline_variant);
+  slot(9, blend_colour(c.error, bright, 0.25F));
+  slot(10, blend_colour(c.primary, bright, 0.25F));
+  slot(11, blend_colour(blend_colour(c.primary, c.tertiary, 0.5F), bright, 0.25F));
+  slot(12, blend_colour(c.secondary, bright, 0.25F));
+  slot(13, blend_colour(c.tertiary, bright, 0.25F));
+  slot(14, blend_colour(blend_colour(c.secondary, c.tertiary, 0.5F), bright, 0.25F));
+  slot(15, blend_colour(c.text, bright, 0.5F));
+  const fs::path file = folder / "themes/blxshell";
+  {
+    std::ifstream existing(file);
+    const std::string old((std::istreambuf_iterator<char>(existing)), std::istreambuf_iterator<char>());
+    if (old == text) return;
+  }
+  fs::create_directories(file.parent_path(), error);
+  const fs::path temporary = file.string() + ".tmp";
+  {
+    std::ofstream output(temporary);
+    output << text;
+    if (!output) return;
+  }
+  fs::rename(temporary, file, error);
+  if (!error) vw::spawn({"pkill", "-USR2", "-x", "ghostty"});
+}
+
+Colours load_and_export() {
+  Colours result = load();
+  export_ghostty(result);
+  return result;
+}
+
 Colours& current() {
-  static Colours instance = load();
+  static Colours instance = load_and_export();
   return instance;
 }
 
@@ -214,7 +290,7 @@ bool reload_colours() {
   bool changed = false;
   while (read(watcher(), buffer, sizeof(buffer)) > 0) changed = true;
   if (changed) {
-    current() = load();
+    current() = load_and_export();
     ++generation;
   }
   return changed;
@@ -278,7 +354,7 @@ void sync_style() {
   props::hover_linger_ms = std::clamp(c.hover_linger_ms, 0, 2000);
   props::font_scale = std::clamp(c.font_scale, 0.7F, 1.6F);
   props::utility_radius_large = std::clamp(c.card_radius, 0.0F, 36.0F);
-  current() = load();
+  current() = load_and_export();
 }
 
 }  // namespace blx

@@ -14,6 +14,7 @@
     "light",
     "green"
   ],
+  "project": "blxshell",
   "blxshell": ">=0.1.0",
   "compositors": [
     "any"

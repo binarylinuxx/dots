@@ -103,9 +103,15 @@
       },
       "maxItems": 8
     },
+    "project": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "default": "blxshell",
+      "description": "The project this package is for: \"blxshell\" (the default), or another shell that reuses this plugin system with its own project id. A build only installs its own project's packages."
+    },
     "blxshell": {
       "type": "string",
-      "description": "blxshell versions it works with: \"*\", \">=0.1.0\", \">=0.1.0 <0.3.0\", \"^0.1.0\", \"~0.1.2\", groups joined by \"||\"."
+      "description": "Versions of the project it works with: \"*\", \">=0.1.0\", \">=0.1.0 <0.3.0\", \"^0.1.0\", \"~0.1.2\", groups joined by \"||\"."
     },
     "compositors": {
       "type": "array",

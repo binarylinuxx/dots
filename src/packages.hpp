@@ -51,7 +51,11 @@ struct Manifest {
   std::vector<std::string> tags;
   std::vector<std::string> previews;  // image paths inside the package
   std::string icon;
-  // Which blxshell versions it works with, e.g. ">=0.1.0 <0.3.0"; empty is any.
+  // The project it's for ("blxshell" when it doesn't say); a build only takes
+  // its own project's packages.
+  std::string project = "blxshell";
+  // Which versions of that project it works with, e.g. ">=0.1.0 <0.3.0";
+  // empty is any.
   std::string requires_shell;
   // Compositors it works under ("zwwm", "hyprland"), or "any".
   std::vector<std::string> compositors;
@@ -83,6 +87,9 @@ struct Manifest {
 const std::string& compositor();
 // This blxshell's version, e.g. "0.1.0".
 const char* shell_version();
+// The project this build takes packages for ("blxshell" unless built with
+// another BLXSHELL_PROJECT_ID, for a shell reusing the plugin system).
+const char* project_id();
 
 // Why a valid package can't run here, or nullopt when it can.
 std::optional<std::string> incompatibility(const Manifest& manifest);
@@ -124,6 +131,7 @@ struct Remote {
   std::string name;
   std::string version;
   std::string description;
+  std::string project = "blxshell";
   std::string requires_shell;
   std::vector<std::string> compositors;
   std::vector<std::string> permissions;

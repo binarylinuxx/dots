@@ -26,6 +26,9 @@
 #include "config.hpp"
 #include "halley.hpp"
 
+#ifndef BLXSHELL_PROJECT_ID
+#define BLXSHELL_PROJECT_ID "blxshell"
+#endif
 #ifndef BLXSHELL_VERSION
 #define BLXSHELL_VERSION "0.0.0"
 #endif
@@ -327,9 +330,12 @@ const std::string& compositor() {
 }
 
 const char* shell_version() { return BLXSHELL_VERSION; }
+const char* project_id() { return BLXSHELL_PROJECT_ID; }
 
 std::optional<std::string> incompatibility(const Manifest& manifest) {
   if (!manifest.valid()) return "it has errors";
+  if (manifest.project != project_id())
+    return std::format("it's a package for {}, and this is {}", manifest.project, project_id());
   if (const auto version = parse_version(shell_version()); version) {
     const auto ok = satisfies(manifest.requires_shell, *version);
     if (!ok) return std::format("its blxshell range \"{}\" can't be read", manifest.requires_shell);
@@ -362,7 +368,11 @@ Manifest parse(const std::string& text, const std::vector<std::string>& files) {
   }
   Reader r{m, root, ""};
   r.only({"$schema", "schema", "type", "id", "name", "version", "description", "authors", "license", "homepage",
-          "repository", "tags", "previews", "icon", "blxshell", "compositors", "colours", "plugin"});
+          "repository", "tags", "previews", "icon", "project", "blxshell", "compositors", "colours", "plugin"});
+  if (r.get("project", m.project) && (m.project.empty() || !std::ranges::all_of(m.project, [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
+      })))
+    m.errors.push_back(std::format("project \"{}\" must be lowercase letters, digits and -", m.project));
   if (r.get("schema", m.schema, true) && (m.schema < 1 || m.schema > schema_version))
     m.errors.push_back(std::format("manifest schema {} is newer than this blxshell reads ({}); update blxshell", m.schema, schema_version));
   std::string type;
@@ -669,6 +679,12 @@ std::vector<Remote> available(std::vector<std::string>& problems) {
       problems.push_back(repository + ": its index.json has an unknown format");
       continue;
     }
+    // A repository for another project reusing the plugin system: not ours.
+    const std::string repository_project = index.value("project", std::string("blxshell"));
+    if (repository_project != project_id()) {
+      problems.push_back(std::format("{}: a repository for {}, not {}; skipping it", repository, repository_project, project_id()));
+      continue;
+    }
     for (const json& entry : index["packages"]) {
       if (!entry.is_object()) continue;
       Remote remote;
@@ -679,6 +695,7 @@ std::vector<Remote> available(std::vector<std::string>& problems) {
         remote.name = entry.value("name", remote.id);
         remote.version = entry.at("version").get<std::string>();
         remote.description = entry.value("description", "");
+        remote.project = entry.value("project", repository_project);
         remote.requires_shell = entry.value("blxshell", "");
         remote.compositors = entry.value("compositors", std::vector<std::string>{});
         remote.permissions = entry.value("permissions", std::vector<std::string>{});
@@ -694,6 +711,7 @@ std::vector<Remote> available(std::vector<std::string>& problems) {
         problems.push_back(std::format("{}: skipping {}: bad id, url or sha256", repository, remote.id));
         continue;
       }
+      if (remote.project != project_id()) continue;  // another project's package in a mixed index
       if (std::ranges::none_of(result, [&](const Remote& other) { return other.id == remote.id; }))
         result.push_back(std::move(remote));
     }
@@ -963,6 +981,7 @@ std::string joined(const std::vector<std::string>& list) {
 // nothing is downloaded for it).
 std::optional<std::string> remote_incompatibility(const Remote& remote) {
   Manifest m;
+  m.project = remote.project;
   m.compositors = remote.compositors;
   m.requires_shell = remote.requires_shell;
   return incompatibility(m);

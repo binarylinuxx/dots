@@ -66,6 +66,14 @@ add_library(blxshell-core STATIC
 # .blx packages are zstd-compressed tar archives.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
+# Which project's packages this build takes: manifests and repositories name
+# it as "project". Another shell reusing this plugin system sets its own, so
+# the two ecosystems never install each other's packages.
+set(BLXSHELL_PROJECT_ID "blxshell" CACHE STRING "Project id packages must name to be installed here")
+if(NOT BLXSHELL_PROJECT_ID MATCHES "^[a-z][a-z0-9-]*$")
+  message(FATAL_ERROR "BLXSHELL_PROJECT_ID must be lowercase letters, digits and -")
+endif()
+
 # C++ plugins: <blxshell/plugin.hpp>, stamped with this version (its ABI tag).
 configure_file(include/blxshell/plugin.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/include/blxshell/plugin.hpp" @ONLY)
 target_include_directories(blxshell-core PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include")
@@ -76,6 +84,7 @@ add_dependencies(blxshell-core blxshell-shaders)
 target_compile_definitions(blxshell-core PRIVATE
   BLXSHELL_BUILD_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}"
   BLXSHELL_VERSION="${PROJECT_VERSION}"
+  BLXSHELL_PROJECT_ID="${BLXSHELL_PROJECT_ID}"
   BLXSHELL_SOURCE_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/packages"
   BLXSHELL_SOURCE_WALLPAPER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/wallpapers"
   BLXSHELL_SOURCE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/icons"

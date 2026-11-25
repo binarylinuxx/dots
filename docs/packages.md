@@ -117,7 +117,8 @@ completion. blxshell validates the same rules itself, so the schema and
 | `name` | yes | display name |
 | `version` | yes | semver, `1.2.3` |
 | `compositors` | yes | where it works: any of `"zwwm"`, `"hyprland"`, `"halley"`, or `["any"]` |
-| `blxshell` | | version range: `">=0.1.0"`, `">=0.1.0 <0.3.0"`, `"^0.1.0"`, `"~0.1.2"`, `"*"`, groups joined by `\|\|` |
+| `project` | | the project it's for; `"blxshell"` when left out. See [Project ids](#project-ids). |
+| `blxshell` | | version range of that project: `">=0.1.0"`, `">=0.1.0 <0.3.0"`, `"^0.1.0"`, `"~0.1.2"`, `"*"`, groups joined by `\|\|` |
 | `description`, `license` (SPDX), `homepage`, `repository` | | |
 | `authors` | | `["Name"]` or `[{"name", "email", "url"}]` |
 | `tags` | | up to 12, for store search |
@@ -451,6 +452,29 @@ them, so for them the gates are real.
 | `blxshell plugin views` | every running view, as `<plugin id>:<view>` |
 | `blxshell plugin restart <id>` | restarts it and picks up an update |
 | `blxshell plugin call <id> <command> [args]` | sends its process a `command` message |
+
+## Project ids
+
+This package system can be reused by another shell without the two
+ecosystems mixing. Every build has a project id, `blxshell` by default:
+
+```sh
+cmake -S . -B build -DBLXSHELL_PROJECT_ID=friendshell
+```
+
+- A package names its project in `"project"`. A build installs and loads
+  only its own project's packages; others are refused with "it's a package
+  for X, and this is Y". A manifest without the field is `blxshell`.
+- A repository names its project at the top of `list.json`, and `build.py`
+  copies it into `index.json` (and into each package entry). A build skips
+  repositories for another project, and any package of another project in
+  a mixed index. `validate.py` refuses a package whose project differs from
+  its repository's.
+- C++ plugins carry the project in their ABI tag
+  (`blxshell-plugin-2/<project>/<version>/<compiler>`), so a library built
+  for one project never loads in another.
+
+Ids are lowercase letters, digits and `-`, starting with a letter.
 
 ## For the store
 

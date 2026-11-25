@@ -23,8 +23,9 @@
 // the "native" permission: native code runs inside the shell with no limits,
 // so the official repository only takes it as source that CI builds.
 //
-// The library must be built against this blxshell version with the same
-// compiler: blxshell compares BLXSHELL_PLUGIN_ABI and refuses anything else.
+// The library must be built against this blxshell build: the same project
+// (BLXSHELL_PLUGIN_PROJECT), version and compiler. blxshell compares
+// BLXSHELL_PLUGIN_ABI and refuses anything else.
 
 #include <vw/ui.hpp>
 
@@ -32,13 +33,14 @@
 #include <string_view>
 #include <vector>
 
+#define BLXSHELL_PLUGIN_PROJECT "@BLXSHELL_PROJECT_ID@"
 #define BLXSHELL_PLUGIN_VERSION "@PROJECT_VERSION@"
 #if defined(__clang__)
 #define BLXSHELL_PLUGIN_COMPILER "clang " __clang_version__
 #else
 #define BLXSHELL_PLUGIN_COMPILER "gcc " __VERSION__
 #endif
-#define BLXSHELL_PLUGIN_ABI "blxshell-plugin-2/" BLXSHELL_PLUGIN_VERSION "/" BLXSHELL_PLUGIN_COMPILER
+#define BLXSHELL_PLUGIN_ABI "blxshell-plugin-2/" BLXSHELL_PLUGIN_PROJECT "/" BLXSHELL_PLUGIN_VERSION "/" BLXSHELL_PLUGIN_COMPILER
 
 namespace blxshell {
 

@@ -6,14 +6,23 @@
   "name": "Native example",
   "version": "1.0.0",
   "description": "An example C++ plugin: a bar module drawn with vw that counts clicks in its store.",
-  "authors": ["blxshell"],
+  "authors": [
+    "blxshell"
+  ],
   "license": "MIT",
-  "tags": ["example"],
+  "tags": [
+    "example"
+  ],
+  "project": "blxshell",
   "blxshell": ">=0.1.0",
-  "compositors": ["any"],
+  "compositors": [
+    "any"
+  ],
   "plugin": {
     "api": 2,
     "native": "lib/plugin.so",
-    "permissions": ["native"]
+    "permissions": [
+      "native"
+    ]
   }
 }

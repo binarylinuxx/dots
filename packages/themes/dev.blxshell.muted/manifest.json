@@ -15,6 +15,7 @@
     "wallpaper",
     "generated"
   ],
+  "project": "blxshell",
   "blxshell": ">=0.1.0",
   "compositors": [
     "any"

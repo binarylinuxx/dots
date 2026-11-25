@@ -747,53 +747,180 @@ void draw_results(vw::Ui& ui, const blob::Box& box, float list_x, float list_y, 
   (void)box;
 }
 
+// The carousel's cards: the chosen one large, the rest small, side by side.
+constexpr float card_big_width = 320;
+constexpr float card_big_height = 200;
+constexpr float card_small_width = 176;
+constexpr float card_small_height = 110;
+constexpr float card_label = 26;
+
+float carousel_height() {
+  return std::max(static_cast<float>(config().wallpaper_carousel_height), card_big_height + card_label + 16);
+}
+
+// Where the card `relative` places from the chosen one sits: its centre,
+// from the carousel's, and its size from big (0) to small (1 and beyond).
+struct CardPlace {
+  float offset;
+  float grow;  // 1 big, 0 small
+};
+
+CardPlace card_place(float relative) {
+  const float gap = static_cast<float>(std::clamp(config().wallpaper_item_gap, 0, 120));
+  const float first = card_big_width / 2 + gap + card_small_width / 2;  // centre to the next centre
+  const float pitch = card_small_width + gap;
+  const float distance = std::abs(relative);
+  const float offset = distance <= 1 ? distance * first : first + (distance - 1) * pitch;
+  return {relative < 0 ? -offset : offset, 1 - std::min(1.0F, distance)};
+}
+
+struct CarouselDrag {
+  bool active = false;
+  bool moved = false;
+  float pixels = 0;          // dragged so far, to the right
+  double from = 0;           // the index the drag started on
+  float scroll = 0;          // wheel and touchpad travel not yet a step
+};
+
+CarouselDrag& carousel_drag() {
+  static CarouselDrag drag;
+  return drag;
+}
+
+// A click `here` pixels from the carousel's centre: a side card comes to
+// the middle, the middle one becomes the wallpaper.
+void carousel_click(float here, long count) {
+  long best = 0;
+  float nearest = 1e9F;
+  for (long k = -count; k <= count; ++k) {
+    const CardPlace place = card_place(static_cast<float>(k));
+    const float half = (place.grow > 0.5F ? card_big_width : card_small_width) / 2;
+    const float distance = std::abs(here - place.offset);
+    if (distance <= half && distance < nearest) {
+      nearest = distance;
+      best = k;
+    }
+  }
+  if (nearest > 1e8F) return;
+  Model& m = model();
+  const auto index = static_cast<std::size_t>(((static_cast<long>(m.wallpaper_index) + best) % count + count) % count);
+  m.wallpaper_index = index;
+  if (best == 0) choose_wallpaper(m.wallpapers[index]);
+}
+
 void draw_carousel(vw::Ui& ui, float x, float y, float width, float height) {
   const Colours& c = colours();
   Model& m = model();
   const auto count = static_cast<long>(m.wallpapers.size());
   if (count == 0) return;
-  const float step = static_cast<float>(config().wallpaper_item_spacing);
-  const long visible = std::min(count, std::max(3L, static_cast<long>(width / step) + 1));
-  // The carousel position glides to the current index the short way round.
+  CarouselDrag& drag = carousel_drag();
+  const float gap = static_cast<float>(std::clamp(config().wallpaper_item_gap, 0, 120));
+  const float pitch = card_small_width + gap;
+
+  // The position glides to the chosen index the short way round; a drag
+  // moves it directly, by a card per pitch dragged.
   static double shown = static_cast<double>(m.wallpaper_index);
   double target = static_cast<double>(m.wallpaper_index);
-  double delta = std::fmod(target - shown, static_cast<double>(count));
-  if (delta > count / 2.0) delta -= count;
-  if (delta < -count / 2.0) delta += count;
-  target = shown + delta;
-  const double position = vw::animate("launcher.carousel", target, {.duration = 0.25, .easing = vw::Easing::out_cubic});
-  if (std::abs(position - target) < 1e-3) shown = static_cast<double>(m.wallpaper_index);
+  if (drag.active) {
+    target = drag.from - drag.pixels / pitch;
+  } else {
+    double delta = std::fmod(target - shown, static_cast<double>(count));
+    if (delta > count / 2.0) delta -= count;
+    if (delta < -count / 2.0) delta += count;
+    target = shown + delta;
+  }
+  const double position = vw::animate("launcher.carousel", target,
+                                      {.duration = drag.active ? 0.0 : 0.3, .easing = vw::Easing::out_cubic});
+  if (!drag.active && std::abs(position - target) < 1e-3) shown = static_cast<double>(m.wallpaper_index);
+
   const float centre_x = x + width / 2;
-  const float centre_y = y + height / 2;
-  const float half_span = static_cast<float>(visible - 1) * step / 2;
-  // Only the cards on the path are built (pathItemCount).
+  const float image_bottom = y + (height - card_label) / 2 + card_big_height / 2;
+  const vw::Clip clip{.x = x, .y = y, .width = width, .height = height};
+  const vw::Widget first = ui.hit_area({.width = 1, .height = 1, .place = {.x = x, .y = y}});
+
+  // Behind the cards: dragging, the wheel and clicks all land here.
+  ui.hit_area({.width = width, .height = height, .place = {.x = x, .y = y},
+               .input = {.on_click = [centre_x, count](const vw::ClickEvent& click) {
+                           carousel_click(static_cast<float>(click.x) - centre_x, count);
+                         },
+                         .on_drag_start = [](const vw::DragEvent&) {
+                           CarouselDrag& state = carousel_drag();
+                           state.active = true;
+                           state.moved = false;
+                           state.pixels = 0;
+                           state.from = static_cast<double>(model().wallpaper_index);
+                         },
+                         .on_drag = [](const vw::DragEvent& event) {
+                           CarouselDrag& state = carousel_drag();
+                           state.pixels = static_cast<float>(event.dx);
+                           if (std::abs(event.dx) > 6) state.moved = true;
+                         },
+                         .on_drag_end = [pitch, count, centre_x](const vw::DragEvent& event) {
+                           CarouselDrag& state = carousel_drag();
+                           state.active = false;
+                           // Barely moved: a left click, which the drag took.
+                           if (!state.moved) {
+                             state.pixels = 0;
+                             carousel_click(static_cast<float>(event.start_x) - centre_x, count);
+                             return;
+                           }
+                           state.moved = false;
+                           // Land on the nearest card.
+                           const auto steps = std::lround(-state.pixels / pitch);
+                           Model& model_now = model();
+                           model_now.wallpaper_index = static_cast<std::size_t>(
+                               ((static_cast<long>(state.from) + steps) % count + count) % count);
+                           state.pixels = 0;
+                         },
+                         .on_scroll = [](const vw::ScrollEvent& event) {
+                           CarouselDrag& state = carousel_drag();
+                           state.scroll += static_cast<float>(event.delta);
+                           while (std::abs(state.scroll) >= 40) {
+                             move_wallpaper(state.scroll > 0 ? 1 : -1);
+                             state.scroll -= state.scroll > 0 ? 40 : -40;
+                           }
+                         },
+                         .on_scroll_x = [](const vw::ScrollEvent& event) {
+                           CarouselDrag& state = carousel_drag();
+                           state.scroll += static_cast<float>(event.delta);
+                           while (std::abs(state.scroll) >= 40) {
+                             move_wallpaper(state.scroll > 0 ? 1 : -1);
+                             state.scroll -= state.scroll > 0 ? 40 : -40;
+                           }
+                         }}});
+
+  // Only the cards that can show are built, the small ones first so the
+  // big one draws over its neighbours as it grows.
   const long base = static_cast<long>(std::floor(position));
-  for (long k = -visible / 2 - 1; k <= visible / 2 + 1; ++k) {
+  const long reach = static_cast<long>(width / 2 / pitch) + 2;
+  std::vector<std::pair<float, long>> order;
+  for (long k = -reach; k <= reach + 1; ++k) order.emplace_back(std::abs(static_cast<float>(static_cast<double>(base + k) - position)), k);
+  std::ranges::sort(order, std::greater<>{}, &std::pair<float, long>::first);
+  for (const auto& [distance, k] : order) {
     const long index = ((base + k) % count + count) % count;
     const float relative = static_cast<float>(static_cast<double>(base + k) - position);
-    const float cx = centre_x + relative * step;
-    if (std::abs(cx - centre_x) > half_span + 1) continue;
-    const float scale = 1 - 0.22F * std::min(1.0F, std::abs(relative));
+    const CardPlace place = card_place(relative);
+    const float image_width = card_small_width + (card_big_width - card_small_width) * place.grow;
+    const float image_height = card_small_height + (card_big_height - card_small_height) * place.grow;
+    const float cx = centre_x + place.offset;
+    if (cx + image_width / 2 < x || cx - image_width / 2 > x + width) continue;
     const Wallpaper& wallpaper = m.wallpapers[static_cast<std::size_t>(index)];
-    const float item_top = centre_y - 75 * scale;
-    const float image_width = 176 * scale;
-    const float image_height = 110 * scale;
-    const vw::Clip clip{.x = x, .y = y, .width = width, .height = height};
-    draw::rect(ui, cx - image_width / 2, item_top, image_width, image_height, 14 * scale, c.surface_container);
+    const float left = cx - image_width / 2;
+    const float top = image_bottom - image_height;
+    const float radius = 12 + 6 * place.grow;
+    draw::rect(ui, left, top, image_width, image_height, radius, c.surface_container);
     try {
       ui.image({.path = wallpaper.path, .width = image_width, .height = image_height, .fit = vw::ImageFit::cover,
-                .radius = 14 * scale, .place = {.x = cx - image_width / 2, .y = item_top, .clip = clip}});
+                .radius = radius, .place = {.x = left, .y = top}});
     } catch (const std::exception&) {
     }
-    ui.text({.text = wallpaper.name, .font = font::display, .size = 11 * scale, .color = c.text,
-             .max_width = 176 * scale, .align = "center",
-             .place = {.x = cx - 88 * scale, .y = item_top + 116 * scale, .clip = clip}});
-    ui.hit_area({.width = 196 * scale, .height = 150 * scale, .place = {.x = cx - 98 * scale, .y = item_top, .clip = clip},
-                 .input = {.on_click = [index](const vw::ClickEvent&) {
-                   model().wallpaper_index = static_cast<std::size_t>(index);
-                   choose_wallpaper(model().wallpapers[static_cast<std::size_t>(index)]);
-                 }}});
+    ui.text({.text = wallpaper.name, .font = font::display, .size = 11 + 2 * place.grow,
+             .color = place.grow > 0.5F ? c.text : c.text_muted, .max_width = image_width, .align = "center",
+             .place = {.x = left, .y = image_bottom + 8}});
   }
+  const vw::Widget last = ui.hit_area({.width = 1, .height = 1, .place = {.x = x, .y = y}});
+  // Everything, images and input alike, stays inside the launcher.
+  ui.clip(vw::Widget{first.begin, last.end, width, height}, clip);
 }
 
 }  // namespace
@@ -814,7 +941,7 @@ Panel launcher_panel(const Screen& screen) {
   if (!model().loaded) load();
   const bool walls = showing_wallpapers();
   const float target_width = walls ? wallpaper_width(screen) : static_cast<float>(config().launcher_width);
-  float content = static_cast<float>(config().wallpaper_carousel_height);
+  float content = carousel_height();
   if (!walls) {
     const auto count = static_cast<float>(results().size());
     content = count > 0 ? count * row_height() + (count - 1) * row_spacing : 0;

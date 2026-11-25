@@ -37,7 +37,7 @@ struct Config {
   std::map<std::string, AppUsage> launcher_usage;
   float wallpaper_launcher_width_ratio = 0.64F;
   int wallpaper_launcher_max_width = 1120;
-  int wallpaper_item_spacing = 250;
+  int wallpaper_item_gap = 16;  // between the carousel's cards
   int wallpaper_carousel_height = 145;
   std::string wallpaper_path;
   int osd_slider_minimum_height = 120;

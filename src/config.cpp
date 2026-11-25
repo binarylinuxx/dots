@@ -145,7 +145,7 @@ void apply(Config& c, const json& root) {
   }
   read(wallpaper, "widthRatio", c.wallpaper_launcher_width_ratio);
   read(wallpaper, "maxWidth", c.wallpaper_launcher_max_width);
-  read(wallpaper, "itemSpacing", c.wallpaper_item_spacing);
+  read(wallpaper, "itemGap", c.wallpaper_item_gap);
   read(wallpaper, "carouselHeight", c.wallpaper_carousel_height);
   read(wallpaper, "path", c.wallpaper_path);
   read(audio, "minimumSliderHeight", c.osd_slider_minimum_height);
@@ -257,7 +257,7 @@ json serialize(const Config& c) {
         {"wallpaper",
          {{"widthRatio", c.wallpaper_launcher_width_ratio},
           {"maxWidth", c.wallpaper_launcher_max_width},
-          {"itemSpacing", c.wallpaper_item_spacing},
+          {"itemGap", c.wallpaper_item_gap},
           {"carouselHeight", c.wallpaper_carousel_height},
           {"path", c.wallpaper_path}}}}},
       {"matugen",

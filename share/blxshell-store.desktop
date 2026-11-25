@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=blxshell Store
+GenericName=Plugin and theme store
+Comment=Install plugins and themes for blxshell
+Exec=blxshell-store %u
+Icon=system-software-install
+Terminal=false
+Categories=Settings;PackageManager;
+Keywords=plugins;themes;blxshell;store;
+StartupWMClass=blxshell-store

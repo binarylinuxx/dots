@@ -115,6 +115,7 @@ target_link_libraries(blxshell-store PRIVATE blxshell-core)
 target_compile_options(blxshell-store PRIVATE ${BLXSHELL_WARNINGS})
 
 install(TARGETS blxshell blxshell-greeter blxshell-store RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(FILES share/blxshell-store.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
 install(FILES ${BLXSHELL_SHADERS} DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell")
 # The default wallpaper, for the shell and the greeter alike.
 install(FILES wallpapers/runix-m3.png DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/wallpapers")

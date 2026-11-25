@@ -30,11 +30,11 @@
         "zwwm": "zwwm"
       },
       "locked": {
-        "lastModified": 1795619988,
-        "narHash": "sha256-JBhB0lcIwYuxbYdqgbTIijfzswADi8RlzG858ISkUGI=",
+        "lastModified": 1795625111,
+        "narHash": "sha256-ftcQRvAhdg3jwgtU7PkkZUd+QW42YMsKIy6yMPKtsjU=",
         "owner": "binarylinuxx",
         "repo": "vw",
-        "rev": "4b84cdb7214b9e94a7c087b2be9580601674b135",
+        "rev": "7d04c384c924b9beaead24a829500571688b36ff",
         "type": "github"
       },
       "original": {

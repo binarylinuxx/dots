@@ -24,11 +24,13 @@
             pname = "blxshell";
             # Facet's interpreter (vw::facet) runs plugins' views.
             facet = true;
+            # .blx packages are zstd tarballs (src/packages.cpp).
+            shellDeps = [ pkgs.zstd ];
             # Only what the build reads, so editing the dotfiles in .config
             # doesn't rebuild the shell.
             src = nixpkgs.lib.fileset.toSource {
               root = ./.;
-              fileset = nixpkgs.lib.fileset.unions [ ./CMakeLists.txt ./src ./shaders ./include ./packages ./schemas ./wallpapers/runix-m3.png ./icons/runix-logo.svg ./translations ];
+              fileset = nixpkgs.lib.fileset.unions [ ./CMakeLists.txt ./src ./shaders ./include ./packages ./schemas ./share ./wallpapers/runix-m3.png ./icons/runix-logo.svg ./translations ];
             };
           };
         });
@@ -56,7 +58,7 @@
             VW_SOURCE_DIR = "/home/blx/vw";
             # inputsFrom carries packages, not environment variables.
             ZWAYLAND_ROOT = "${vw.inputs.zwwm}";
-            packages = with pkgs; [ cmake ninja ];
+            packages = with pkgs; [ cmake ninja zstd ];
           };
         });
     };

@@ -632,10 +632,12 @@ void draw_media(vw::Ui& ui, float x, float y, float w, float h) {
   constexpr float thumbnail = media_height - padding * 2;
   const float thumbnail_x = x + padding;
   const float thumbnail_y = y + padding;
-  draw::rect(ui, thumbnail_x, thumbnail_y, thumbnail, thumbnail, 14, c.primary_container);
-  if (!draw::art(ui, art::path(player->art_url), thumbnail_x, thumbnail_y, thumbnail, 14))
+  // The placeholder only without art (under it, it rims the art's corners).
+  if (!draw::art(ui, art::path(player->art_url), thumbnail_x, thumbnail_y, thumbnail, 14)) {
+    draw::rect(ui, thumbnail_x, thumbnail_y, thumbnail, thumbnail, 14, c.primary_container);
     draw::glyph(ui, playing ? "graphic_eq" : "music_note", thumbnail_x + thumbnail / 2, thumbnail_y + thumbnail / 2, 30,
                 c.primary);
+  }
 
   // Playing squares the pill off, as the M3 Expressive play button does.
   constexpr float play_width = 52;

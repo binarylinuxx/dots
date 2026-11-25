@@ -85,10 +85,12 @@ void draw_island(vw::Ui& ui, const Panel& panel) {
   const float art = expanded ? 76 : 32;
   const float art_x = box.x + 5;
   const float art_y = box.y + (box.height - art) / 2;
-  draw::rect(ui, art_x, art_y, art, art, expanded ? props::popout_radius : art / 2, c.primary_container);
   const std::string path = art::path(player->art_url);
-  if (!draw::art(ui, path, art_x, art_y, art, expanded ? props::popout_radius : art / 2))
+  // The placeholder only without art (under it, it rims the art's corners).
+  if (!draw::art(ui, path, art_x, art_y, art, expanded ? props::popout_radius : art / 2)) {
+    draw::rect(ui, art_x, art_y, art, art, expanded ? props::popout_radius : art / 2, c.primary_container);
     draw::glyph(ui, playing ? "graphic_eq" : "music_note", art_x + art / 2, art_y + art / 2, expanded ? 30 : 18, c.primary);
+  }
 
   const float text_x = art_x + art + (expanded ? 13 : 8);
   const float text_right = box.x + box.width - (expanded ? 112 : 12);

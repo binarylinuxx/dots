@@ -302,10 +302,12 @@ void media_card(vw::Ui& ui, float x, float y) {
                               .track = c.surface_variant, .stroke = 5, .start_angle = -225, .sweep_angle = 270,
                               .active = p.playing, .wavy = p.playing, .show_label = false});
   const std::string art = art::path(m.art_url);
-  draw::rect(ui, art_x + 13, ty + 13, 86, 86, 43, c.primary_container);
-  if (!draw::art(ui, art, art_x + 13, ty + 13, 86, 43))
+  // The placeholder only without art (under it, it rims the art's corners).
+  if (!draw::art(ui, art, art_x + 13, ty + 13, 86, 43)) {
+    draw::rect(ui, art_x + 13, ty + 13, 86, 86, 43, c.primary_container);
     draw::glyph(ui, p.available ? (p.playing ? "graphic_eq" : "music_note") : "music_off", art_x + 56, ty + 56, 34,
                 c.primary);
+  }
   ty += 112 + 8;
   draw::text(ui, p.available ? (m.title.empty() ? "Untitled track" : m.title) : "No active player", ix, ty,
              {.size = 17, .color = c.text, .weight = vw::weight::black, .family = font::display, .max_width = iw,
@@ -441,10 +443,11 @@ void media_page(vw::Ui& ui, float x, float y) {
   widgets::radial_bars(ui, "media.page", art_x - 25, art_y - 25, art_size + 50, 73, bars, c.primary,
                        p.playing && !bars.empty() ? 0.9F : 0.2F);
   const std::string art = art::path(m.art_url);
-  draw::rect(ui, art_x + 12, art_y + 12, 126, 126, 63, c.primary_container);
-  if (!draw::art(ui, art, art_x + 12, art_y + 12, 126, 63))
+  if (!draw::art(ui, art, art_x + 12, art_y + 12, 126, 63)) {
+    draw::rect(ui, art_x + 12, art_y + 12, 126, 126, 63, c.primary_container);
     draw::glyph(ui, p.available ? (p.playing ? "graphic_eq" : "music_note") : "music_off", art_x + 75, art_y + 75, 58,
                 c.primary);
+  }
 
   const float cx = x + 18 + art_size + 18;
   const float cw = 380 - (cx - x) - 18;

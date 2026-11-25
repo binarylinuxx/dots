@@ -36,8 +36,24 @@ vec2 vertex(uint index) {
   return vec2(uintBitsToFloat(data.words[base]), uintBitsToFloat(data.words[base + 1u]));
 }
 
+// The surrounding clip (a rounded box, radius in clip_params.x) as vw's own
+// rectangle shader applies it, so these strokes stay inside rounded
+// containers too.
+float rounded_box_distance(vec2 p, vec2 half_size, float radius) {
+  radius = min(radius, min(half_size.x, half_size.y));
+  vec2 q = abs(p) - half_size + vec2(radius);
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+}
+
+float clip_coverage(ivec2 destination) {
+  if (rectangle.clip.z <= 0.0 || rectangle.clip.w <= 0.0) return 1.0;
+  vec2 point = vec2(destination) + vec2(0.5) - rectangle.clip.xy;
+  vec2 half_size = rectangle.clip.zw * 0.5;
+  return 1.0 - smoothstep(-0.5, 0.5, rounded_box_distance(point - half_size, half_size, rectangle.clip_params.x));
+}
+
 void blend(ivec2 destination, vec4 color, float amount) {
-  float alpha = color.a * clamp(amount, 0.0, 1.0);
+  float alpha = color.a * clamp(amount, 0.0, 1.0) * clip_coverage(destination);
   if (alpha <= 0.0) return;
   vec4 source = vec4(color.rgb * alpha, alpha);
   vec4 current = imageLoad(target_image, destination);

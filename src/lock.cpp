@@ -171,9 +171,12 @@ void draw_media(vw::Ui& ui, float centre, float y) {
   const bool playing = player->playback_status == "Playing";
   draw::rect(ui, x, y, width, height, 36, with_alpha(c.surface_container_high, 0.9F));
   constexpr float art_size = height - padding * 2;
-  draw::rect(ui, x + padding, y + padding, art_size, art_size, 24, c.primary_container);
-  if (!draw::art(ui, art::path(player->art_url), x + padding, y + padding, art_size, 24))
+  // The placeholder only without art: under it, its soft corners would show
+  // through the art's anti-aliased ones as a light rim.
+  if (!draw::art(ui, art::path(player->art_url), x + padding, y + padding, art_size, 24)) {
+    draw::rect(ui, x + padding, y + padding, art_size, art_size, 24, c.primary_container);
     draw::glyph(ui, "music_note", x + padding + art_size / 2, y + height / 2, 32, c.primary);
+  }
   constexpr float play_size = 56;
   const float play_x = x + width - padding - 4 - play_size;
   const float play_y = y + (height - play_size) / 2;

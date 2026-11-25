@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <algorithm>
+#include <array>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -60,6 +62,10 @@ struct Manifest {
   // Compositors it works under ("zwwm", "hyprland"), or "any".
   std::vector<std::string> compositors;
 
+  // Themes only: an image inside the package that applying the theme sets as
+  // the wallpaper; empty for a colours-only theme.
+  std::string wallpaper;
+
   // Plugins only (api 2). Any of the three entry points, at least one:
   int api = 0;
   // Its views, in Facet (a .facet file in the package), drawn by the shell.
@@ -118,16 +124,21 @@ bool remove(const std::string& id, std::string& message);
 // --- Repositories -----------------------------------------------------------
 //
 // A repository publishes prebuilt packages and an index.json describing them
-// (see dots-plugins' tools/build.py). The official one comes first; users add
+// (see dots-plugins' tools/build.py). The official ones come first; users add
 // more in config.json's plugins.repositories.
 
-inline constexpr const char* official_repository = "binarylinuxx/dots-plugins";
+inline constexpr std::array<const char*, 2> official_repositories{"binarylinuxx/dots-plugins",
+                                                                  "binarylinuxx/dots-themes"};
+inline bool official(const std::string& repository) {
+  return std::ranges::find(official_repositories, repository) != official_repositories.end();
+}
 
 // One package a repository offers, from its index.json.
 struct Remote {
   std::string repository;
   std::string id;
   std::string type;  // "plugin" or "theme"
+  bool wallpaper = false;  // a theme that comes with a wallpaper
   std::string name;
   std::string version;
   std::string description;
@@ -145,7 +156,7 @@ struct Remote {
   std::uint64_t size = 0;
 };
 
-// The official repository, then the user's.
+// The official repositories, then the user's.
 std::vector<std::string> repositories();
 // Where a repository's index.json is: "owner/name" means its GitHub release
 // called "packages"; a URL is used as it is.

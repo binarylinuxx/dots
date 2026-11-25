@@ -1,5 +1,5 @@
 // blxshell-store [id]: the plugin and theme store, a window of its own. It lists
-// what the repositories offer (the official one, then config.json's
+// what the repositories offer (the official ones, then config.json's
 // plugins.repositories) and installs, updates, removes, enables and applies
 // through the blxshell command line beside it, so a package goes through
 // exactly the checks `blxshell install` makes: the index's sha256, the
@@ -411,7 +411,7 @@ std::string version_line(const pk::Remote& remote, const Status& s) {
 std::pair<std::string, bool> notice_line(const pk::Remote& remote, const Status& s) {
   if (!s.note.empty()) return {s.note, true};
   if (s.problem) return {"Won't run here: " + *s.problem, true};
-  if (s.theme) return {"Colours only", false};
+  if (s.theme) return {remote.wallpaper ? "Colours and wallpaper" : "Colours only", false};
   std::string permissions;
   for (const std::string& permission : remote.permissions) permissions += (permissions.empty() ? "" : ", ") + permission;
   return {permissions.empty() ? "No permissions" : "Needs " + permissions, false};
@@ -668,7 +668,7 @@ void draw_details(vw::Ui& ui, float width, float height, const pk::Remote& remot
     if (remote.permissions.empty()) body("None: it only shows its views and reacts to clicks.", c.text_muted);
     for (const std::string& permission : remote.permissions) body(std::format("{}  —  {}", permission, meaning(permission)), c.text);
     body("A plugin runs as you, like any program you start. Permissions limit what it may ask blxshell to do; "
-         "they aren't a sandbox. Everything in the official repository is reviewed before it's merged.",
+         "they aren't a sandbox. Everything in the official repositories is reviewed before it's merged.",
          c.text_muted);
   }
 

@@ -8,6 +8,7 @@ it is a `"theme"` or a `"plugin"`.
 my-theme-1.0.0.blx            (tar.zst)
 ├── manifest.json             required
 ├── preview.png               optional, listed in "previews"
+├── wallpaper.png             a theme's wallpaper, optional
 └── bin/plugin                a plugin's program
 ```
 
@@ -27,8 +28,9 @@ also checks it and gives reproducible output (sorted entries, mtime 0, owner
 
 ## Repositories
 
-Prebuilt packages come from repositories. The official one,
-[binarylinuxx/dots-plugins](https://github.com/binarylinuxx/dots-plugins), is
+Prebuilt packages come from repositories. The official ones,
+[binarylinuxx/dots-plugins](https://github.com/binarylinuxx/dots-plugins) and
+[binarylinuxx/dots-themes](https://github.com/binarylinuxx/dots-themes), are
 always used first; more go in `plugins.repositories` in config.json.
 
 ```sh
@@ -124,6 +126,7 @@ completion. blxshell validates the same rules itself, so the schema and
 | `tags` | | up to 12, for store search |
 | `icon`, `previews` | | image paths inside the package |
 | `colours` | themes | below |
+| `wallpaper` | | themes: an image in the package, see [Wallpapers](#wallpapers) |
 | `plugin` | plugins | below |
 
 ### Compatibility
@@ -223,6 +226,31 @@ surfaces and dark text.
 
 Settings a generated theme leaves out go back to their defaults, so the
 same theme always looks the same.
+
+### Wallpapers
+
+A theme can ship a wallpaper: put the image in the package and name it in
+`"wallpaper"` (`.png`, `.jpg`, `.webp` or `.svg`). Applying the theme sets it
+as the wallpaper. With a generated theme whose `source` is `"wallpaper"`, the
+palette then comes from that image, so the two always match:
+
+```json
+{
+  "schema": 1,
+  "type": "theme",
+  "id": "io.github.you.dune",
+  "name": "Dune",
+  "version": "1.0.0",
+  "compositors": ["any"],
+  "wallpaper": "wallpaper.png",
+  "previews": ["preview.png"],
+  "colours": { "kind": "generated", "source": "wallpaper", "scheme": "tonal-spot" }
+}
+```
+
+`blxshell theme reset` puts back the wallpaper you had before your first
+theme too, unless you've picked another one since. A static theme with a
+wallpaper keeps its fixed colours whatever the image is.
 
 ### Roles
 

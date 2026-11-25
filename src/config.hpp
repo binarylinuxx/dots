@@ -187,7 +187,7 @@ struct Config {
   std::string theme;
   // Plugin ids that run. Installed plugins stay off until listed.
   std::vector<std::string> plugins_enabled;
-  // Extra package repositories, after the official one: "owner/name" on
+  // Extra package repositories, after the official ones: "owner/name" on
   // GitHub, or the URL of an index.json.
   std::vector<std::string> plugin_repositories;
   bool sdf_outline_enabled = false;

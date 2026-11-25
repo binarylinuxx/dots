@@ -368,7 +368,7 @@ Manifest parse(const std::string& text, const std::vector<std::string>& files) {
   }
   Reader r{m, root, ""};
   r.only({"$schema", "schema", "type", "id", "name", "version", "description", "authors", "license", "homepage",
-          "repository", "tags", "previews", "icon", "project", "blxshell", "compositors", "colours", "plugin"});
+          "repository", "tags", "previews", "icon", "project", "blxshell", "compositors", "colours", "wallpaper", "plugin"});
   if (r.get("project", m.project) && (m.project.empty() || !std::ranges::all_of(m.project, [](char c) {
         return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
       })))
@@ -393,6 +393,17 @@ Manifest parse(const std::string& text, const std::vector<std::string>& files) {
   r.get("tags", m.tags);
   r.get("icon", m.icon);
   if (!m.icon.empty() && !has_file(files, m.icon)) m.errors.push_back(std::format("icon \"{}\" is not in the package", m.icon));
+  if (r.get("wallpaper", m.wallpaper)) {
+    static constexpr std::array images{".png", ".jpg", ".jpeg", ".webp", ".svg"};
+    const std::string& path = m.wallpaper;
+    if (m.kind != Kind::theme) m.errors.push_back("\"wallpaper\" is for themes");
+    else if (path.starts_with('/') || path.find("..") != std::string::npos)
+      m.errors.push_back("wallpaper must be a path inside the package");
+    else if (!std::ranges::any_of(images, [&](const char* ext) { return path.ends_with(ext); }))
+      m.errors.push_back("wallpaper must be a .png, .jpg, .webp or .svg image");
+    else if (!has_file(files, path))
+      m.errors.push_back(std::format("wallpaper \"{}\" is not in the package", path));
+  }
   if (r.get("previews", m.previews))
     for (const std::string& preview : m.previews)
       if (!has_file(files, preview)) m.errors.push_back(std::format("preview \"{}\" is not in the package", preview));
@@ -646,7 +657,7 @@ std::string fetch(const std::string& url, const fs::path& file, bool allow_file 
 }  // namespace
 
 std::vector<std::string> repositories() {
-  std::vector<std::string> list{official_repository};
+  std::vector<std::string> list(official_repositories.begin(), official_repositories.end());
   for (const std::string& repository : config().plugin_repositories)
     if (!repository.empty() && std::ranges::find(list, repository) == list.end()) list.push_back(repository);
   return list;
@@ -692,6 +703,7 @@ std::vector<Remote> available(std::vector<std::string>& problems) {
       try {
         remote.id = entry.at("id").get<std::string>();
         remote.type = entry.value("type", "plugin");
+        remote.wallpaper = entry.value("wallpaper", false);
         remote.name = entry.value("name", remote.id);
         remote.version = entry.at("version").get<std::string>();
         remote.description = entry.value("description", "");
@@ -818,6 +830,36 @@ constexpr std::array<std::pair<const char*, const char*>, 8> colour_keys{{
 // What the colours were before the first theme, for reset_theme().
 fs::path snapshot_path() { return fs::path(config_path()).parent_path() / "colours-before-theme.json"; }
 
+// The wallpaper the shell shows: ~/.local/state/blxshell/wallpaper, which the
+// shell reads at start and watches. Written here too, so a theme applied
+// while the shell isn't running still has its wallpaper next time.
+fs::path wallpaper_state() { return fs::path(home()) / ".local/state/blxshell/wallpaper"; }
+
+std::string current_wallpaper() {
+  std::ifstream input(wallpaper_state());
+  std::string path;
+  std::getline(input, path);
+  return path;
+}
+
+void write_wallpaper(const std::string& path) {
+  std::error_code error;
+  fs::create_directories(wallpaper_state().parent_path(), error);
+  const fs::path temporary = wallpaper_state().string() + ".tmp";
+  std::ofstream(temporary) << path << '\n';
+  fs::rename(temporary, wallpaper_state(), error);
+}
+
+void set_wallpaper_key(json& config, const std::string& path) {
+  if (!config.contains("launcher") || !config["launcher"].is_object()) config["launcher"] = json::object();
+  json& launcher = config["launcher"];
+  if (!launcher.contains("wallpaper") || !launcher["wallpaper"].is_object()) launcher["wallpaper"] = json::object();
+  launcher["wallpaper"]["path"] = path;
+}
+
+// A wallpaper some theme put there, which resetting takes back.
+bool theme_wallpaper(const std::string& path) { return path.find("/blxshell/themes/") != std::string::npos; }
+
 // Edits config.json in place, keeping the previous file as config.json.bak.
 // The running shell reloads it live (and regenerates the scheme when the
 // matugen settings changed).
@@ -866,6 +908,15 @@ bool apply_theme(const Manifest& theme, std::string& message) {
     return false;
   }
   const json colours = json::parse(theme.json)["colours"];
+  // Its wallpaper, from the installed folder (a .blx is installed first).
+  std::string wallpaper;
+  if (!theme.wallpaper.empty()) {
+    if (theme.directory.empty()) {
+      message = theme.id + " has a wallpaper: install it before applying it";
+      return false;
+    }
+    wallpaper = (theme.directory / theme.wallpaper).string();
+  }
   const bool ok = edit_config([&](json& config) {
     json& appearance = config["appearance"];
     json& matugen = config["matugen"];
@@ -876,6 +927,7 @@ bool apply_theme(const Manifest& theme, std::string& message) {
       json snapshot = json::object();
       for (const auto& [section, key] : colour_keys)
         if (config[section].contains(key)) snapshot[section][key] = config[section][key];
+      snapshot["wallpaper"] = current_wallpaper();
       std::ofstream(snapshot_path()) << snapshot.dump(2) << '\n';
     }
     if (colours["kind"] == "static") {
@@ -895,9 +947,12 @@ bool apply_theme(const Manifest& theme, std::string& message) {
       matugen["prefer"] = colours.value("prefer", "saturation");
     }
     appearance["theme"] = theme.id;
+    if (!wallpaper.empty()) set_wallpaper_key(config, wallpaper);
   }, message);
   if (!ok) return false;
-  message = std::format("applied {} {} ({} colours)", theme.id, theme.version, colours["kind"].get<std::string>());
+  if (!wallpaper.empty()) write_wallpaper(wallpaper);
+  message = std::format("applied {} {} ({} colours{})", theme.id, theme.version, colours["kind"].get<std::string>(),
+                        wallpaper.empty() ? "" : " and its wallpaper");
   return true;
 }
 
@@ -907,6 +962,7 @@ bool reset_theme(std::string& message) {
     if (fs::exists(snapshot_path())) snapshot = json::parse(slurp(snapshot_path()));
   } catch (const std::exception&) {
   }
+  std::optional<std::string> restored_wallpaper;
   const bool ok = edit_config([&](json& config) {
     // Back to exactly what was there before the first theme; keys that
     // weren't set then are removed so their defaults return.
@@ -915,8 +971,15 @@ bool reset_theme(std::string& message) {
       else config[section].erase(key);
     }
     config["appearance"].erase("theme");
+    // The wallpaper too, unless the user has picked another since.
+    if (theme_wallpaper(current_wallpaper())) {
+      restored_wallpaper = snapshot.value("wallpaper", std::string());
+      if (theme_wallpaper(*restored_wallpaper)) restored_wallpaper = "";
+      set_wallpaper_key(config, *restored_wallpaper);
+    }
   }, message);
   if (!ok) return false;
+  if (restored_wallpaper) write_wallpaper(*restored_wallpaper);
   std::error_code error;
   fs::remove(snapshot_path(), error);
   message = "colours are back to what they were before the first theme";
@@ -1218,7 +1281,7 @@ std::optional<int> command(int argc, char** argv) {
     const std::string sub = args.size() > 1 ? args[1] : "list";
     if (sub == "list") {
       for (const std::string& repository : repositories())
-        std::cout << repository << (repository == official_repository ? "  (official, reviewed)" : "  (not reviewed by blxshell)") << '\n'
+        std::cout << repository << (official(repository) ? "  (official, reviewed)" : "  (not reviewed by blxshell)") << '\n'
                   << "    " << index_url(repository) << '\n';
       return EXIT_SUCCESS;
     }
@@ -1240,8 +1303,8 @@ std::optional<int> command(int argc, char** argv) {
         std::cerr << "blxshell: a repository is owner/name on GitHub, an https:// URL of an index.json, or a local folder\n";
         return EXIT_FAILURE;
       }
-      if (repository == official_repository) {
-        std::cerr << "blxshell: the official repository is always there\n";
+      if (official(repository)) {
+        std::cerr << "blxshell: the official repositories are always there\n";
         return EXIT_FAILURE;
       }
       auto& list = config().plugin_repositories;

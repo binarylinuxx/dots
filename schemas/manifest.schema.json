@@ -140,6 +140,15 @@
     },
     "colours": {
       "$ref": "#/$defs/colours"
+    },
+    "wallpaper": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/packagePath"
+        }
+      ],
+      "pattern": "\\.(png|jpe?g|webp|svg)$",
+      "description": "Themes only: an image in the package that applying the theme sets as the wallpaper. With colours.source \"wallpaper\" the palette is generated from it."
     }
   },
   "additionalProperties": false,
@@ -176,8 +185,17 @@
           "plugin"
         ],
         "not": {
-          "required": [
-            "colours"
+          "anyOf": [
+            {
+              "required": [
+                "colours"
+              ]
+            },
+            {
+              "required": [
+                "wallpaper"
+              ]
+            }
           ]
         }
       }

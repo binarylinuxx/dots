@@ -1,0 +1,37 @@
+#compdef blxshell
+# blxshell completions for zsh.
+_blxshell_ids() { blxshell $1 list 2>/dev/null | awk '{print $1}' }
+
+_blxshell() {
+  local -a commands
+  commands=(
+    'settings:open the settings app' 'launcher:the app launcher' 'powermenu:the power menu'
+    'sidebar:the sidebar' 'wallpapers:the wallpaper picker' 'lock:lock the session'
+    'reload:re-read config and colours' 'media:control the player' 'ping:check the shell runs'
+    'popout:a bar popout' 'dashboard:the dashboard' 'osd:the volume slider'
+    'pack:make a package' 'inspect:show and check a package' 'install:install a package'
+    'search:what the repositories offer' 'update:install newer versions' 'repo:package repositories'
+    'remove:uninstall a package' 'theme:themes' 'plugin:plugins'
+  )
+  if (( CURRENT == 2 )); then
+    _describe command commands
+    return
+  fi
+  case "${words[2]}:$CURRENT" in
+    settings:3) compadd theme colours shape type apps bar sidebar panels power lock desktop plugins about ;;
+    launcher:3|powermenu:3|dashboard:3|popout:4) compadd toggle open close ;;
+    sidebar:3) compadd both top bottom corner ;;
+    media:3) compadd play-pause pause next previous ;;
+    popout:3) compadd wifi bluetooth audio battery ;;
+    repo:3) compadd list add remove ;;
+    theme:3) compadd list apply reset ;;
+    theme:4) [[ ${words[3]} == apply ]] && { compadd -- $(_blxshell_ids theme) --force; _files -g '*.blx' } ;;
+    plugin:3) compadd list status enable disable call restart ;;
+    plugin:4) [[ ${words[3]} != (list|status) ]] && compadd -- $(_blxshell_ids plugin) ;;
+    install:*) compadd -- $(blxshell search 2>/dev/null | awk '/^[^ ]/{print $1}') --force; _files -g '*.blx' ;;
+    inspect:*|update:*|remove:*) compadd -- $(_blxshell_ids theme) $(_blxshell_ids plugin) ;;
+    pack:*) _files -/ ;;
+  esac
+}
+
+_blxshell "$@"

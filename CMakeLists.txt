@@ -117,6 +117,10 @@ target_compile_options(blxshell-store PRIVATE ${BLXSHELL_WARNINGS})
 
 install(TARGETS blxshell blxshell-greeter blxshell-store RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(FILES share/blxshell-store.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+install(FILES share/completions/blxshell.fish DESTINATION "${CMAKE_INSTALL_DATADIR}/fish/vendor_completions.d")
+install(FILES share/completions/blxshell.bash DESTINATION "${CMAKE_INSTALL_DATADIR}/bash-completion/completions" RENAME blxshell)
+install(FILES share/completions/_blxshell DESTINATION "${CMAKE_INSTALL_DATADIR}/zsh/site-functions")
+install(FILES share/completions/blxshell.nu DESTINATION "${CMAKE_INSTALL_DATADIR}/nushell/vendor/autoload")
 install(FILES ${BLXSHELL_SHADERS} DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell")
 # The default wallpaper, for the shell and the greeter alike.
 install(FILES wallpapers/runix-m3.png DESTINATION "${CMAKE_INSTALL_DATADIR}/blxshell/wallpapers")

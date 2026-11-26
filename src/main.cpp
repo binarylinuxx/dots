@@ -22,6 +22,7 @@
 #include <sys/timerfd.h>
 #include <unistd.h>
 
+#include "apptheme.hpp"
 #include "net.hpp"
 #include "config.hpp"
 #include "ipc.hpp"
@@ -157,6 +158,7 @@ int main(int argc, char** argv) {
       .surface(blx::reserve_bottom)
       .surface(blx::lock_surface);
   blx::plugins::sync();
+  blx::apptheme::apply();
   app.on_event(blx::plugins::event_fd(), counted("plugins", blx::plugins::drain));
   if (ipc_fd >= 0) app.on_event(ipc_fd, counted("ipc", [ipc_fd] { return blx::ipc::drain(ipc_fd); }));
   if (const int switch_fd = watch_system_switch(); switch_fd >= 0) {
@@ -166,6 +168,7 @@ int main(int argc, char** argv) {
   app.on_event(blx::colours_event_fd(), counted("colours", [] {
         if (!blx::reload_colours()) return false;
         blx::plugins::colours_changed();
+        blx::apptheme::apply();  // GTK and Qt apps follow every new scheme
         return true;
       }))
       .on_event(blx::config_event_fd(), counted("config", [] {
@@ -180,6 +183,7 @@ int main(int argc, char** argv) {
             now.theme_source != before.theme_source || now.theme_seed != before.theme_seed)
           blx::regenerate_colours();
         blx::plugins::sync();
+        blx::apptheme::apply();  // the GTK/Qt toggles, or the mode
         return true;
       }))
       .on_event(blx::services_event_fd(), counted("services", blx::drain_services))

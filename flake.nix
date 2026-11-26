@@ -35,8 +35,11 @@
           };
         });
 
-      # programs.blxshell.greeter: the login screen (nix/module.nix).
-      nixosModules.default = import ./nix/module.nix self;
+      # programs.blxshell: the shell, its fonts and app theming (nix/shell.nix);
+      # programs.blxshell.greeter: the login screen (nix/greeter.nix).
+      nixosModules.default = {
+        imports = [ (import ./nix/shell.nix self) (import ./nix/greeter.nix self) ];
+      };
 
       # programs.blxshell for Runix (nix/runix-module.nix): fonts, and the
       # greeter as a runit service.

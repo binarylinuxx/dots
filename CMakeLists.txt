@@ -34,6 +34,7 @@ add_custom_target(blxshell-shaders ALL DEPENDS ${BLXSHELL_SHADERS})
 
 # Everything but the entry points, shared by the shell and the greeter.
 add_library(blxshell-core STATIC
+  src/apptheme.cpp
   src/archive.cpp
   src/bar.cpp
   src/blob.cpp

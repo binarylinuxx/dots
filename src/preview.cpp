@@ -46,7 +46,7 @@ void draw_waves(vw::Ui& ui, float width, float height) {
   blx::draw::text(ui, "Wavy, flat, critical, spinning", x, y + 96, {.size = 15, .color = c.text});
   const float ring_y = y + 128;
   blx::widgets::circular_progress(ui, "preview.wavy", x, ring_y, 110,
-                                  {.value = played, .accent = c.primary, .track = c.surface_variant, .stroke = 6,
+                                  {.value = 0.75, .accent = c.primary, .track = c.surface_variant, .stroke = 6,
                                    .active = true, .wavy = true, .show_label = false});
   blx::widgets::circular_progress(ui, "preview.flat", x + 160, ring_y, 110,
                                   {.value = 0.62, .accent = c.primary, .track = c.surface_variant, .stroke = 6});

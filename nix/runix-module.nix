@@ -1,5 +1,5 @@
 # programs.blxshell for Runix (runit, mdevd, elogind and seatd; no systemd).
-# The options match the NixOS module in module.nix, so its docs apply here.
+# The options match the NixOS module in greeter.nix, so its docs apply here.
 #
 #   modules = [
 #     blxshell.runixModules.default

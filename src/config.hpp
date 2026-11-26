@@ -185,6 +185,10 @@ struct Config {
   float art_hue = 0;
   // The applied theme's id; the theme's values themselves are in here.
   std::string theme;
+  // GTK 3/4 and Qt apps in the shell's colours and Material 3 shapes
+  // (apptheme.hpp).
+  bool theme_gtk_apps = false;
+  bool theme_qt_apps = false;
   // Plugin ids that run. Installed plugins stay off until listed.
   std::vector<std::string> plugins_enabled;
   // Extra package repositories, after the official ones: "owner/name" on

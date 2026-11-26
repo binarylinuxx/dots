@@ -211,7 +211,7 @@ void circular_progress(vw::Ui& ui, const std::string& id, float x, float y, floa
   if (o.wavy && progress > 0) {
     // Eight waves round a full sweep, the phase a full turn every 1.5 s.
     arc(ui, x, y, size, r, o.stroke, begin, progress * sweep, endpoint, o.stroke * 0.38F,
-        static_cast<float>(8 / (sweep * pi / 180)), o.active ? phase(1.5) : 0);
+        static_cast<float>(8 * 2 * pi / (sweep * pi / 180)), o.active ? phase(1.5) : 0);
   } else {
     arc(ui, x, y, size, r, o.stroke, begin, std::max(0.01, std::min(progress, threshold) * sweep), o.accent);
     if (progress > threshold)

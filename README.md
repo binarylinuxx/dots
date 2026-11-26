@@ -122,6 +122,12 @@ Under a compositor with layer shell, `blxshell-greeter --layer` draws one login 
 
 To try it without logging out, greetd's `fakegreet` stands in for the daemon (user `user`, password `password`, then `9`): `fakegreet ./build/blxshell-greeter`. Run on its own, it shows the screen as a preview.
 
+## GTK and Qt apps
+
+**Settings → Theme → Apps** themes GTK and Qt apps in the shell's colours and
+follows every change. Qt needs `qt6ct`/`qt5ct`, GTK 3 looks best with
+`adw-gtk3`; on NixOS, `programs.blxshell.enable = true` installs both.
+
 ## Themes and plugins
 
 Themes and plugins are `.blx` packages (zstd-compressed tar with a

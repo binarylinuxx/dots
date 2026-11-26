@@ -205,6 +205,8 @@ void apply(Config& c, const json& root) {
   read(appearance, "artTint", c.art_tint);
   read(appearance, "artHue", c.art_hue);
   read(appearance, "theme", c.theme);
+  read(appearance, "themeGtkApps", c.theme_gtk_apps);
+  read(appearance, "themeQtApps", c.theme_qt_apps);
   read(section(root, "plugins"), "enabled", c.plugins_enabled);
   read(section(root, "plugins"), "repositories", c.plugin_repositories);
   read(appearance, "sdfOutlineEnabled", c.sdf_outline_enabled);
@@ -308,6 +310,8 @@ json serialize(const Config& c) {
         {"artTint", c.art_tint},
         {"artHue", c.art_hue},
         {"theme", c.theme},
+        {"themeGtkApps", c.theme_gtk_apps},
+        {"themeQtApps", c.theme_qt_apps},
         {"sdfOutlineEnabled", c.sdf_outline_enabled},
         {"sdfOutlineWidth", c.sdf_outline_width},
         {"sdfOutlineColorRole", c.sdf_outline_color_role}}},

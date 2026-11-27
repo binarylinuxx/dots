@@ -306,7 +306,8 @@ icons and widgets; the first enabled plugin that has one wins. Views named
 (`blxshell lockscreen edit`, **Add**), then moves and resizes them like the
 clock. They size themselves from `state.lock.scale`, and while locked they
 are shown only: clicks on them never reach the plugin. The login screen runs
-no plugins, so they never appear there.
+no plugins, so they never appear there. A C++ plugin's `Lock…` views read the same
+through `Host::context()`, JSON text like `{"lock": {"scale": 1.3, …}}`.
 
 ```facet
 view LockQuote(state, actions) {

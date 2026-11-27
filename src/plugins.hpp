@@ -123,6 +123,8 @@ std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id, const
 // resizes them in the layout editor). On the lock screen they are shown
 // only, never clicked: a locked session takes no orders from a plugin.
 std::vector<std::string> lock_views();
+// A running plugin's name from its manifest; the id when it isn't running.
+std::string plugin_name(const std::string& id);
 
 // The first running plugin's Wallpaper view, full-screen at (0, 0); false
 // when no plugin has one (or it failed).

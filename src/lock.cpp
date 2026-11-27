@@ -634,7 +634,10 @@ std::string lock_item_label(const LockItem& item) {
   if (id.starts_with("text:")) return item.text.empty() ? "Text" : "Text: " + item.text;
   if (const std::string view = plugin_of(id); !view.empty()) {
     const auto colon = view.rfind(':');
-    return colon == std::string::npos ? view : view.substr(0, colon) + " · " + view.substr(colon + 1);
+    if (colon == std::string::npos) return view;
+    std::string name = view.substr(colon + 1);
+    if (name.starts_with("Lock") && name.size() > 4) name = name.substr(4);
+    return plugins::plugin_name(view.substr(0, colon)) + " · " + name;
   }
   return id;
 }

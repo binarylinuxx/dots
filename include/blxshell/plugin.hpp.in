@@ -40,7 +40,7 @@
 #else
 #define BLXSHELL_PLUGIN_COMPILER "gcc " __VERSION__
 #endif
-#define BLXSHELL_PLUGIN_ABI "blxshell-plugin-3/" BLXSHELL_PLUGIN_PROJECT "/" BLXSHELL_PLUGIN_VERSION "/" BLXSHELL_PLUGIN_COMPILER
+#define BLXSHELL_PLUGIN_ABI "blxshell-plugin-4/" BLXSHELL_PLUGIN_PROJECT "/" BLXSHELL_PLUGIN_VERSION "/" BLXSHELL_PLUGIN_COMPILER
 
 namespace blxshell {
 
@@ -83,6 +83,11 @@ class Host {
   // Starts an application by desktop id, with files (paths or URIs) for its
   // %f %F %u %U; false when it isn't installed or won't start.
   virtual bool launch(std::string_view id, const std::vector<std::string>& files) = 0;
+  // What the view being drawn is for, as JSON text: what a Facet view gets
+  // beyond the usual state. Lock views (lock screen widgets, placed by the
+  // user) get {"lock": {"scale", "editing", "greeter", "sheet"}}: draw at
+  // `scale`. "{}" for others, and outside view().
+  virtual std::string context() const = 0;
 };
 
 // Everything is optional. The shell calls these on its own thread; a plugin
@@ -90,7 +95,8 @@ class Host {
 class Plugin {
  public:
   virtual ~Plugin() = default;
-  // Its views: "Bar…" ones are bar modules ("<plugin id>:<view>").
+  // Its views: "Bar…" ones are bar modules ("<plugin id>:<view>"), "Lock…"
+  // ones lock screen widgets (see Host::context; shown, never clicked).
   virtual std::vector<std::string> views() const { return {}; }
   virtual vw::Widget view(vw::Ui&, std::string_view, Host&) { return {}; }
   // Running, with its store readable; `host` lives as long as the plugin.

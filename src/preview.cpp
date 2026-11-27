@@ -22,6 +22,7 @@
 #include "lockpage.hpp"
 #include "net.hpp"
 #include "parts.hpp"
+#include "plugins.hpp"
 #include "style.hpp"
 #include "widgets.hpp"
 
@@ -67,6 +68,7 @@ int main(int argc, char** argv) {
   bool sheet = false;
   if (argc >= 2 && std::string_view(argv[1]) == "editor") {
     blx::sync_style();
+    blx::plugins::sync();
     blx::open_lock_editor(argc >= 3 && std::string_view(argv[2]) == "greeter");
     vw::App app;
     app.surface([](vw::Ui& ui) {
@@ -75,8 +77,11 @@ int main(int argc, char** argv) {
     });
     app.on_event(blx::colours_event_fd(), blx::reload_colours)
         .on_event(blx::net::event_fd(), blx::net::drain_events)
-        .on_event(vw::mpris::event_fd(), vw::mpris::drain_events);
-    return app.run();
+        .on_event(vw::mpris::event_fd(), vw::mpris::drain_events)
+        .on_event(blx::plugins::event_fd(), blx::plugins::drain);
+    const int status = app.run();
+    blx::plugins::stop_all();
+    return status;
   }
   const bool waves = argc == 2 && std::string_view(argv[1]) == "waves";
   bool known = waves || (argc >= 2 && std::string_view(argv[1]) == "lock");
@@ -90,6 +95,7 @@ int main(int argc, char** argv) {
   }
 
   blx::sync_style();
+  blx::plugins::sync();  // lock screen widgets
   vw::App app;
   app.per_output([sheet, waves](vw::Ui& ui, const vw::Output& output) {
     ui.keyboard([](const vw::KeyEvent& key) {
@@ -105,6 +111,9 @@ int main(int argc, char** argv) {
       .on_event(blx::net::event_fd(), blx::net::drain_events)
       .on_event(vw::upower::event_fd(), vw::upower::drain_events)
       .on_event(vw::bluetooth::event_fd(), vw::bluetooth::drain_events)
-      .on_event(vw::mpris::event_fd(), vw::mpris::drain_events);
-  return app.run();
+      .on_event(vw::mpris::event_fd(), vw::mpris::drain_events)
+      .on_event(blx::plugins::event_fd(), blx::plugins::drain);
+  const int status = app.run();
+  blx::plugins::stop_all();
+  return status;
 }

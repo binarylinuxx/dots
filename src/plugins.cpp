@@ -79,9 +79,12 @@ class NativeHost final : public blxshell::Host {
   void desktop(std::string_view json) override;
   std::string applications(std::string_view query) override;
   bool launch(std::string_view id, const std::vector<std::string>& files) override;
+  std::string context() const override { return context_; }
+  void set_context(std::string context) { context_ = std::move(context); }
 
  private:
   std::string id_;
+  std::string context_ = "{}";
 };
 
 // Desktop items native plugins sent, maybe from their threads, until drain()
@@ -1189,6 +1192,11 @@ bool has_view(const std::string& bar_id) {
   return std::ranges::find(names, view) != names.end();
 }
 
+std::string plugin_name(const std::string& id) {
+  const Process* process = find_running(id);
+  return process == nullptr || process->manifest.name.empty() ? id : process->manifest.name;
+}
+
 std::vector<std::string> lock_views() {
   std::vector<std::string> ids;
   for (const auto& [id, process] : running())
@@ -1229,7 +1237,10 @@ std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id, const
   }
   if (process->native) {
     try {
-      return process->native->plugin->view(ui, view, *process->native->host);
+      process->native->host->set_context(extra.dump());
+      const vw::Widget drawn = process->native->plugin->view(ui, view, *process->native->host);
+      process->native->host->set_context("{}");
+      return drawn;
     } catch (const std::exception& error) {
       return failed(error);
     }

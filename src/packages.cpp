@@ -302,9 +302,37 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
       m.errors.push_back("plugin.lockMaterial must be an object with a \"shader\"");
     } else {
       m.lock_material = material["shader"].get<std::string>();
+      m.lock_material_json = material.dump();
+      if (material.contains("passes")) {
+        if (!material["passes"].is_array() || material["passes"].size() > 32)
+          m.errors.push_back("plugin.lockMaterial.passes must be a list of at most 32 passes");
+        else
+          for (const json& pass : material["passes"]) {
+            if (!pass.is_object() || !pass.value("shader", json()).is_string()) {
+              m.errors.push_back("plugin.lockMaterial.passes: each needs a \"shader\"");
+              continue;
+            }
+            const std::string shader = pass["shader"].get<std::string>();
+            if (!shader.ends_with(".vws") && !shader.ends_with(".comp"))
+              m.errors.push_back("plugin.lockMaterial.passes: " + shader + " must be .vws or .comp");
+            inside(shader, "lockMaterial.passes.shader", build_script);
+          }
+      }
       if (!m.lock_material.ends_with(".vws") && !m.lock_material.ends_with(".comp"))
         m.errors.push_back("plugin.lockMaterial.shader must be a .vws file (vw-shaderc) or GLSL (.comp)");
       inside(m.lock_material, "lockMaterial.shader", build_script);
+      if (material.contains("data")) {
+        if (!material["data"].is_array() || material["data"].size() > 32)
+          m.errors.push_back("plugin.lockMaterial.data must be a list of at most 32 {\"key\", \"default\"}");
+        else
+          for (const json& entry : material["data"]) {
+            if (!entry.is_object() || !entry.value("key", json()).is_string() || !entry.value("default", json(0)).is_number()) {
+              m.errors.push_back("plugin.lockMaterial.data: each is {\"key\": string, \"default\": number}");
+              continue;
+            }
+            m.lock_material_data.emplace_back(entry["key"].get<std::string>(), entry.value("default", 0.0F));
+          }
+      }
       if (material.contains("params")) {
         if (!material["params"].is_array() || material["params"].size() > 3)
           m.errors.push_back("plugin.lockMaterial.params must be a list of at most 3 {\"key\", \"default\"}");

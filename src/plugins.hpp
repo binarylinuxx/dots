@@ -129,6 +129,13 @@ std::vector<std::string> lock_views();
 struct Material {
   std::string shader;
   std::array<float, 3> params{};
+  std::vector<float> data;  // shader_data, from lockMaterial.data
+  // Passes before it (lockMaterial.passes), when they apply: then the
+  // shader is the last pass, reading `inputs`, and the rectangle itself is
+  // transparent with the backdrop colour in color2.
+  std::vector<vw::ShaderPass> passes;
+  std::vector<std::string> inputs;
+  float padding = 0;
 };
 std::optional<Material> lock_material();
 

@@ -83,6 +83,12 @@ struct Manifest {
   // docs/packages.md.
   std::string lock_material;
   std::vector<std::pair<std::string, float>> lock_material_params;
+  // More settings than the three parameters hold: store keys whose values
+  // reach the shader as shader_data, in order (VW_USE_DATA).
+  std::vector<std::pair<std::string, float>> lock_material_data;
+  // Shader passes before it, with named images (vw::ShaderPass): the
+  // lockMaterial object as JSON text, read by plugins::lock_material().
+  std::string lock_material_json;
   // Options of its Lock views the layout editor shows, per view name: the
   // view's array from plugin.lockOptions as JSON text (see docs/packages.md).
   std::map<std::string, std::string> lock_options;

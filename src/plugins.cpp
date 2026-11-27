@@ -1202,6 +1202,50 @@ std::optional<Material> lock_material() {
       const auto it = process->store.find(key);
       material.params[index] = it != process->store.end() && it->is_number() ? it->get<float>() : fallback;
     }
+    for (const auto& [key, fallback] : m.lock_material_data) {
+      const auto it = process->store.find(key);
+      material.data.push_back(it != process->store.end() && it->is_number() ? it->get<float>() : fallback);
+    }
+    // Passes: a number, or {"key", "default"} from the store; all of them
+    // only while "passesWhen" {"key", "equals"} holds.
+    const json given = json::parse(m.lock_material_json, nullptr, false);
+    if (given.is_object() && given.contains("passes") && given["passes"].is_array()) {
+      const auto value_of = [&](const json& entry) -> float {
+        if (entry.is_number()) return entry.get<float>();
+        if (entry.is_object() && entry.value("key", json()).is_string()) {
+          const auto it = process->store.find(entry["key"].get<std::string>());
+          if (it != process->store.end() && it->is_number()) return it->get<float>();
+          return entry.value("default", 0.0F);
+        }
+        return 0;
+      };
+      bool applies = true;
+      if (given.contains("passesWhen") && given["passesWhen"].is_object()) {
+        const json& when = given["passesWhen"];
+        applies = std::abs(value_of({{"key", when.value("key", "")}, {"default", when.value("default", 0.0F)}}) -
+                           when.value("equals", 0.0F)) < 0.001F;
+      }
+      if (applies) {
+        for (const json& pass : given["passes"]) {
+          vw::ShaderPass added;
+          added.shader = (m.directory / pass.value("shader", "")).string();
+          added.output = pass.value("output", "");
+          if (pass.contains("inputs") && pass["inputs"].is_array())
+            for (const json& input : pass["inputs"])
+              if (input.is_string()) added.inputs.push_back(input.get<std::string>());
+          if (pass.contains("params") && pass["params"].is_array())
+            for (std::size_t index = 0; index < 4 && index < pass["params"].size(); ++index)
+              added.params[index] = value_of(pass["params"][index]);
+          if (pass.contains("data") && pass["data"].is_array())
+            for (const json& entry : pass["data"]) added.data.push_back(value_of(entry));
+          material.passes.push_back(std::move(added));
+        }
+        if (given.contains("inputs") && given["inputs"].is_array())
+          for (const json& input : given["inputs"])
+            if (input.is_string()) material.inputs.push_back(input.get<std::string>());
+        material.padding = given.value("padding", 0.0F);
+      }
+    }
     return material;
   }
   return std::nullopt;

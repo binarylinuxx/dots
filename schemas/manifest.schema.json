@@ -343,6 +343,143 @@
                   }
                 }
               }
+            },
+            "data": {
+              "type": "array",
+              "maxItems": 32,
+              "description": "More settings for the shader: store keys whose values (or defaults) reach it as shader_data, in order. The shader declares VW_USE_DATA.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "default": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "passes": {
+              "type": "array",
+              "maxItems": 32,
+              "description": "Shader passes before the material's shader, in order (vw ShaderPass): each draws into a named float image (output) and reads earlier ones (inputs).",
+              "items": {
+                "type": "object",
+                "required": [
+                  "shader"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "shader": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/packagePath"
+                      },
+                      {
+                        "pattern": "\\.(vws|comp)$"
+                      }
+                    ]
+                  },
+                  "output": {
+                    "type": "string"
+                  },
+                  "inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "params": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "key"
+                          ],
+                          "additionalProperties": false,
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "default": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "data": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "key"
+                          ],
+                          "additionalProperties": false,
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "default": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "inputs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The named images the material's shader reads, when there are passes."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1024,
+              "description": "How far the passes' images reach past each backdrop, px."
+            },
+            "passesWhen": {
+              "type": "object",
+              "required": [
+                "key",
+                "equals"
+              ],
+              "additionalProperties": false,
+              "description": "Run the passes only while this store value equals the number.",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "equals": {
+                  "type": "number"
+                },
+                "default": {
+                  "type": "number"
+                }
+              }
             }
           }
         },

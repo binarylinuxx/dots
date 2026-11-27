@@ -108,9 +108,19 @@ float back(float base, float alpha) {
 bool material_rect(vw::Ui& ui, float x, float y, float width, float height, float radius, vw::Color colour, float opacity) {
   const auto material = plugins::lock_material();
   if (!material) return false;
+  if (!material->passes.empty()) {
+    // Passes first, the material's shader last; nothing filled under them.
+    std::vector<vw::ShaderPass> passes = material->passes;
+    passes.push_back({.shader = material->shader,
+                      .params = {material->params[0], material->params[1], material->params[2], opacity},
+                      .data = material->data, .inputs = material->inputs});
+    ui.rectangle({.width = width, .height = height, .radius = radius, .color = with_alpha(colour, 0), .color2 = colour,
+                  .shader_passes = std::move(passes), .target_padding = material->padding, .place = {.x = x, .y = y}});
+    return true;
+  }
   ui.rectangle({.width = width, .height = height, .radius = radius, .color = colour, .shader = material->shader,
                 .shader_params = {material->params[0], material->params[1], material->params[2], opacity},
-                .place = {.x = x, .y = y}});
+                .shader_data = material->data, .place = {.x = x, .y = y}});
   return true;
 }
 
@@ -461,7 +471,17 @@ nlohmann::json plugin_state(float k, const LockPage& page, const LockItem& item,
   }
   if (const auto material = plugins::lock_material())
     state["lock"]["material"] = {{"shader", material->shader},
-                                 {"params", {material->params[0], material->params[1], material->params[2]}}};
+                                 {"params", {material->params[0], material->params[1], material->params[2]}},
+                                 {"data", material->data}};
+  if (const auto material = plugins::lock_material(); material && !material->passes.empty()) {
+    nlohmann::json passes = nlohmann::json::array();
+    for (const vw::ShaderPass& pass : material->passes)
+      passes.push_back({{"shader", pass.shader}, {"output", pass.output}, {"inputs", pass.inputs},
+                        {"params", pass.params}, {"data", pass.data}});
+    state["lock"]["material"]["passes"] = std::move(passes);
+    state["lock"]["material"]["inputs"] = material->inputs;
+    state["lock"]["material"]["padding"] = material->padding;
+  }
   return state;
 }
 

@@ -361,7 +361,28 @@ wallpaper behind it:
 The shader is a vw rectangle shader (see vw's shaders guide) with
 `VW_USE_BACKDROP`, as a `.vws` built by `build.sh` (or GLSL, compiled at
 runtime when glslc is installed). `shader_params` 0–2 are the store values
-named in `params` (their defaults until set), and 3 is the item's opacity.
+named in `params` (their defaults until set), and 3 is the item's opacity. Settings beyond three go in `data`, the same
+`{key, default}` list (up to 32), and reach the shader as `shader_data`
+(`vw_data(i)` with `VW_USE_DATA`). A material can also run shader passes first,
+with named float images (vw's `ShaderPass.output` and `inputs`):
+
+```json
+"lockMaterial": {
+  "shader": "lib/refract.vws", "inputs": ["mask", "distance"], "padding": 64,
+  "passes": [
+    {"shader": "lib/mask.vws", "output": "mask", "params": [0.2]},
+    {"shader": "lib/field.vws", "output": "distance", "inputs": ["mask"],
+     "params": [{"key": "rim", "default": 50}]}
+  ],
+  "passesWhen": {"key": "style", "equals": 3}
+}
+```
+
+Pass `params` and `data` are numbers or `{key, default}` store values. The
+material's shader runs last as a pass reading `inputs`, and the backdrop is
+transparent with its colour in `color2`. `passesWhen` runs the passes, and
+this form of the material, only while a store value equals a number.
+Glassify's island glass is a full example.
 The rectangle's colour is the theme's backdrop colour, and its alpha is the
 user's Background setting for that item, and its colour is the backdrop
 colour the user picked (the item's, else **Settings → Lock screen → Backdrop

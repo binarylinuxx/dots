@@ -122,6 +122,8 @@ void reserve(vw::Ui& ui, std::uint32_t edge, float zone) {
 
 }  // namespace
 
+std::string current_wallpaper_path() { return read_wallpaper_path(); }
+
 // BLXSHELL_DEBUG_FRAMES=1 reports slow frames during a sidebar pull.
 struct DragFrameLog {
   using Clock = std::chrono::steady_clock;

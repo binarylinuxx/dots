@@ -14,6 +14,8 @@ void shell_surface(vw::Ui& ui);
 // Gives the group the frosted wallpaper; false when there is none.
 // The wallpaper, dual-Kawase blurred with the lock screen's settings.
 bool apply_lock_frost(blob::Group& group);
+// The current wallpaper's file.
+std::string current_wallpaper_path();
 // The same with other blur settings, and `wallpaper` instead when given.
 bool apply_lock_frost(blob::Group& group, int passes, float offset, const std::string& wallpaper = {});
 // Regenerates the colour scheme from the current wallpaper with the

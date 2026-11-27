@@ -76,6 +76,19 @@ struct Size {
   float h = 0;
 };
 
+// The backdrop opacity the item being drawn asks for; below 0 each part's
+// own (the classic layout never sets it).
+float& background_override() {
+  static float value = -1;
+  return value;
+}
+
+// A backdrop's alpha: the item's background setting, else `base`; times the
+// item's opacity.
+float back(float base, float alpha) {
+  return (background_override() >= 0 ? std::clamp(background_override(), 0.0F, 1.0F) : base) * alpha;
+}
+
 draw::TextStyle pill_text(float k = 1, float alpha = 1) {
   return {.size = 15 * k, .color = with_alpha(colours().text, alpha), .weight = vw::weight::medium, .family = font::utility};
 }
@@ -112,7 +125,7 @@ void draw_status_at(vw::Ui& ui, float x, float y, float k, float fade) {
   const Colours& c = colours();
   const auto items = status_items();
   const Size size = status_size(items, k);
-  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, 0.72F * fade));
+  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, back(0.72F, fade)));
   x += 16 * k;
   for (const StatusItem& item : items) {
     draw::glyph(ui, item.glyph, x + 10 * k, y + size.h / 2, 20 * k, with_alpha(c.text, fade));
@@ -144,7 +157,7 @@ void draw_date_at(vw::Ui& ui, float x, float y, const std::string& date, const s
                   float k, float alpha) {
   const Colours& c = colours();
   const Size size = date_size(date, now, k);
-  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, 0.78F * alpha));
+  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, back(0.78F, alpha)));
   x += 20 * k;
   draw::text_middle(ui, date, x, y + size.h / 2, pill_text(k, alpha));
   x += draw::measure(date, 15 * k, vw::weight::medium, font::utility);
@@ -169,7 +182,7 @@ Size weather_size(const weather::Report& now, float k) {
 void draw_weather_at(vw::Ui& ui, float x, float y, const weather::Report& now, float k, float alpha) {
   const Colours& c = colours();
   const Size size = weather_size(now, k);
-  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, 0.78F * alpha));
+  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, back(0.78F, alpha)));
   draw::glyph(ui, now.glyph, x + 30 * k, y + size.h / 2, 22 * k, with_alpha(c.primary, alpha));
   draw::text_middle(ui, now.temperature, x + 46 * k, y + size.h / 2, pill_text(k, alpha));
 }
@@ -200,7 +213,7 @@ void draw_notifications_at(vw::Ui& ui, float x, float y, float k, float alpha, b
   if (groups.empty()) {
     if (!sample) return;
     for (int index = 0; index < 3; ++index) {
-      draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, 0.85F * alpha));
+      draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, back(0.85F, alpha)));
       draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20 * k, with_alpha(c.primary, alpha));
       x += disc + 8 * k;
     }
@@ -208,7 +221,7 @@ void draw_notifications_at(vw::Ui& ui, float x, float y, float k, float alpha, b
   }
   const std::size_t shown = std::min(groups.size(), notifications_shown);
   for (std::size_t index = 0; index < shown; ++index) {
-    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, 0.85F * alpha));
+    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, back(0.85F, alpha)));
     if (!draw::icon(ui, groups[index].entries.front().icon, "", x + 9 * k, y + 9 * k, 22 * k))
       draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20 * k, with_alpha(c.primary, alpha));
     x += disc + 8 * k;
@@ -247,7 +260,7 @@ void draw_media_at(vw::Ui& ui, float x, float y, float k, float alpha, bool samp
   const float width = media_width * k;
   const float height = media_height * k;
   const float padding = 14 * k;
-  draw::rect(ui, x, y, width, height, 36 * k, with_alpha(c.surface_container_high, 0.9F * alpha));
+  draw::rect(ui, x, y, width, height, 36 * k, with_alpha(c.surface_container_high, back(0.9F, alpha)));
   const float art_size = height - padding * 2;
   // The placeholder only without art: under it, its soft corners would show
   // through the art's anti-aliased ones as a light rim.
@@ -336,7 +349,7 @@ Size hint_size(const std::string& hint, float k) {
 void draw_hint_at(vw::Ui& ui, float centre, float y, const std::string& glyph, const std::string& hint, float k, float alpha) {
   const Colours& c = colours();
   const float disc = 52 * k;
-  shapes::draw(ui, "lock.hint", "cookie9sided", centre - disc / 2, y, disc, with_alpha(c.primary_container, 0.95F * alpha));
+  shapes::draw(ui, "lock.hint", "cookie9sided", centre - disc / 2, y, disc, with_alpha(c.primary_container, back(0.95F, alpha)));
   draw::glyph(ui, glyph, centre, y + disc / 2, 24 * k, with_alpha(c.primary, alpha));
   draw::text_centered(ui, hint, centre, y + disc + 24 * k,
                       {.size = 14 * k, .color = with_alpha(c.text_muted, alpha), .weight = vw::weight::medium, .family = font::utility});
@@ -377,7 +390,7 @@ void draw_power_at(vw::Ui& ui, float x, float y, float k, float alpha, bool live
   const float height = 40 * k;
   for (const PowerChip& chip : power_chips) {
     const float width = power_chip_width(chip, k);
-    draw::rect(ui, x, y, width, height, height / 2, with_alpha(c.surface_container_high, 0.9F * alpha));
+    draw::rect(ui, x, y, width, height, height / 2, with_alpha(c.surface_container_high, back(0.9F, alpha)));
     draw::glyph(ui, chip.glyph, x + 26 * k, y + height / 2, 20 * k, with_alpha(c.primary, alpha));
     draw::text_middle(ui, chip.label, x + 42 * k, y + height / 2, pill_text(k, alpha));
     if (live)
@@ -390,7 +403,8 @@ void draw_power_at(vw::Ui& ui, float x, float y, float k, float alpha, bool live
 std::string plugin_of(const std::string& id) { return id.starts_with("plugin:") ? id.substr(7) : std::string(); }
 
 nlohmann::json plugin_state(float k, const LockPage& page) {
-  return {{"lock", {{"scale", k}, {"editing", page.editing}, {"greeter", page.greeter}, {"sheet", page.reveal}}}};
+  return {{"lock", {{"scale", k}, {"editing", page.editing}, {"greeter", page.greeter}, {"sheet", page.reveal},
+                    {"background", background_override()}}}};
 }
 
 Size plugin_size(const std::string& view, const nlohmann::json& extra) {
@@ -429,6 +443,7 @@ void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const s
     const bool glance = session || id == "status" || id == "hint" || id == "power";
     if ((session && reveal >= 0.2F) || (id == "hint" && reveal >= 0.6F) || (id == "power" && reveal > 0.99F)) continue;
     float alpha = std::clamp(item.opacity, 0.05F, 1.0F) * (glance ? 1 - reveal : 1.0F);
+    background_override() = item.background;
     const float k = std::clamp(item.scale, 0.2F, 5.0F) * blend(1, glance ? 1.0F : id == "clock" ? 0.55F : 0.75F, reveal);
 
     // What it is, and how big at this scale.
@@ -495,6 +510,10 @@ void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const s
     } else if (id == "power") {
       draw_power_at(ui, x, y, k, alpha, !page.editing);
     } else if (!text.empty()) {
+      // A backdrop only when asked for one.
+      if (item.background > 0)
+        draw::rect(ui, x - 16 * k, y - 4 * k, size.w + 32 * k, size.h + 8 * k, (size.h + 8 * k) / 2,
+                   with_alpha(c.surface_container_high, back(0, alpha)));
       draw::text_middle(ui, text, x, y + size.h / 2, text_item_style(item, k, alpha));
     } else if (!view.empty()) {
       draw_plugin_at(ui, view, extra, x, y);
@@ -507,6 +526,7 @@ void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const s
     }
     if (page.placed != nullptr) page.placed->push_back({index, x, y, size.w, size.h});
   }
+  background_override() = -1;
 }
 
 // The password sheet in its floating card; `reveal` 0 is below the edge.
@@ -576,7 +596,7 @@ SheetCard draw_sheet_card(vw::Ui& ui, float width, float height, float card_heig
 LockLook lock_look() {
   const Config& c = config();
   return {c.lock_clock_format, c.lock_date_format, c.lock_clock_style, c.lock_clock_size, c.lock_tint,
-          c.lock_blur_passes, c.lock_blur_offset, c.lock_show_status, c.lock_show_weather, {}};
+          c.lock_blur_passes, c.lock_blur_offset, c.lock_show_status, c.lock_show_weather, {}, c.lock_blur};
 }
 
 std::string greeter_wallpaper_path() {
@@ -593,7 +613,7 @@ LockLook greeter_look() {
                       ? lock_look()
                       : LockLook{c.greeter_clock_format, c.greeter_date_format, c.greeter_clock_style,
                                  c.greeter_clock_size, c.greeter_tint, c.greeter_blur_passes, c.greeter_blur_offset,
-                                 c.greeter_show_status, c.greeter_show_weather, {}};
+                                 c.greeter_show_status, c.greeter_show_weather, {}, c.greeter_blur};
   const std::string wallpaper = greeter_wallpaper_path();
   std::error_code error;
   if (!wallpaper.empty() && std::filesystem::is_regular_file(wallpaper, error) && access(wallpaper.c_str(), R_OK) == 0)
@@ -679,11 +699,19 @@ void draw_lock_page(vw::Ui& ui, const LockPage& page) {
                 .input = {.on_click = [click = page.on_click](const vw::ClickEvent&) {
                   if (click) click();
                 }}});
-  blob::Group group(with_alpha(c.surface, std::clamp(look.tint, 0.0F, 1.0F)), 1);
-  group.shadows(false);
-  if (apply_lock_frost(group, look.blur_passes, look.blur_offset, look.wallpaper)) {
-    group.frame({-8, -8, 2, 2, {}});
-    group.draw(ui, width, height);
+  if (look.blur) {
+    blob::Group group(with_alpha(c.surface, std::clamp(look.tint, 0.0F, 1.0F)), 1);
+    group.shadows(false);
+    if (apply_lock_frost(group, look.blur_passes, look.blur_offset, look.wallpaper)) {
+      group.frame({-8, -8, 2, 2, {}});
+      group.draw(ui, width, height);
+    }
+  } else {
+    // Sharp: the wallpaper itself, with the tint over it.
+    ui.image({.path = look.wallpaper.empty() ? current_wallpaper_path() : look.wallpaper, .width = width, .height = height,
+              .fit = vw::ImageFit::cover});
+    ui.rectangle({.width = width, .height = height, .color = with_alpha(c.surface, std::clamp(look.tint, 0.0F, 1.0F)),
+                  .place = {.x = 0, .y = 0}});
   }
 
   const std::string date = system::format_time(look.date_format);

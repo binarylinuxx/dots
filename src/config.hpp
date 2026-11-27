@@ -26,6 +26,7 @@ struct LockItem {
   float ay = 0.5F;
   float scale = 1;
   float opacity = 1;
+  float background = -1;  // its backdrop's opacity; below 0 the theme's own
   bool visible = true;
   std::string text;    // text items: strftime codes work
   std::string colour;  // text items: a colour role
@@ -135,6 +136,7 @@ struct Config {
   // Dual Kawase blur of the lock wallpaper: more passes blur wider, the
   // offset spreads each pass's taps.
   int lock_blur_passes = 4;
+  bool lock_blur = true;  // off: the wallpaper sharp, only tinted
   float lock_blur_offset = 2.0F;
   bool lock_show_user = true;
   std::string lock_clock_style = "stacked";  // or "single"
@@ -158,6 +160,7 @@ struct Config {
   int greeter_clock_size = 132;
   float greeter_tint = 0.45F;
   int greeter_blur_passes = 4;
+  bool greeter_blur = true;
   float greeter_blur_offset = 2.0F;
   bool greeter_show_status = true;
   bool greeter_show_weather = true;

@@ -28,6 +28,7 @@ struct LockLook {
   bool show_status = true;
   bool show_weather = true;
   std::string wallpaper;  // empty: the current wallpaper
+  bool blur = true;       // off: sharp, only tinted
 };
 
 LockLook lock_look();

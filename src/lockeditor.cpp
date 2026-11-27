@@ -562,7 +562,7 @@ void draw_inspector(vw::Ui& ui) {
   const Colours& c = colours();
   const bool text = item->id.starts_with("text:");
   constexpr float width = 320;
-  const float height = 262 + (text ? 132 : 0);
+  const float height = 318 + (text ? 132 : 0);
   const bool left = box != nullptr && box->x + box->width / 2 > e.width / 2;
   const float x = left ? margin : e.width - margin - width;
   const float y = 132;
@@ -595,6 +595,11 @@ void draw_inspector(vw::Ui& ui) {
   labelled("Opacity", std::format("{}%", std::lround(item->opacity * 100)));
   slider(ui, x + 24, cursor, width - 48, item->opacity, 0.1F, 1,
          [](float value) { if (LockItem* chosen = selected_item()) chosen->opacity = std::round(value * 20) / 20; });
+  cursor += 44;
+  // The backdrop behind it: the theme's see-through one until set; 100% is solid.
+  labelled("Background", item->background < 0 ? std::string("Automatic") : std::format("{}%", std::lround(item->background * 100)));
+  slider(ui, x + 24, cursor, width - 48, item->background < 0 ? 0.8F : item->background, 0, 1,
+         [](float value) { if (LockItem* chosen = selected_item()) chosen->background = std::round(value * 20) / 20; });
   cursor += 44;
 
   if (text) {
@@ -637,7 +642,13 @@ void draw_inspector(vw::Ui& ui) {
            {"align_horizontal_center", [] { centre_selected(true); }},
            {"align_vertical_center", [] { centre_selected(false); }},
            {"flip_to_front", [] { restack(1); }},
-           {"flip_to_back", [] { restack(-1); }}}) {
+           {"flip_to_back", [] { restack(-1); }},
+           {"format_color_reset", [] {
+              if (LockItem* chosen = selected_item(); chosen != nullptr && chosen->background >= 0) {
+                checkpoint();
+                chosen->background = -1;  // the automatic backdrop again
+              }
+            }}}) {
     icon_button(ui, button_x, cursor, glyph, run);
     button_x += 48;
   }

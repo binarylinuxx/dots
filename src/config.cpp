@@ -42,6 +42,7 @@ void read_layout(const json& object, const char* key, std::vector<LockItem>& tar
     read(entry, "anchorY", item.ay);
     read(entry, "scale", item.scale);
     read(entry, "opacity", item.opacity);
+    read(entry, "background", item.background);
     read(entry, "visible", item.visible);
     read(entry, "text", item.text);
     read(entry, "colour", item.colour);
@@ -54,6 +55,7 @@ json layout_json(const std::vector<LockItem>& items) {
   for (const LockItem& item : items) {
     json entry{{"id", item.id}, {"x", item.x}, {"y", item.y}, {"anchorX", item.ax}, {"anchorY", item.ay},
                {"scale", item.scale}, {"opacity", item.opacity}, {"visible", item.visible}};
+    if (item.background >= 0) entry["background"] = item.background;
     if (!item.text.empty()) entry["text"] = item.text;
     if (!item.colour.empty()) entry["colour"] = item.colour;
     list.push_back(std::move(entry));
@@ -145,6 +147,7 @@ void apply(Config& c, const json& root) {
   read(lock, "tint", c.lock_tint);
   read(lock, "blurPasses", c.lock_blur_passes);
   read(lock, "blurOffset", c.lock_blur_offset);
+  read(lock, "blur", c.lock_blur);
   read(lock, "showUser", c.lock_show_user);
   read(lock, "clockStyle", c.lock_clock_style);
   read(lock, "showStatus", c.lock_show_status);
@@ -163,6 +166,7 @@ void apply(Config& c, const json& root) {
   read(greeter, "tint", c.greeter_tint);
   read(greeter, "blurPasses", c.greeter_blur_passes);
   read(greeter, "blurOffset", c.greeter_blur_offset);
+  read(greeter, "blur", c.greeter_blur);
   read(greeter, "showStatus", c.greeter_show_status);
   read(greeter, "showWeather", c.greeter_show_weather);
   read(greeter, "showPower", c.greeter_show_power);
@@ -386,6 +390,8 @@ json serialize(const Config& c) {
                     {"remember", c.greeter_remember}, {"layoutCustom", c.greeter_layout_custom},
                     {"layout", layout_json(c.greeter_layout)}};
   out["lock"]["layoutCustom"] = c.lock_layout_custom;
+  out["lock"]["blur"] = c.lock_blur;
+  out["greeter"]["blur"] = c.greeter_blur;
   out["lock"]["editorGrid"] = c.lock_editor_grid;
   out["lock"]["layout"] = layout_json(c.lock_layout);
   out["bar"]["left"] = c.bar_left;

@@ -5,11 +5,29 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 
 #include <vw/vw.hpp>
 
 namespace blx {
+
+/// The clock and look of the page: the lock screen's settings, or the
+/// login screen's.
+struct LockLook {
+  std::string clock_format;
+  std::string date_format;
+  std::string clock_style;
+  int clock_size = 132;
+  float tint = 0.45F;
+  int blur_passes = 4;
+  float blur_offset = 2;
+  bool show_status = true;
+  bool show_weather = true;
+  std::string wallpaper;  // empty: the current wallpaper
+};
+
+LockLook lock_look();
 
 struct LockPage {
   float width = 0;
@@ -26,6 +44,8 @@ struct LockPage {
   std::function<void()> on_click;
   /// How much of the bottom the raised sheet covers: the clock moves above it.
   float sheet_room = 0;
+  /// Unset: the lock screen's settings.
+  std::optional<LockLook> look;
 };
 
 /// Height the lock screen's sheet takes from the bottom edge when raised.
@@ -45,7 +65,8 @@ struct SheetCard {
 SheetCard draw_sheet_card(vw::Ui& ui, float width, float height, float card_height, float reveal);
 
 /// A user's picture in a cookie shape; a person glyph without one.
-void draw_avatar(vw::Ui& ui, const std::string& id, const std::string& picture, float centre_x, float y, float size);
+void draw_avatar(vw::Ui& ui, const std::string& id, const std::string& picture, float centre_x, float y, float size,
+                 const std::string& shape = "cookie9sided");
 
 void draw_lock_page(vw::Ui& ui, const LockPage& page);
 

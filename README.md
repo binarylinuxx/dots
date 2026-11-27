@@ -88,6 +88,8 @@ echo "launcher toggle" | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/blxshell.sock
 
 Power off and Restart sit top left. The last user and session are remembered.
 
+It looks like your lock screen unless you change it under **Settings → Login screen** (`blxshell settings login`): its own clock, date, tint and blur, a separate wallpaper, the hint text, the picture's shape, the power buttons, the idle timeout and whether to remember the last login. **Preview** there shows the result in a window; the settings reach the real login screen with the next export.
+
 greetd runs the greeter as its own user, which cannot read your home, so copy your theme where it can:
 
 ```sh

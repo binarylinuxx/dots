@@ -10,6 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -137,9 +138,9 @@ const Pinned& neutral_surfaces(bool dark) {
 }
 
 const Pinned& amoled_surfaces(bool dark) {
-  static const Pinned night{{"surface", "#000000"}, {"surfaceContainerLow", "#0a0a0a"}, {"surfaceContainer", "#121212"},
-                            {"surfaceContainerHigh", "#1c1c1c"}, {"surfaceContainerHighest", "#262626"},
-                            {"surfaceVariant", "#2e2e2e"}};
+  static const Pinned night{{"surface", "#000000"}, {"surfaceContainerLow", "#050505"}, {"surfaceContainer", "#0b0b0b"},
+                            {"surfaceContainerHigh", "#131313"}, {"surfaceContainerHighest", "#1b1b1b"},
+                            {"surfaceVariant", "#222222"}, {"outlineVariant", "#2c2c2c"}};
   static const Pinned day{{"surface", "#ffffff"}, {"surfaceContainerLow", "#fafafa"}, {"surfaceContainer", "#f4f4f4"},
                           {"surfaceContainerHigh", "#eeeeee"}, {"surfaceContainerHighest", "#e8e8e8"},
                           {"surfaceVariant", "#e2e2e2"}};
@@ -172,6 +173,11 @@ Colours load() {
   } else if (settings.colour_preset == "amoled") {
     pin(result, neutral_surfaces(dark));
     pin(result, amoled_surfaces(dark));
+    // Accent containers most of the way to black too, keeping their hue.
+    if (dark)
+      for (vw::Color* container : {&result.primary_container, &result.secondary_container, &result.tertiary_container,
+                                   &result.error_container})
+        for (int channel = 0; channel < 3; ++channel) (*container)[channel] *= 0.55F;
   } else if (settings.colour_preset == "mono") {
     pin(result, neutral_surfaces(dark));
     pin(result, mono_accents(dark));
@@ -197,6 +203,20 @@ vw::Color blend_colour(vw::Color from, vw::Color to, float t) {
 // included: ~/.config/ghostty/themes/blxshell, for `theme = blxshell`. Only
 // written when Ghostty is configured here and the colours changed; Ghostty
 // reloads on SIGUSR2.
+// SIGUSR2 reloads Ghostty's config. Matched by /proc comm: a Nix-wrapped
+// Ghostty runs as ".ghostty-wrappe" (comm keeps 15 characters).
+void reload_ghostty() {
+  std::error_code error;
+  for (const auto& entry : fs::directory_iterator("/proc", error)) {
+    const std::string pid = entry.path().filename().string();
+    if (pid.empty() || !std::ranges::all_of(pid, [](char c) { return c >= '0' && c <= '9'; })) continue;
+    std::ifstream input(entry.path() / "comm");
+    std::string comm;
+    std::getline(input, comm);
+    if (comm == "ghostty" || comm.starts_with(".ghostty-wrap")) ::kill(std::stoi(pid), SIGUSR2);
+  }
+}
+
 void export_ghostty(const Colours& c) {
   const char* home = std::getenv("HOME");
   if (home == nullptr) return;
@@ -246,7 +266,7 @@ void export_ghostty(const Colours& c) {
     if (!output) return;
   }
   fs::rename(temporary, file, error);
-  if (!error) vw::spawn({"pkill", "-USR2", "-x", "ghostty"});
+  if (!error) reload_ghostty();
 }
 
 Colours load_and_export() {

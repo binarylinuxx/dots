@@ -18,7 +18,7 @@ _blxshell() {
     return
   fi
   case "${words[2]}:$CURRENT" in
-    settings:3) compadd theme colours shape type apps bar sidebar panels power lock desktop plugins about ;;
+    settings:3) compadd theme colours shape type apps bar sidebar panels power lock login desktop plugins about ;;
     launcher:3|powermenu:3|dashboard:3|popout:4) compadd toggle open close ;;
     sidebar:3) compadd both top bottom corner ;;
     media:3) compadd play-pause pause next previous ;;

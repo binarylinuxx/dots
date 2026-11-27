@@ -1,7 +1,7 @@
 # blxshell completions for fish.
 set -l commands settings launcher powermenu sidebar wallpapers lock reload media ping popout dashboard osd \
     pack inspect install search update repo remove theme plugin
-set -l pages theme colours shape type apps bar sidebar panels power lock desktop plugins about
+set -l pages theme colours shape type apps bar sidebar panels power lock login desktop plugins about
 
 function __blxshell_ids
     blxshell $argv list 2>/dev/null | string match -r '^\S+' 

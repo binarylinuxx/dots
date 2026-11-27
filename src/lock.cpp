@@ -266,17 +266,25 @@ SheetCard draw_sheet_card(vw::Ui& ui, float width, float height, float card_heig
   return card;
 }
 
-void draw_avatar(vw::Ui& ui, const std::string& id, const std::string& picture, float centre_x, float y, float size) {
+LockLook lock_look() {
+  const Config& c = config();
+  return {c.lock_clock_format, c.lock_date_format, c.lock_clock_style, c.lock_clock_size, c.lock_tint,
+          c.lock_blur_passes, c.lock_blur_offset, c.lock_show_status, c.lock_show_weather, {}};
+}
+
+void draw_avatar(vw::Ui& ui, const std::string& id, const std::string& picture, float centre_x, float y, float size,
+                 const std::string& shape) {
   const Colours& c = colours();
-  shapes::draw(ui, id, "cookie9sided", centre_x - size / 2, y, size, c.primary_container);
+  shapes::draw(ui, id, shape, centre_x - size / 2, y, size, c.primary_container);
   if (picture.empty() || !draw::icon(ui, picture, "", centre_x - size / 2, y, size, std::nullopt, 0, vw::ImageFit::cover, {},
-                                     shapes::mask("cookie9sided")))
+                                     shapes::mask(shape)))
     draw::glyph(ui, "person", centre_x, y + size / 2, size * 0.45F, c.primary);
 }
 
 void draw_lock_page(vw::Ui& ui, const LockPage& page) {
   const Colours& c = colours();
   const Config& settings = config();
+  const LockLook look = page.look ? *page.look : lock_look();
   const float width = page.width;
   const float height = page.height;
   const float reveal = page.reveal;
@@ -289,28 +297,28 @@ void draw_lock_page(vw::Ui& ui, const LockPage& page) {
                 .input = {.on_click = [click = page.on_click](const vw::ClickEvent&) {
                   if (click) click();
                 }}});
-  blob::Group group(with_alpha(c.surface, std::clamp(settings.lock_tint, 0.0F, 1.0F)), 1);
+  blob::Group group(with_alpha(c.surface, std::clamp(look.tint, 0.0F, 1.0F)), 1);
   group.shadows(false);
-  if (apply_lock_frost(group)) {
+  if (apply_lock_frost(group, look.blur_passes, look.blur_offset, look.wallpaper)) {
     group.frame({-8, -8, 2, 2, {}});
     group.draw(ui, width, height);
   }
 
   const float centre = width / 2;
-  if (settings.lock_show_status) draw_status(ui, width - 24, 1 - reveal);
+  if (look.show_status) draw_status(ui, width - 24, 1 - reveal);
 
   // What sits under the clock decides where the whole block goes.
-  const std::string date = system::format_time(settings.lock_date_format);
-  const auto weather = settings.lock_show_weather ? weather::current() : std::nullopt;
+  const std::string date = system::format_time(look.date_format);
+  const auto weather = look.show_weather ? weather::current() : std::nullopt;
   const bool widgets = page.session_widgets && reveal < 0.2F;
   const bool notifications = widgets && settings.lock_show_notifications && !notify::history().empty();
   const bool media = widgets && settings.lock_show_media && has_media();
 
   // The clock: huge and stacked, shrinking out of the sheet's way.
-  const std::string time = system::format_time(settings.lock_clock_format);
+  const std::string time = system::format_time(look.clock_format);
   const auto colon = time.find(':');
-  const bool stacked = settings.lock_clock_style == "stacked" && colon != std::string::npos;
-  const float base = static_cast<float>(std::clamp(settings.lock_clock_size, 48, 260)) * (stacked ? 1.6F : 1.0F);
+  const bool stacked = look.clock_style == "stacked" && colon != std::string::npos;
+  const float base = static_cast<float>(std::clamp(look.clock_size, 48, 260)) * (stacked ? 1.6F : 1.0F);
   const float size = blend(base, base * 0.55F, reveal);
   const float line = size * 0.86F;
   const float clock_height = line * (stacked ? 2.0F : 1.0F);

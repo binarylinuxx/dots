@@ -77,6 +77,31 @@ Greeter& greeter() {
   return state;
 }
 
+// --- settings ---------------------------------------------------------------
+
+// greeter.wallpaper with ~ expanded against $HOME.
+std::string own_wallpaper() {
+  std::string path = config().greeter_wallpaper;
+  if (const char* home = std::getenv("HOME"); path.starts_with("~/") && home != nullptr) path = home + path.substr(1);
+  return path;
+}
+
+// The login screen's settings, or the lock screen's. Its own wallpaper only
+// when readable here: after an export it already is the theme's wallpaper.
+LockLook greeter_look() {
+  const Config& c = config();
+  LockLook look = c.greeter_match_lock
+                      ? lock_look()
+                      : LockLook{c.greeter_clock_format, c.greeter_date_format, c.greeter_clock_style,
+                                 c.greeter_clock_size, c.greeter_tint, c.greeter_blur_passes, c.greeter_blur_offset,
+                                 c.greeter_show_status, c.greeter_show_weather, {}};
+  const std::string wallpaper = own_wallpaper();
+  std::error_code error;
+  if (!wallpaper.empty() && fs::is_regular_file(wallpaper, error) && access(wallpaper.c_str(), R_OK) == 0)
+    look.wallpaper = wallpaper;
+  return look;
+}
+
 // --- choices --------------------------------------------------------------
 
 const greetd::User* chosen_user() {
@@ -95,7 +120,7 @@ std::string display_name(const greetd::User& user) {
 
 void remember() {
   const Greeter& g = greeter();
-  if (g.memory.empty()) return;
+  if (g.memory.empty() || !config().greeter_remember) return;
   std::error_code error;
   fs::create_directories(g.memory.parent_path(), error);
   std::ofstream output(g.memory);
@@ -105,6 +130,7 @@ void remember() {
 
 void recall() {
   Greeter& g = greeter();
+  if (!config().greeter_remember) return;
   std::ifstream input(g.memory);
   std::string user;
   std::string session;
@@ -307,7 +333,8 @@ void draw_sheet(vw::Ui& ui, float width, float height, float reveal, float shake
   float cursor = card.y + 40;
   constexpr float badge = 96;
   const greetd::User* user = chosen_user();
-  draw_avatar(ui, "greeter.avatar", user != nullptr ? avatar_for(*user) : std::string(), centre, cursor, badge);
+  draw_avatar(ui, "greeter.avatar", user != nullptr ? avatar_for(*user) : std::string(), centre, cursor, badge,
+              config().greeter_avatar_shape);
   const bool several = g.users.size() > 1;
   if (several) {
     arrow(ui, centre - badge / 2 - 48, cursor + badge / 2, "chevron_left", -1, true);
@@ -380,15 +407,19 @@ void draw_sheet(vw::Ui& ui, float width, float height, float reveal, float shake
     draw::text_middle(ui, "No sessions found", row_x, row_y + 22,
                       {.size = 13, .color = c.error, .weight = vw::weight::medium, .family = font::utility});
   }
-  icon_button(ui, row_right - 44, row_y, 44, "power_settings_new", [] { vw::spawn({"systemctl", "poweroff"}); });
-  icon_button(ui, row_right - 44 - 8 - 44, row_y, 44, "restart_alt", [] { vw::spawn({"systemctl", "reboot"}); });
+  if (config().greeter_show_power) {
+    icon_button(ui, row_right - 44, row_y, 44, "power_settings_new", [] { vw::spawn({"systemctl", "poweroff"}); });
+    icon_button(ui, row_right - 44 - 8 - 44, row_y, 44, "restart_alt", [] { vw::spawn({"systemctl", "reboot"}); });
+  }
 }
 
 void draw_greeter(vw::Ui& ui, float width, float height) {
   Greeter& g = greeter();
 
   // Idle: the sheet goes back down and takes what was typed with it.
-  if (g.sheet && Clock::now() - g.last_input > std::chrono::seconds(60)) close_sheet();
+  const Config& settings = config();
+  if (g.sheet && Clock::now() - g.last_input > std::chrono::seconds(std::clamp(settings.greeter_idle_seconds, 5, 3600)))
+    close_sheet();
 
   ui.keyboard(
       [](const vw::KeyEvent& key) {
@@ -417,10 +448,12 @@ void draw_greeter(vw::Ui& ui, float width, float height) {
   // The lock screen itself: the login screen is the same page, so logging in
   // looks exactly like unlocking.
   draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .intro = intro,
-                      .hint = g.users.empty() ? "No users to log in" : "Press any key to log in",
+                      .hint = g.users.empty()               ? "No users to log in"
+                              : settings.greeter_show_hint ? settings.greeter_hint
+                                                           : "",
                       .hint_glyph = "login", .session_widgets = false, .on_click = [] { open_sheet(); },
-                      .sheet_room = card_height + 28});
-  if (reveal < 0.99F) draw_power(ui);
+                      .sheet_room = card_height + 28, .look = greeter_look()});
+  if (reveal < 0.99F && settings.greeter_show_power) draw_power(ui);
 
   // A short decaying shake on a wrong password.
   const float since = std::chrono::duration<float>(Clock::now() - g.failed_at).count();
@@ -531,6 +564,7 @@ int export_theme(const fs::path& target, const fs::path& from, const std::string
   std::ifstream input(from / ".local/state/blxshell/wallpaper");
   std::string wallpaper;
   std::getline(input, wallpaper);
+  if (const std::string own = own_wallpaper(); !own.empty() && fs::is_regular_file(own, error)) wallpaper = own;
   if (!wallpaper.empty()) {
     // One copy at a time: drop the last wallpaper, whatever its extension.
     for (const auto& entry : fs::directory_iterator(target / ".local/state/blxshell", error))
@@ -588,6 +622,7 @@ int main(int argc, char** argv) {
         if (arguments[option] == "--from") from = arguments[option + 1];
         else if (arguments[option] == "--user") user = arguments[option + 1];
       }
+      setenv("HOME", from.c_str(), 1);  // config() reads the user's settings
       return export_theme(target, from, user);
     } else {
       std::cerr << "usage: blxshell-greeter [--layer] [--sheet] | --export DIR [--from HOME] [--user NAME]\n";
@@ -616,7 +651,7 @@ int main(int argc, char** argv) {
       draw_greeter(ui, static_cast<float>(size.width), static_cast<float>(size.height));
       ui.toplevel({.width = static_cast<float>(size.width), .height = static_cast<float>(size.height),
                    .refresh_interval = 1, .title = "blxshell-greeter", .app_id = "blxshell-greeter",
-                   .on_close = [] {}});
+                   .on_close = [] { if (!greetd::available()) std::exit(EXIT_SUCCESS); }});
     });
   }
   app.on_event(greetd::event_fd(), react)

@@ -124,6 +124,25 @@ struct Config {
   bool lock_show_weather = true;
   bool lock_show_notifications = true;
   bool lock_show_media = true;
+  // The login screen (blxshell-greeter). With greeter_match_lock it takes the
+  // lock screen's clock and look instead of the greeter_* ones.
+  bool greeter_match_lock = true;
+  std::string greeter_clock_format = "%H:%M";
+  std::string greeter_date_format = "%A, %-d %B";
+  std::string greeter_clock_style = "stacked";
+  int greeter_clock_size = 132;
+  float greeter_tint = 0.45F;
+  int greeter_blur_passes = 4;
+  float greeter_blur_offset = 2.0F;
+  bool greeter_show_status = true;
+  bool greeter_show_weather = true;
+  bool greeter_show_power = true;
+  bool greeter_show_hint = true;
+  std::string greeter_hint = "Press any key to log in";
+  std::string greeter_wallpaper;  // empty: the user's wallpaper
+  std::string greeter_avatar_shape = "cookie9sided";
+  int greeter_idle_seconds = 60;
+  bool greeter_remember = true;
   std::string background_clock_format = "%H:%M";
   std::string background_date_format = "%A, %-d %B";
   int background_clock_size = 68;

@@ -119,6 +119,24 @@ void apply(Config& c, const json& root) {
   read(lock, "showWeather", c.lock_show_weather);
   read(lock, "showNotifications", c.lock_show_notifications);
   read(lock, "showMedia", c.lock_show_media);
+  const json greeter = section(root, "greeter");
+  read(greeter, "matchLock", c.greeter_match_lock);
+  read(greeter, "clockFormat", c.greeter_clock_format);
+  read(greeter, "dateFormat", c.greeter_date_format);
+  read(greeter, "clockStyle", c.greeter_clock_style);
+  read(greeter, "clockSize", c.greeter_clock_size);
+  read(greeter, "tint", c.greeter_tint);
+  read(greeter, "blurPasses", c.greeter_blur_passes);
+  read(greeter, "blurOffset", c.greeter_blur_offset);
+  read(greeter, "showStatus", c.greeter_show_status);
+  read(greeter, "showWeather", c.greeter_show_weather);
+  read(greeter, "showPower", c.greeter_show_power);
+  read(greeter, "showHint", c.greeter_show_hint);
+  read(greeter, "hint", c.greeter_hint);
+  read(greeter, "wallpaper", c.greeter_wallpaper);
+  read(greeter, "avatarShape", c.greeter_avatar_shape);
+  read(greeter, "idleSeconds", c.greeter_idle_seconds);
+  read(greeter, "remember", c.greeter_remember);
   read(launcher, "normalWidth", c.launcher_width);
   read(launcher, "tintAppIcons", c.launcher_tint_app_icons);
   read(launcher, "sort", c.launcher_sort);
@@ -320,6 +338,15 @@ json serialize(const Config& c) {
                  {"tint", c.lock_tint}, {"blurPasses", c.lock_blur_passes}, {"blurOffset", c.lock_blur_offset}, {"showUser", c.lock_show_user}, {"clockStyle", c.lock_clock_style},
                  {"showStatus", c.lock_show_status}, {"showWeather", c.lock_show_weather},
                  {"showNotifications", c.lock_show_notifications}, {"showMedia", c.lock_show_media}};
+  out["greeter"] = {{"matchLock", c.greeter_match_lock}, {"clockFormat", c.greeter_clock_format},
+                    {"dateFormat", c.greeter_date_format}, {"clockStyle", c.greeter_clock_style},
+                    {"clockSize", c.greeter_clock_size}, {"tint", c.greeter_tint},
+                    {"blurPasses", c.greeter_blur_passes}, {"blurOffset", c.greeter_blur_offset},
+                    {"showStatus", c.greeter_show_status}, {"showWeather", c.greeter_show_weather},
+                    {"showPower", c.greeter_show_power}, {"showHint", c.greeter_show_hint},
+                    {"hint", c.greeter_hint}, {"wallpaper", c.greeter_wallpaper},
+                    {"avatarShape", c.greeter_avatar_shape}, {"idleSeconds", c.greeter_idle_seconds},
+                    {"remember", c.greeter_remember}};
   out["bar"]["left"] = c.bar_left;
   out["bar"]["center"] = c.bar_center;
   out["bar"]["right"] = c.bar_right;

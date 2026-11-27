@@ -2,7 +2,7 @@
 def "nu-complete blxshell ids" [kind: string] { ^blxshell $kind list | lines | each { split row ' ' | first } }
 def "nu-complete blxshell installed" [] { (nu-complete blxshell ids theme) ++ (nu-complete blxshell ids plugin) }
 def "nu-complete blxshell available" [] { ^blxshell search | lines | where { $in !~ '^\s' } | each { split row ' ' | first } }
-def "nu-complete blxshell pages" [] { [theme colours shape type apps bar sidebar panels power lock desktop plugins about] }
+def "nu-complete blxshell pages" [] { [theme colours shape type apps bar sidebar panels power lock login desktop plugins about] }
 def "nu-complete blxshell actions" [] { [toggle open close] }
 
 export extern "blxshell settings" [page?: string@"nu-complete blxshell pages"]

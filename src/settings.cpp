@@ -379,6 +379,38 @@ const std::vector<Page>& pages() {
         header("Try it"),
         action("Lock now", "Also: blxshell lock", "lock", [] { vw::spawn({self_path(), "lock"}); }),
     }});
+    result.push_back({"login", "Login screen", "Greeter clock, wallpaper, text", 2, 1, {
+        header("Clock and look"),
+        toggle("Same as lock screen", "Off: the settings below instead of the Lock screen page's", &Config::greeter_match_lock),
+        text("Time format", "strftime", &Config::greeter_clock_format),
+        text("Date format", "strftime", &Config::greeter_date_format),
+        choice("Clock layout", &Config::greeter_clock_style, {{"stacked", "Stacked"}, {"single", "One line"}}),
+        slider("Clock size", &Config::greeter_clock_size, 64, 220, 2, " px"),
+        slider("Tint over the wallpaper", &Config::greeter_tint, 0, 1, 0.01F, "%"),
+        slider("Blur passes", &Config::greeter_blur_passes, 1, 6, 1),
+        slider("Blur spread", &Config::greeter_blur_offset, 0.5F, 6, 0.1F),
+        toggle("Status icons", "Battery and connections", &Config::greeter_show_status),
+        toggle("Weather", "", &Config::greeter_show_weather),
+        header("Login screen"),
+        text("Wallpaper", "Image path; empty uses yours", &Config::greeter_wallpaper),
+        choice("Picture shape", &Config::greeter_avatar_shape,
+               {{"cookie9sided", "Cookie"}, {"circle", "Circle"}, {"square", "Square"},
+                {"flower", "Flower"}, {"softburst", "Burst"}, {"pentagon", "Pentagon"}}),
+        toggle("Power buttons", "Power off and Restart", &Config::greeter_show_power),
+        toggle("Hint", "", &Config::greeter_show_hint),
+        text("Hint text", "Under the clock before the sheet rises", &Config::greeter_hint),
+        slider("Lower the sheet after", &Config::greeter_idle_seconds, 10, 300, 5, " s"),
+        toggle("Remember last user and session", "", &Config::greeter_remember),
+        header("Apply"),
+        action("Preview", "The login screen in a window, with these settings", "visibility", [] {
+          vw::spawn({"sh", "-c", "BLXSHELL_GREETER_DIR=\"$HOME\" exec \"$(dirname \"$1\")/blxshell-greeter\"", "sh", self_path()});
+        }),
+        action("Copy to login screen", "Asks for your password; the NixOS module's syncUser does it for you", "upload", [] {
+          vw::spawn({"sh", "-c",
+                     "pkexec \"$(dirname \"$1\")/blxshell-greeter\" --export /var/lib/blxshell-greeter --from \"$HOME\" --user \"$(id -un)\"",
+                     "sh", self_path()});
+        }),
+    }});
     result.push_back({"wallpaper_slideshow", "Desktop", "Parallax, widgets, weather", 2, 1, {
         header("Wallpaper"),
         toggle("Parallax", "Shifts with the workspace", &Config::wallpaper_parallax),
@@ -435,12 +467,17 @@ void set_number(const Field& field, float value) {
   else if (const auto* member = std::get_if<int Config::*>(&field)) config().**member = static_cast<int>(std::lround(value));
 }
 
+int& selected_page();
+
+// Text field ids: the same label sits on several pages.
+std::string field_id(const Row& row) { return std::format("{}.{}", selected_page(), row.label); }
+
 void reset(const Row& row) {
   static const Config defaults;
   std::visit([](auto member) {
     if constexpr (!std::is_same_v<decltype(member), std::monostate>) config().*member = defaults.*member;
   }, row.field);
-  if (row.kind == Kind::text) vw::reset_text_field(row.label);
+  if (row.kind == Kind::text) vw::reset_text_field(field_id(row));
 }
 
 std::string number_label(const Row& row, float value) {
@@ -654,7 +691,7 @@ void draw_text(vw::Ui& ui, const Row& row, float width) {
   draw::text_middle(ui, row.label, 20, 24, {.size = 15, .color = c.text, .family = font::utility});
   draw::text_middle(ui, row.detail, 20, 44, {.size = 12, .color = c.text_muted, .family = font::utility});
   const auto member = std::get<std::string Config::*>(row.field);
-  ui.text_field({.id = row.label, .value = config().*member, .width = width - 40, .height = 44, .radius = 16,
+  ui.text_field({.id = field_id(row), .value = config().*member, .width = width - 40, .height = 44, .radius = 16,
                  .border_width = 1, .color = c.surface_container_highest, .border_color = c.surface_container_highest,
                  .focus_color = c.primary, .text_color = c.text, .placeholder_color = c.text_muted,
                  .caret_color = c.primary, .font = font::utility, .size = 14,

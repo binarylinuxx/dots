@@ -152,6 +152,7 @@ struct Frost {
   std::uint64_t generation = ~0ULL;
   int passes = -1;
   float offset = -1;
+  std::string source;
 };
 
 // Linear RGB-ish working image: three floats per pixel.
@@ -230,15 +231,16 @@ Plane kawase_up(const Plane& source, int width, int height, float offset) {
 // Rebuilt when the wallpaper, passes or offset change; nullptr without one.
 // Called on every build (each animation frame): touches the filesystem only
 // when the state directory or the settings changed.
-const Frost* frosted_wallpaper(Frost& frost, int passes, float offset) {
+const Frost* frosted_wallpaper(Frost& frost, int passes, float offset, const std::string& source = {}) {
   passes = std::clamp(passes, 1, 6);
   offset = std::clamp(offset, 0.25F, 8.0F);
-  if (frost.generation == state_generation() && frost.passes == passes && frost.offset == offset)
+  if (frost.generation == state_generation() && frost.passes == passes && frost.offset == offset && frost.source == source)
     return frost.pixels.empty() ? nullptr : &frost;
   frost.generation = state_generation();
   frost.passes = passes;
   frost.offset = offset;
-  const std::string path = read_wallpaper_path();
+  frost.source = source;
+  const std::string path = source.empty() ? read_wallpaper_path() : source;
   std::error_code error;
   const auto modified = std::filesystem::last_write_time(path, error);
   if (error) {
@@ -310,8 +312,12 @@ const Frost* frosted_wallpaper() {
 }
 
 bool apply_lock_frost(blob::Group& group) {
+  return apply_lock_frost(group, config().lock_blur_passes, config().lock_blur_offset);
+}
+
+bool apply_lock_frost(blob::Group& group, int passes, float offset, const std::string& wallpaper) {
   static Frost frost;
-  const Frost* blurred = frosted_wallpaper(frost, config().lock_blur_passes, config().lock_blur_offset);
+  const Frost* blurred = frosted_wallpaper(frost, passes, offset, wallpaper);
   if (blurred == nullptr) return false;
   group.backdrop(&blurred->pixels, frost_width, frost_height);
   return true;

@@ -8,7 +8,7 @@ _blxshell() {
         return
     fi
     case "$first:$COMP_CWORD" in
-        settings:2) ids="theme colours shape type apps bar sidebar panels power lock desktop plugins about" ;;
+        settings:2) ids="theme colours shape type apps bar sidebar panels power lock login desktop plugins about" ;;
         launcher:2|powermenu:2|dashboard:2|popout:3) ids="toggle open close" ;;
         sidebar:2) ids="both top bottom corner" ;;
         media:2) ids="play-pause pause next previous" ;;

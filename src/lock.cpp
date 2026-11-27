@@ -433,11 +433,26 @@ void draw_power_at(vw::Ui& ui, float x, float y, float k, float alpha, bool live
   }
 }
 
-std::string plugin_of(const std::string& id) { return id.starts_with("plugin:") ? id.substr(7) : std::string(); }
+// "plugin:<plugin id>:<view>[#n]" -> "<plugin id>:<view>": #n tells copies of
+// one widget apart.
+std::string plugin_of(const std::string& id) {
+  if (!id.starts_with("plugin:")) return {};
+  std::string view = id.substr(7);
+  if (const auto hash = view.find('#'); hash != std::string::npos) view.resize(hash);
+  return view;
+}
 
-nlohmann::json plugin_state(float k, const LockPage& page) {
+nlohmann::json plugin_state(float k, const LockPage& page, const LockItem& item, const std::string& view) {
+  // Its options: what the plugin declares, with this widget's values.
+  nlohmann::json options = nlohmann::json::object();
+  for (const plugins::LockOption& option : plugins::lock_options(view)) options[option.key] = option.fallback;
+  for (const auto& [key, text] : item.options) {
+    nlohmann::json value = nlohmann::json::parse(text, nullptr, false);
+    if (!value.is_discarded()) options[key] = std::move(value);
+  }
   nlohmann::json state{{"lock", {{"scale", k}, {"editing", page.editing}, {"greeter", page.greeter}, {"sheet", page.reveal},
-                                 {"background", background_override()}}}};
+                                 {"background", background_override()}, {"options", std::move(options)},
+                                 {"instance", item.id}}}};
   // The backdrop colour, when not the theme's: plugin cards follow it.
   if (const std::string& name = backdrop_name_override().empty() ? config().lock_backdrop_colour : backdrop_name_override();
       !name.empty() && name != "theme") {
@@ -511,7 +526,7 @@ void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const s
       const auto style = text_item_style(item, k, alpha);
       size = {draw::measure(text, style.size, style.weight, style.family), style.size * 1.3F};
     } else if (!view.empty()) {
-      extra = plugin_state(k, page);
+      extra = plugin_state(k, page, item, view);
       size = plugin_size(view, extra);
     }
     if (size.w < 1 || size.h < 1) {
@@ -724,6 +739,8 @@ std::string lock_item_label(const LockItem& item) {
     if (colon == std::string::npos) return view;
     std::string name = view.substr(colon + 1);
     if (name.starts_with("Lock") && name.size() > 4) name = name.substr(4);
+    // A copy says which.
+    if (const auto hash = id.find('#'); hash != std::string::npos) name += " " + id.substr(hash + 1);
     return plugins::plugin_name(view.substr(0, colon)) + " · " + name;
   }
   return id;

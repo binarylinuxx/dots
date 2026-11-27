@@ -31,6 +31,9 @@ struct LockItem {
   bool visible = true;
   std::string text;    // text items: strftime codes work
   std::string colour;  // text items: a colour role
+  // Plugin items: the values of the options the plugin declares
+  // (plugin.lockOptions), key -> JSON text.
+  std::map<std::string, std::string> options;
 };
 
 struct Config {

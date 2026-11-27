@@ -345,6 +345,83 @@
               }
             }
           }
+        },
+        "lockOptions": {
+          "type": "object",
+          "description": "Options of the plugin's Lock views, shown in the lock screen layout editor for each such widget. The view reads the widget's values (each declared default until set) as state.lock.options, or through Host::context() in C++.",
+          "propertyNames": {
+            "pattern": "^Lock"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "type"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "toggle",
+                    "choice",
+                    "slider",
+                    "text",
+                    "colour"
+                  ]
+                },
+                "default": {},
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "value"
+                        ],
+                        "additionalProperties": false,
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "step": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "placeholder": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       },
       "anyOf": [

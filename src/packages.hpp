@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -82,6 +83,9 @@ struct Manifest {
   // docs/packages.md.
   std::string lock_material;
   std::vector<std::pair<std::string, float>> lock_material_params;
+  // Options of its Lock views the layout editor shows, per view name: the
+  // view's array from plugin.lockOptions as JSON text (see docs/packages.md).
+  std::map<std::string, std::string> lock_options;
   std::vector<std::string> permissions;
 
   // The whole manifest, for themes to be applied from.

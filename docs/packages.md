@@ -309,6 +309,38 @@ are shown only: clicks on them never reach the plugin. The login screen runs
 no plugins, so they never appear there. A C++ plugin's `Lock…` views read the same
 through `Host::context()`, JSON text like `{"lock": {"scale": 1.3, …}}`.
 
+### Lock widget options
+
+A plugin can give its Lock views settings that the user sets in the layout
+editor, separately for each widget it adds. The user can add one view
+several times, or duplicate it, so two message cards can say different
+things. Declare the options per view:
+
+```json
+"plugin": {
+  "lockOptions": {
+    "LockMessage": [
+      {"key": "title", "label": "Title", "type": "text", "default": "", "placeholder": "e.g. If found"},
+      {"key": "icon", "label": "Icon", "type": "choice", "default": "info",
+       "choices": [{"value": "info", "label": "Info"}, {"value": "call", "label": "Call"}]},
+      {"key": "size", "label": "Text size", "type": "slider", "min": 10, "max": 24, "step": 1, "unit": " px", "default": 14},
+      {"key": "bold", "label": "Bold", "type": "toggle", "default": false},
+      {"key": "tint", "label": "Colour", "type": "colour", "default": "primary"}
+    ]
+  }
+}
+```
+
+The types are `toggle` (a switch), `choice` (chips; `choices` are strings or
+`{value, label}`), `slider` (`min`, `max`, optional `step` and `unit`),
+`text` (a field, with an optional `placeholder`) and `colour` (a colour role:
+`text`, `primary`, `secondary`, `tertiary`, `textMuted` or `error`).
+
+The view gets the widget's values, each declared `default` until set, as
+`state.lock.options` (and `state.lock.instance`, the widget's id, unique per
+copy). C++ views read the same from `Host::context()`. Values are saved with
+the layout in `config.json`, not in the plugin's store.
+
 ### Lock materials
 
 A plugin can restyle every backdrop on the lock screen (the pills, cards,

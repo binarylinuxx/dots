@@ -10,6 +10,7 @@
 //   + / -                 bigger, smaller
 //   Delete                hide it (text and plugin items go)
 //   Tab                   the next item
+//   Ctrl+D                duplicate a text or plugin item
 //   G, [ and ]            the grid on or off; fewer or more cells. On the
 //                         grid items move, nudge and resize by whole cells
 //                         (Alt+arrows still nudge by a pixel)
@@ -340,7 +341,7 @@ void add(LockItem item) {
   vw::reset_text_field(text_field_id);
 }
 
-void add_text() {
+std::string next_text_id() {
   int next = 1;
   for (const LockItem& item : items())
     if (item.id.starts_with("text:")) {
@@ -348,7 +349,37 @@ void add_text() {
         next = std::max(next, std::stoi(item.id.substr(5)) + 1);
       } catch (const std::exception&) {}
     }
-  add({.id = std::format("text:{}", next), .x = 0.5F, .y = 0.5F, .text = "Hello", .colour = "text"});
+  return std::format("text:{}", next);
+}
+
+// "plugin:<view>" for the first of a widget, "plugin:<view>#2" for the next.
+std::string next_plugin_id(const std::string& view) {
+  const std::string base = "plugin:" + view;
+  const auto taken = [&](const std::string& id) {
+    return std::ranges::any_of(items(), [&](const LockItem& item) { return item.id == id; });
+  };
+  if (!taken(base)) return base;
+  for (int copy = 2;; ++copy)
+    if (const std::string id = std::format("{}#{}", base, copy); !taken(id)) return id;
+}
+
+void add_text() { add({.id = next_text_id(), .x = 0.5F, .y = 0.5F, .text = "Hello", .colour = "text"}); }
+
+// A copy of a text or plugin item, a little down and right of it.
+void duplicate_selected() {
+  const LockItem* item = selected_item();
+  if (item == nullptr) return;
+  LockItem copy = *item;
+  if (copy.id.starts_with("text:")) {
+    copy.id = next_text_id();
+  } else {
+    std::string view = copy.id.substr(7);
+    if (const auto hash = view.find('#'); hash != std::string::npos) view.resize(hash);
+    copy.id = next_plugin_id(view);
+  }
+  copy.x = std::clamp(copy.x + 32 / editor().width, 0.0F, 1.0F);
+  copy.y = std::clamp(copy.y + 32 / editor().height, 0.0F, 1.0F);
+  add(std::move(copy));
 }
 
 void show(int index) {
@@ -492,11 +523,10 @@ void draw_add_menu(vw::Ui& ui, float x) {
   }
   entries.push_back({"title", "Text", [] { add_text(); }});
   if (!greeter()) {
+    // Any widget, as often as wanted: each copy has its own options.
     for (const std::string& view : plugins::lock_views()) {
-      const std::string id = "plugin:" + view;
-      if (std::ranges::any_of(items(), [&](const LockItem& item) { return item.id == id; })) continue;
-      LockItem item{.id = id, .x = 0.5F, .y = 0.5F};
-      entries.push_back({"extension", lock_item_label(item), [item] { add(item); }});
+      const LockItem item{.id = "plugin:" + view, .x = 0.5F, .y = 0.5F};
+      entries.push_back({"extension", lock_item_label(item), [view] { add({.id = next_plugin_id(view), .x = 0.5F, .y = 0.5F}); }});
     }
   }
   constexpr float row = 44;
@@ -553,6 +583,164 @@ void icon_button(vw::Ui& ui, float x, float y, const std::string& glyph, const s
   draw::state_layer(ui, x, y, 40, 40, 20, c.text, {.on_click = [run](const vw::ClickEvent&) { run(); }});
 }
 
+// --- Plugin options ---------------------------------------------------------------
+
+std::string view_of(const LockItem& item) {
+  if (!item.id.starts_with("plugin:")) return {};
+  std::string view = item.id.substr(7);
+  if (const auto hash = view.find('#'); hash != std::string::npos) view.resize(hash);
+  return view;
+}
+
+// What a widget's option is now: its value, else the declared default.
+nlohmann::json option_value(const LockItem& item, const plugins::LockOption& option) {
+  if (const auto found = item.options.find(option.key); found != item.options.end()) {
+    nlohmann::json value = nlohmann::json::parse(found->second, nullptr, false);
+    if (!value.is_discarded()) return value;
+  }
+  return option.fallback;
+}
+
+void set_option(const std::string& key, const nlohmann::json& value, bool undoable = true) {
+  LockItem* item = selected_item();
+  if (item == nullptr) return;
+  const std::string text = value.dump();
+  if (const auto found = item->options.find(key); found != item->options.end() && found->second == text) return;
+  if (undoable) checkpoint();
+  item->options[key] = text;
+}
+
+std::string option_field_id(const std::string& key) { return "lockeditor.option." + key; }
+
+bool has_text_option(const LockItem& item) {
+  return std::ranges::any_of(plugins::lock_options(view_of(item)),
+                             [](const plugins::LockOption& option) { return option.type == "text"; });
+}
+
+constexpr float option_chip_height = 32;
+
+// A choice's chips, wrapped to the width: their places, and the height.
+struct ChipPlace {
+  float x;
+  float y;
+  float width;
+};
+std::vector<ChipPlace> chip_places(const plugins::LockOption& option, float width, float& height) {
+  std::vector<ChipPlace> places;
+  float x = 0;
+  float y = 0;
+  for (const auto& [value, label] : option.choices) {
+    const float chip = draw::measure(label, 13, vw::weight::medium, font::utility) + 28;
+    if (x > 0 && x + chip > width) {
+      x = 0;
+      y += option_chip_height + 6;
+    }
+    places.push_back({x, y, chip});
+    x += chip + 6;
+  }
+  height = y + option_chip_height;
+  return places;
+}
+
+float option_height(const plugins::LockOption& option, float width) {
+  if (option.type == "toggle") return 40;
+  if (option.type == "slider") return 52;
+  if (option.type == "text") return 76;
+  if (option.type == "colour") return 64;
+  float chips = 0;
+  chip_places(option, width, chips);
+  return 26 + chips + 14;
+}
+
+float options_height(const LockItem& item, float width) {
+  const auto options = plugins::lock_options(view_of(item));
+  if (options.empty()) return 0;
+  float height = 32;
+  for (const auto& option : options) height += option_height(option, width);
+  return height;
+}
+
+// The widget's own options, as its plugin declares them; returns the new cursor.
+float draw_options(vw::Ui& ui, const LockItem& item, float x, float cursor, float width) {
+  const auto options = plugins::lock_options(view_of(item));
+  if (options.empty()) return cursor;
+  const Colours& c = colours();
+  const draw::TextStyle label_style{.size = 13, .color = c.text, .weight = vw::weight::medium, .family = font::utility};
+  draw::text(ui, "This widget", x, cursor + 4, {.size = 13, .color = c.primary, .weight = vw::weight::semibold, .family = font::utility});
+  cursor += 32;
+  for (const plugins::LockOption& option : options) {
+    const nlohmann::json value = option_value(item, option);
+    const std::string key = option.key;
+    if (option.type == "toggle") {
+      const bool on = value.is_boolean() && value.get<bool>();
+      draw::text_middle(ui, option.label, x, cursor + 16, label_style);
+      const float switch_x = x + width - 48;
+      draw::rect(ui, switch_x, cursor + 4, 48, 26, 13, on ? c.primary : c.surface_container_highest);
+      draw::rect(ui, switch_x + (on ? 25 : 3), cursor + 7, 20, 20, 10, on ? c.primary_text : c.outline);
+      draw::state_layer(ui, x, cursor, width, 34, 12, c.text,
+                        {.on_click = [key, on](const vw::ClickEvent&) { set_option(key, !on); }});
+    } else if (option.type == "slider") {
+      const float number = value.is_number() ? value.get<float>() : option.min;
+      const std::string shown = option.step >= 1 || (option.step == 0 && option.max - option.min >= 10)
+                                    ? std::format("{}{}", std::lround(number), option.unit)
+                                    : std::format("{:.2f}{}", number, option.unit);
+      draw::text(ui, option.label, x, cursor, label_style);
+      const float shown_width = draw::measure(shown, 13, vw::weight::medium, font::utility);
+      draw::text(ui, shown, x + width - shown_width, cursor, {.size = 13, .color = c.text_muted, .family = font::utility});
+      slider(ui, x + 4, cursor + 12, width - 8, number, option.min, option.max,
+             [key, step = option.step](float picked) {
+               if (step > 0) picked = std::round(picked / step) * step;
+               set_option(key, picked, false);  // the slider made the undo step
+             });
+    } else if (option.type == "text") {
+      draw::text(ui, option.label, x, cursor, label_style);
+      ui.text_field({.id = option_field_id(key), .value = value.is_string() ? value.get<std::string>() : std::string(),
+                     .placeholder = option.placeholder, .width = width, .height = 44, .radius = 16, .border_width = 1,
+                     .color = c.surface_container_highest, .border_color = c.surface_container_highest,
+                     .focus_color = c.primary, .text_color = c.text, .placeholder_color = c.text_muted,
+                     .caret_color = c.primary, .font = font::utility, .size = 14,
+                     .on_change = [key](const std::string& text) {
+                       // One undo step per editing burst, not per key.
+                       const bool fresh = Clock::now() - editor().last_scroll > std::chrono::seconds(2);
+                       editor().last_scroll = Clock::now();
+                       set_option(key, text, fresh);
+                     },
+                     .place = {.x = x, .y = cursor + 20}});
+    } else if (option.type == "colour") {
+      draw::text(ui, option.label, x, cursor, label_style);
+      float swatch_x = x;
+      for (const auto& [role, colour] : std::initializer_list<std::pair<const char*, vw::Color>>{
+               {"text", c.text}, {"primary", c.primary}, {"secondary", c.secondary}, {"tertiary", c.tertiary},
+               {"textMuted", c.text_muted}, {"error", c.error}}) {
+        const bool chosen = value.is_string() && value.get<std::string>() == role;
+        if (chosen) draw::rect(ui, swatch_x - 3, cursor + 21, 36, 36, 18, c.primary);
+        draw::rect(ui, swatch_x, cursor + 24, 30, 30, 15, colour);
+        draw::state_layer(ui, swatch_x, cursor + 24, 30, 30, 15, c.text,
+                          {.on_click = [key, role](const vw::ClickEvent&) { set_option(key, role); }});
+        swatch_x += 40;
+      }
+    } else if (option.type == "choice") {
+      draw::text(ui, option.label, x, cursor, label_style);
+      float chips = 0;
+      const auto places = chip_places(option, width, chips);
+      for (std::size_t index = 0; index < places.size(); ++index) {
+        const auto& [choice, label] = option.choices[index];
+        const ChipPlace& place = places[index];
+        const bool chosen = value.is_string() && value.get<std::string>() == choice;
+        const float chip_y = cursor + 24 + place.y;
+        draw::rect(ui, x + place.x, chip_y, place.width, option_chip_height, option_chip_height / 2,
+                   chosen ? c.secondary_container : c.surface_container_highest);
+        draw::text_centered(ui, label, x + place.x + place.width / 2, chip_y + option_chip_height / 2,
+                            {.size = 13, .color = c.text, .weight = vw::weight::medium, .family = font::utility});
+        draw::state_layer(ui, x + place.x, chip_y, place.width, option_chip_height, option_chip_height / 2, c.text,
+                          {.on_click = [key, choice](const vw::ClickEvent&) { set_option(key, choice); }});
+      }
+    }
+    cursor += option_height(option, width);
+  }
+  return cursor;
+}
+
 // The selected item's settings, in a card on the side away from it.
 void draw_inspector(vw::Ui& ui) {
   Editor& e = editor();
@@ -562,7 +750,7 @@ void draw_inspector(vw::Ui& ui) {
   const Colours& c = colours();
   const bool text = item->id.starts_with("text:");
   constexpr float width = 320;
-  const float height = 374 + (text ? 132 : 0);
+  const float height = 374 + (text ? 132 : 0) + options_height(*item, width - 40);
   const bool left = box != nullptr && box->x + box->width / 2 > e.width / 2;
   const float x = left ? margin : e.width - margin - width;
   const float y = 132;
@@ -572,7 +760,13 @@ void draw_inspector(vw::Ui& ui) {
   float cursor = y + 20;
   draw::text_middle(ui, lock_item_label(*item), x + 20, cursor + 14,
                     {.size = 17, .color = c.text, .weight = vw::weight::semibold, .family = font::display,
-                     .max_width = width - 80});
+                     .max_width = width - (removable(*item) ? 120 : 80)});
+  if (removable(*item)) {
+    // Another one, with the same settings, to change on its own.
+    draw::glyph(ui, "content_copy", x + width - 78, cursor + 14, 19, c.text_muted);
+    draw::state_layer(ui, x + width - 98, cursor - 6, 40, 40, 20, c.text,
+                      {.on_click = [](const vw::ClickEvent&) { duplicate_selected(); }});
+  }
   draw::glyph(ui, "close", x + width - 34, cursor + 14, 20, c.text_muted);
   draw::state_layer(ui, x + width - 54, cursor - 6, 40, 40, 20, c.text,
                     {.on_click = [](const vw::ClickEvent&) { editor().selected = -1; }});
@@ -663,6 +857,7 @@ void draw_inspector(vw::Ui& ui) {
     }
     cursor += 60;
   }
+  cursor = draw_options(ui, *item, x + 20, cursor, width - 40);
 
   float button_x = x + 20;
   for (const auto& [glyph, run] : std::initializer_list<std::pair<const char*, std::function<void()>>>{
@@ -834,6 +1029,7 @@ bool on_key(const vw::KeyEvent& key) {
   }
   if (key.ctrl) {
     if (key.name == "s") save();
+    else if (key.name == "d") duplicate_selected();
     else if (key.name == "z" && !key.shift) undo();
     else if (key.name == "y" || key.name == "Z" || (key.name == "z" && key.shift)) redo();
     else return false;
@@ -842,8 +1038,9 @@ bool on_key(const vw::KeyEvent& key) {
   // Only presses arrive: Shift on its own starts free dragging, which lasts
   // until the drag ends or a key comes without it.
   e.free = key.shift || key.name.starts_with("Shift");
-  // A text item's field takes the typing.
-  if (const LockItem* item = selected_item(); item != nullptr && item->id.starts_with("text:")) return false;
+  // A text item's field, or a widget's text option, takes the typing.
+  if (const LockItem* item = selected_item(); item != nullptr && (item->id.starts_with("text:") || has_text_option(*item)))
+    return false;
   const bool cells = grid_columns() > 0 && !key.alt;
   const float step = cells ? 1.0F : key.shift ? 10.0F : 1.0F;
   if (key.name == "Left") nudge(-step, 0, cells);

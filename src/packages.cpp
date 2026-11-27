@@ -269,7 +269,7 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
     return;
   }
   Reader r{m, plugin, "plugin: "};
-  r.only({"api", "facet", "exec", "native", "restart", "permissions", "lockMaterial"});
+  r.only({"api", "facet", "exec", "native", "restart", "permissions", "lockMaterial", "lockOptions"});
   for (const char* gone : {"barModules", "desktop", "commands", "settings"})
     if (plugin.contains(gone))
       m.errors.push_back(std::format("plugin.{} is gone in api 2: views come from the plugin's Facet file or library, "
@@ -317,6 +317,38 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
             }
             m.lock_material_params.emplace_back(param["key"].get<std::string>(), param.value("default", 0.0F));
           }
+      }
+    }
+  }
+  if (plugin.contains("lockOptions")) {
+    const json& views = plugin["lockOptions"];
+    if (!views.is_object()) {
+      m.errors.push_back("plugin.lockOptions must map Lock view names to lists of options");
+    } else {
+      static constexpr std::array types{"toggle", "choice", "slider", "text", "colour"};
+      for (const auto& [view, list] : views.items()) {
+        const std::string where = "plugin.lockOptions." + view;
+        if (!view.starts_with("Lock")) m.errors.push_back(where + ": options are for Lock views");
+        if (!list.is_array()) {
+          m.errors.push_back(where + " must be a list");
+          continue;
+        }
+        bool ok = true;
+        for (const json& option : list) {
+          const std::string type = option.is_object() ? option.value("type", "") : "";
+          if (!option.is_object() || !option.value("key", json()).is_string() || option.value("key", "").empty() ||
+              std::ranges::find(types, type) == types.end()) {
+            m.errors.push_back(where + ": each option needs a \"key\" and a \"type\" (toggle, choice, slider, text, colour)");
+            ok = false;
+          } else if (type == "choice" && (!option.contains("choices") || !option["choices"].is_array() || option["choices"].empty())) {
+            m.errors.push_back(where + "." + option["key"].get<std::string>() + ": a choice needs \"choices\"");
+            ok = false;
+          } else if (type == "slider" && !(option.value("max", json(1)).is_number() && option.value("min", json(0)).is_number())) {
+            m.errors.push_back(where + "." + option["key"].get<std::string>() + ": a slider's min and max are numbers");
+            ok = false;
+          }
+        }
+        if (ok) m.lock_options[view] = list.dump();
       }
     }
   }

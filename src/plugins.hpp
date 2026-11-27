@@ -131,6 +131,25 @@ struct Material {
   std::array<float, 3> params{};
 };
 std::optional<Material> lock_material();
+
+// One option a plugin declares for one of its Lock views: the layout
+// editor shows it for each such widget, and the view reads the widget's
+// values as state.lock.options (Host::context for C++).
+struct LockOption {
+  std::string key;
+  std::string label;
+  std::string type;  // toggle, choice, slider, text, colour
+  nlohmann::json fallback;  // "default"
+  std::vector<std::pair<std::string, std::string>> choices;  // choice: (value, label)
+  float min = 0;
+  float max = 1;
+  float step = 0;  // slider; 0 is continuous
+  std::string unit;         // slider: shown after the value
+  std::string placeholder;  // text
+};
+// The options of "<plugin id>:<view>", none when it declares none or isn't
+// running.
+std::vector<LockOption> lock_options(const std::string& view);
 // A running plugin's name from its manifest; the id when it isn't running.
 std::string plugin_name(const std::string& id);
 

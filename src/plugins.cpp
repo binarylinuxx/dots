@@ -1207,6 +1207,43 @@ std::optional<Material> lock_material() {
   return std::nullopt;
 }
 
+std::vector<LockOption> lock_options(const std::string& view_id) {
+  const auto [plugin, view] = split(view_id);
+  const Process* process = find_running(plugin);
+  if (process == nullptr) return {};
+  const auto found = process->manifest.lock_options.find(view);
+  if (found == process->manifest.lock_options.end()) return {};
+  std::vector<LockOption> options;
+  for (const json& given : json::parse(found->second, nullptr, false)) {
+    if (!given.is_object()) continue;
+    LockOption option;
+    option.key = given.value("key", "");
+    option.label = given.value("label", option.key);
+    option.type = given.value("type", "");
+    option.fallback = given.value("default", json());
+    option.min = given.value("min", 0.0F);
+    option.max = given.value("max", 1.0F);
+    option.step = given.value("step", 0.0F);
+    option.unit = given.value("unit", "");
+    option.placeholder = given.value("placeholder", "");
+    if (given.contains("choices") && given["choices"].is_array())
+      for (const json& choice : given["choices"]) {
+        if (choice.is_string()) option.choices.emplace_back(choice.get<std::string>(), choice.get<std::string>());
+        else if (choice.is_object() && choice.value("value", json()).is_string())
+          option.choices.emplace_back(choice["value"].get<std::string>(), choice.value("label", choice["value"].get<std::string>()));
+      }
+    if (option.fallback.is_null()) {
+      // Something sensible to show before it is set.
+      if (option.type == "toggle") option.fallback = false;
+      else if (option.type == "slider") option.fallback = option.min;
+      else if (option.type == "choice" && !option.choices.empty()) option.fallback = option.choices.front().first;
+      else option.fallback = "";
+    }
+    options.push_back(std::move(option));
+  }
+  return options;
+}
+
 std::string plugin_name(const std::string& id) {
   const Process* process = find_running(id);
   return process == nullptr || process->manifest.name.empty() ? id : process->manifest.name;

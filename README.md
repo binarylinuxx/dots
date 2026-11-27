@@ -140,7 +140,9 @@ Login screen) opens the lock screen full screen with everything editable:
   being dragged light up. Alt+arrows still nudge by a pixel.
 - **Add** (`A`): the clock, date, weather, status icons, hint, notifications,
   media player, your picture and name, power buttons (login screen), text
-  (strftime codes work, in five colours), and plugins' `Lock…` views.
+  (strftime codes work, in five colours), and plugins' `Lock…` views, as
+  many of each as you like (Ctrl+D duplicates). A plugin's widget shows its
+  own settings in the side panel, separately for each copy.
   Delete hides an item; text and plugin items go.
 - **Backdrop**: each item's Background slider sets how solid its backdrop is,
   and its swatches pick its colour. Settings → Lock screen sets the colour for

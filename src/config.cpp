@@ -47,6 +47,8 @@ void read_layout(const json& object, const char* key, std::vector<LockItem>& tar
     read(entry, "visible", item.visible);
     read(entry, "text", item.text);
     read(entry, "colour", item.colour);
+    if (entry.contains("options") && entry["options"].is_object())
+      for (const auto& [key, value] : entry["options"].items()) item.options[key] = value.dump();
     if (!item.id.empty()) target.push_back(std::move(item));
   }
 }
@@ -60,6 +62,10 @@ json layout_json(const std::vector<LockItem>& items) {
     if (!item.backdrop.empty()) entry["backdrop"] = item.backdrop;
     if (!item.text.empty()) entry["text"] = item.text;
     if (!item.colour.empty()) entry["colour"] = item.colour;
+    for (const auto& [key, text] : item.options) {
+      json value = json::parse(text, nullptr, false);
+      if (!value.is_discarded()) entry["options"][key] = std::move(value);
+    }
     list.push_back(std::move(entry));
   }
   return list;

@@ -1192,6 +1192,21 @@ bool has_view(const std::string& bar_id) {
   return std::ranges::find(names, view) != names.end();
 }
 
+std::optional<Material> lock_material() {
+  for (const auto& [id, process] : running()) {
+    const packages::Manifest& m = process->manifest;
+    if (m.lock_material.empty()) continue;
+    Material material{(m.directory / m.lock_material).string(), {}};
+    for (std::size_t index = 0; index < m.lock_material_params.size() && index < 3; ++index) {
+      const auto& [key, fallback] = m.lock_material_params[index];
+      const auto it = process->store.find(key);
+      material.params[index] = it != process->store.end() && it->is_number() ? it->get<float>() : fallback;
+    }
+    return material;
+  }
+  return std::nullopt;
+}
+
 std::string plugin_name(const std::string& id) {
   const Process* process = find_running(id);
   return process == nullptr || process->manifest.name.empty() ? id : process->manifest.name;

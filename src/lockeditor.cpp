@@ -562,7 +562,7 @@ void draw_inspector(vw::Ui& ui) {
   const Colours& c = colours();
   const bool text = item->id.starts_with("text:");
   constexpr float width = 320;
-  const float height = 318 + (text ? 132 : 0);
+  const float height = 374 + (text ? 132 : 0);
   const bool left = box != nullptr && box->x + box->width / 2 > e.width / 2;
   const float x = left ? margin : e.width - margin - width;
   const float y = 132;
@@ -600,6 +600,33 @@ void draw_inspector(vw::Ui& ui) {
   labelled("Background", item->background < 0 ? std::string("Automatic") : std::format("{}%", std::lround(item->background * 100)));
   slider(ui, x + 24, cursor, width - 48, item->background < 0 ? 0.8F : item->background, 0, 1,
          [](float value) { if (LockItem* chosen = selected_item()) chosen->background = std::round(value * 20) / 20; });
+  cursor += 44;
+  // Its colour, glass or not; "Screen" follows Settings → Lock screen.
+  labelled("Backdrop colour", item->backdrop.empty() ? std::string("Screen's") : std::string(item->backdrop));
+  {
+    float swatch_x = x + 20;
+    const float swatch_y = cursor + 4;
+    constexpr float swatch = 24;
+    const auto swatch_button = [&](const std::string& name, vw::Color colour, bool chosen) {
+      if (chosen) draw::rect(ui, swatch_x - 3, swatch_y - 3, swatch + 6, swatch + 6, (swatch + 6) / 2, c.primary);
+      draw::rect(ui, swatch_x, swatch_y, swatch, swatch, swatch / 2, colour);
+      draw::state_layer(ui, swatch_x, swatch_y, swatch, swatch, swatch / 2, c.text,
+                        {.on_click = [name](const vw::ClickEvent&) {
+                          if (LockItem* target = selected_item(); target != nullptr && target->backdrop != name) {
+                            checkpoint();
+                            target->backdrop = name;
+                          }
+                        }});
+      swatch_x += swatch + 6;
+    };
+    // The screen's own first, drawn as a ring.
+    swatch_button("", backdrop_colour(config().lock_backdrop_colour, c.surface_container_high), item->backdrop.empty());
+    draw::glyph(ui, "link", swatch_x - swatch / 2 - 6, swatch_y + swatch / 2, 14, c.text_muted);
+    for (const auto& [name, label] : backdrop_colours) {
+      (void)label;
+      swatch_button(name, backdrop_colour(name, c.surface_container_high), item->backdrop == name);
+    }
+  }
   cursor += 44;
 
   if (text) {

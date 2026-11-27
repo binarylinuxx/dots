@@ -142,6 +142,9 @@ Login screen) opens the lock screen full screen with everything editable:
   media player, your picture and name, power buttons (login screen), text
   (strftime codes work, in five colours), and plugins' `Lock…` views.
   Delete hides an item; text and plugin items go.
+- **Backdrop**: each item's Background slider sets how solid its backdrop is,
+  and its swatches pick its colour. Settings → Lock screen sets the colour for
+  all of them, including any `#rrggbb`, and turns the wallpaper's blur off.
 - **Sheet** (`P`) previews the screen with the password sheet up: items
   shrink into the room above it, and glance-only ones fade.
 - Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S saves, Escape twice throws changes away.

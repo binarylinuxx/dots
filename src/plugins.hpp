@@ -4,6 +4,7 @@
 #include <vw/facet_runtime.hpp>
 #include <vw/ui.hpp>
 
+#include <array>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -123,6 +124,13 @@ std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id, const
 // resizes them in the layout editor). On the lock screen they are shown
 // only, never clicked: a locked session takes no orders from a plugin.
 std::vector<std::string> lock_views();
+// The lock screen's material: the first running plugin's lockMaterial, as
+// an absolute shader path and its three parameters from the plugin's store.
+struct Material {
+  std::string shader;
+  std::array<float, 3> params{};
+};
+std::optional<Material> lock_material();
 // A running plugin's name from its manifest; the id when it isn't running.
 std::string plugin_name(const std::string& id);
 

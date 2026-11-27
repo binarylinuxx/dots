@@ -75,6 +75,13 @@ struct Manifest {
   // A C++ library (needs the "native" permission), see <blxshell/plugin.hpp>.
   std::string native;
   std::string restart = "on-failure";  // "never", "on-failure", "always"
+  // A material for the lock screen: every backdrop there (pills, cards, the
+  // sheet) is drawn by this rectangle shader (.vws, or GLSL compiled at
+  // runtime), which may sample the wallpaper behind it. Up to three
+  // parameters come from the plugin's store (key, default); see
+  // docs/packages.md.
+  std::string lock_material;
+  std::vector<std::pair<std::string, float>> lock_material_params;
   std::vector<std::string> permissions;
 
   // The whole manifest, for themes to be applied from.

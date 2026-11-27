@@ -269,7 +269,7 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
     return;
   }
   Reader r{m, plugin, "plugin: "};
-  r.only({"api", "facet", "exec", "native", "restart", "permissions"});
+  r.only({"api", "facet", "exec", "native", "restart", "permissions", "lockMaterial"});
   for (const char* gone : {"barModules", "desktop", "commands", "settings"})
     if (plugin.contains(gone))
       m.errors.push_back(std::format("plugin.{} is gone in api 2: views come from the plugin's Facet file or library, "
@@ -296,8 +296,32 @@ void parse_plugin(Manifest& m, const json& plugin, const std::vector<std::string
     if (!m.native.ends_with(".so")) m.errors.push_back("plugin.native must be a shared library (.so)");
     inside(m.native, "native", build_script);
   }
-  if (m.facet.empty() && m.exec.empty() && m.native.empty())
-    m.errors.push_back("a plugin needs at least one of plugin.facet, plugin.exec and plugin.native");
+  if (plugin.contains("lockMaterial")) {
+    const json& material = plugin["lockMaterial"];
+    if (!material.is_object() || !material.contains("shader") || !material["shader"].is_string()) {
+      m.errors.push_back("plugin.lockMaterial must be an object with a \"shader\"");
+    } else {
+      m.lock_material = material["shader"].get<std::string>();
+      if (!m.lock_material.ends_with(".vws") && !m.lock_material.ends_with(".comp"))
+        m.errors.push_back("plugin.lockMaterial.shader must be a .vws file (vw-shaderc) or GLSL (.comp)");
+      inside(m.lock_material, "lockMaterial.shader", build_script);
+      if (material.contains("params")) {
+        if (!material["params"].is_array() || material["params"].size() > 3)
+          m.errors.push_back("plugin.lockMaterial.params must be a list of at most 3 {\"key\", \"default\"}");
+        else
+          for (const json& param : material["params"]) {
+            if (!param.is_object() || !param.contains("key") || !param["key"].is_string() ||
+                !param.value("default", json(0)).is_number()) {
+              m.errors.push_back("plugin.lockMaterial.params: each is {\"key\": string, \"default\": number}");
+              continue;
+            }
+            m.lock_material_params.emplace_back(param["key"].get<std::string>(), param.value("default", 0.0F));
+          }
+      }
+    }
+  }
+  if (m.facet.empty() && m.exec.empty() && m.native.empty() && m.lock_material.empty())
+    m.errors.push_back("a plugin needs at least one of plugin.facet, plugin.exec, plugin.native and plugin.lockMaterial");
   if (r.get("restart", m.restart) && m.restart != "never" && m.restart != "on-failure" && m.restart != "always")
     m.errors.push_back("plugin.restart must be never, on-failure or always");
   if (r.get("permissions", m.permissions))

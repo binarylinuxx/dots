@@ -27,6 +27,7 @@ struct LockItem {
   float scale = 1;
   float opacity = 1;
   float background = -1;  // its backdrop's opacity; below 0 the theme's own
+  std::string backdrop;   // its backdrop's colour (see lock_backdrop_colour); empty: that
   bool visible = true;
   std::string text;    // text items: strftime codes work
   std::string colour;  // text items: a colour role
@@ -137,6 +138,10 @@ struct Config {
   // offset spreads each pass's taps.
   int lock_blur_passes = 4;
   bool lock_blur = true;  // off: the wallpaper sharp, only tinted
+  // The colour of every backdrop on the lock and login screens, glass or
+  // not: "theme" (the surface colour), "primary", "secondary", "tertiary",
+  // "error", "neutral", "black", "white", or "#rrggbb".
+  std::string lock_backdrop_colour = "theme";
   float lock_blur_offset = 2.0F;
   bool lock_show_user = true;
   std::string lock_clock_style = "stacked";  // or "single"

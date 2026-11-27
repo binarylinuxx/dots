@@ -309,6 +309,35 @@ are shown only: clicks on them never reach the plugin. The login screen runs
 no plugins, so they never appear there. A C++ plugin's `Lock…` views read the same
 through `Host::context()`, JSON text like `{"lock": {"scale": 1.3, …}}`.
 
+### Lock materials
+
+A plugin can restyle every backdrop on the lock screen (the pills, cards,
+widgets and the password sheet) with a rectangle shader that sees the
+wallpaper behind it:
+
+```json
+"plugin": {
+  "api": 2,
+  "facet": "plugin.facet",
+  "lockMaterial": {
+    "shader": "lib/glass.vws",
+    "params": [{"key": "refraction", "default": 28}, {"key": "bezel", "default": 22}]
+  }
+}
+```
+
+The shader is a vw rectangle shader (see vw's shaders guide) with
+`VW_USE_BACKDROP`, as a `.vws` built by `build.sh` (or GLSL, compiled at
+runtime when glslc is installed). `shader_params` 0–2 are the store values
+named in `params` (their defaults until set), and 3 is the item's opacity.
+The rectangle's colour is the theme's backdrop colour, and its alpha is the
+user's Background setting for that item, and its colour is the backdrop
+colour the user picked (the item's, else **Settings → Lock screen → Backdrop
+colour**, else the theme's). The first running plugin with a
+material wins. Lock views get it as `state.lock.material` (`shader`,
+`params`) to draw their own cards in it, and the picked colour as
+`state.lock.backdropColour` (`[r, g, b]`, 0–1; absent for the theme's). The login screen runs no plugins.
+
 ```facet
 view LockQuote(state, actions) {
     ui.Text(text: actions.get("quote", "Stay curious"), font: state.fonts.display,

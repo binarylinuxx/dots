@@ -257,7 +257,7 @@
               "pattern": "\\.facet$"
             }
           ],
-          "description": "Its views in Facet, drawn by the shell: Bar\u2026 views are bar modules, Settings is its page in Settings."
+          "description": "Its views in Facet, drawn by the shell: Bar… views are bar modules, Settings is its page in Settings."
         },
         "exec": {
           "type": "array",
@@ -305,6 +305,46 @@
             ]
           },
           "description": "shell, notifications and spawn gate requests to the shell; native is required for native code. All are shown to users and reviewers."
+        },
+        "lockMaterial": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shader"
+          ],
+          "description": "A material for the lock screen: every backdrop there is drawn by this rectangle shader, which may sample the wallpaper behind it (VW_USE_BACKDROP). shader_params 0-2 come from the store keys in params, 3 is the item's opacity; the rectangle's colour is the backdrop colour, its alpha the user's Background setting.",
+          "properties": {
+            "shader": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/packagePath"
+                },
+                {
+                  "pattern": "\\.(vws|comp)$"
+                }
+              ],
+              "description": "A .vws file (vw-shaderc, usually built by build.sh into lib/) or GLSL source compiled at runtime (needs glslc)."
+            },
+            "params": {
+              "type": "array",
+              "maxItems": 3,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "default": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
         }
       },
       "anyOf": [
@@ -321,6 +361,11 @@
         {
           "required": [
             "native"
+          ]
+        },
+        {
+          "required": [
+            "lockMaterial"
           ]
         }
       ],

@@ -32,6 +32,13 @@ struct LockLook {
 };
 
 LockLook lock_look();
+/// A backdrop colour by name (see Config::lock_backdrop_colour); `fallback`
+/// for "theme", empty or unknown.
+vw::Color backdrop_colour(const std::string& name, vw::Color fallback);
+/// The backdrop colours the editor offers, as (name, label).
+inline constexpr std::pair<const char*, const char*> backdrop_colours[] = {
+    {"theme", "Theme"}, {"primary", "Primary"}, {"secondary", "Secondary"}, {"tertiary", "Tertiary"},
+    {"error", "Red"},   {"neutral", "Neutral"}, {"black", "Black"},         {"white", "White"}};
 /// The login screen's look: its own settings, or the lock screen's.
 LockLook greeter_look();
 /// greeter.wallpaper with ~ expanded against $HOME; empty when unset.

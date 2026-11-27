@@ -83,10 +83,43 @@ float& background_override() {
   return value;
 }
 
+// The colour the item being drawn asks for; empty: the screen's setting.
+std::string& backdrop_name_override() {
+  static std::string value;
+  return value;
+}
+
+// A backdrop's colour: the item's, else the lock screen's setting, else
+// `fallback` (the theme's).
+vw::Color backdrop_of(vw::Color fallback) {
+  const std::string& name = backdrop_name_override().empty() ? config().lock_backdrop_colour : backdrop_name_override();
+  return backdrop_colour(name, fallback);
+}
+
 // A backdrop's alpha: the item's background setting, else `base`; times the
 // item's opacity.
 float back(float base, float alpha) {
   return (background_override() >= 0 ? std::clamp(background_override(), 0.0F, 1.0F) : base) * alpha;
+}
+
+// A rectangle in the lock material (a plugin's shader, which sees the
+// wallpaper behind it) when one is installed: its colour's alpha is the
+// backdrop setting, `opacity` fades the whole of it. False without one.
+bool material_rect(vw::Ui& ui, float x, float y, float width, float height, float radius, vw::Color colour, float opacity) {
+  const auto material = plugins::lock_material();
+  if (!material) return false;
+  ui.rectangle({.width = width, .height = height, .radius = radius, .color = colour, .shader = material->shader,
+                .shader_params = {material->params[0], material->params[1], material->params[2], opacity},
+                .place = {.x = x, .y = y}});
+  return true;
+}
+
+// An item's backdrop: in the lock material, else the theme's colour at the
+// item's Background setting (`base` while automatic).
+void pane(vw::Ui& ui, float x, float y, float width, float height, float radius, float base, float alpha) {
+  const vw::Color colour = backdrop_of(colours().surface_container_high);
+  if (!material_rect(ui, x, y, width, height, radius, with_alpha(colour, back(base, 1)), alpha))
+    draw::rect(ui, x, y, width, height, radius, with_alpha(colour, back(base, alpha)));
 }
 
 draw::TextStyle pill_text(float k = 1, float alpha = 1) {
@@ -125,7 +158,7 @@ void draw_status_at(vw::Ui& ui, float x, float y, float k, float fade) {
   const Colours& c = colours();
   const auto items = status_items();
   const Size size = status_size(items, k);
-  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, back(0.72F, fade)));
+  pane(ui, x, y, size.w, size.h, size.h / 2, 0.72F, fade);
   x += 16 * k;
   for (const StatusItem& item : items) {
     draw::glyph(ui, item.glyph, x + 10 * k, y + size.h / 2, 20 * k, with_alpha(c.text, fade));
@@ -157,7 +190,7 @@ void draw_date_at(vw::Ui& ui, float x, float y, const std::string& date, const s
                   float k, float alpha) {
   const Colours& c = colours();
   const Size size = date_size(date, now, k);
-  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, back(0.78F, alpha)));
+  pane(ui, x, y, size.w, size.h, size.h / 2, 0.78F, alpha);
   x += 20 * k;
   draw::text_middle(ui, date, x, y + size.h / 2, pill_text(k, alpha));
   x += draw::measure(date, 15 * k, vw::weight::medium, font::utility);
@@ -182,7 +215,7 @@ Size weather_size(const weather::Report& now, float k) {
 void draw_weather_at(vw::Ui& ui, float x, float y, const weather::Report& now, float k, float alpha) {
   const Colours& c = colours();
   const Size size = weather_size(now, k);
-  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, back(0.78F, alpha)));
+  pane(ui, x, y, size.w, size.h, size.h / 2, 0.78F, alpha);
   draw::glyph(ui, now.glyph, x + 30 * k, y + size.h / 2, 22 * k, with_alpha(c.primary, alpha));
   draw::text_middle(ui, now.temperature, x + 46 * k, y + size.h / 2, pill_text(k, alpha));
 }
@@ -213,7 +246,7 @@ void draw_notifications_at(vw::Ui& ui, float x, float y, float k, float alpha, b
   if (groups.empty()) {
     if (!sample) return;
     for (int index = 0; index < 3; ++index) {
-      draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, back(0.85F, alpha)));
+      pane(ui, x, y, disc, disc, disc / 2, 0.85F, alpha);
       draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20 * k, with_alpha(c.primary, alpha));
       x += disc + 8 * k;
     }
@@ -221,7 +254,7 @@ void draw_notifications_at(vw::Ui& ui, float x, float y, float k, float alpha, b
   }
   const std::size_t shown = std::min(groups.size(), notifications_shown);
   for (std::size_t index = 0; index < shown; ++index) {
-    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, back(0.85F, alpha)));
+    pane(ui, x, y, disc, disc, disc / 2, 0.85F, alpha);
     if (!draw::icon(ui, groups[index].entries.front().icon, "", x + 9 * k, y + 9 * k, 22 * k))
       draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20 * k, with_alpha(c.primary, alpha));
     x += disc + 8 * k;
@@ -260,7 +293,7 @@ void draw_media_at(vw::Ui& ui, float x, float y, float k, float alpha, bool samp
   const float width = media_width * k;
   const float height = media_height * k;
   const float padding = 14 * k;
-  draw::rect(ui, x, y, width, height, 36 * k, with_alpha(c.surface_container_high, back(0.9F, alpha)));
+  pane(ui, x, y, width, height, 36 * k, 0.9F, alpha);
   const float art_size = height - padding * 2;
   // The placeholder only without art: under it, its soft corners would show
   // through the art's anti-aliased ones as a light rim.
@@ -390,7 +423,7 @@ void draw_power_at(vw::Ui& ui, float x, float y, float k, float alpha, bool live
   const float height = 40 * k;
   for (const PowerChip& chip : power_chips) {
     const float width = power_chip_width(chip, k);
-    draw::rect(ui, x, y, width, height, height / 2, with_alpha(c.surface_container_high, back(0.9F, alpha)));
+    pane(ui, x, y, width, height, height / 2, 0.9F, alpha);
     draw::glyph(ui, chip.glyph, x + 26 * k, y + height / 2, 20 * k, with_alpha(c.primary, alpha));
     draw::text_middle(ui, chip.label, x + 42 * k, y + height / 2, pill_text(k, alpha));
     if (live)
@@ -403,8 +436,18 @@ void draw_power_at(vw::Ui& ui, float x, float y, float k, float alpha, bool live
 std::string plugin_of(const std::string& id) { return id.starts_with("plugin:") ? id.substr(7) : std::string(); }
 
 nlohmann::json plugin_state(float k, const LockPage& page) {
-  return {{"lock", {{"scale", k}, {"editing", page.editing}, {"greeter", page.greeter}, {"sheet", page.reveal},
-                    {"background", background_override()}}}};
+  nlohmann::json state{{"lock", {{"scale", k}, {"editing", page.editing}, {"greeter", page.greeter}, {"sheet", page.reveal},
+                                 {"background", background_override()}}}};
+  // The backdrop colour, when not the theme's: plugin cards follow it.
+  if (const std::string& name = backdrop_name_override().empty() ? config().lock_backdrop_colour : backdrop_name_override();
+      !name.empty() && name != "theme") {
+    const vw::Color colour = backdrop_colour(name, colours().surface_container_high);
+    state["lock"]["backdropColour"] = {colour[0], colour[1], colour[2]};
+  }
+  if (const auto material = plugins::lock_material())
+    state["lock"]["material"] = {{"shader", material->shader},
+                                 {"params", {material->params[0], material->params[1], material->params[2]}}};
+  return state;
 }
 
 Size plugin_size(const std::string& view, const nlohmann::json& extra) {
@@ -444,6 +487,7 @@ void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const s
     if ((session && reveal >= 0.2F) || (id == "hint" && reveal >= 0.6F) || (id == "power" && reveal > 0.99F)) continue;
     float alpha = std::clamp(item.opacity, 0.05F, 1.0F) * (glance ? 1 - reveal : 1.0F);
     background_override() = item.background;
+    backdrop_name_override() = item.backdrop;
     const float k = std::clamp(item.scale, 0.2F, 5.0F) * blend(1, glance ? 1.0F : id == "clock" ? 0.55F : 0.75F, reveal);
 
     // What it is, and how big at this scale.
@@ -512,8 +556,7 @@ void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const s
     } else if (!text.empty()) {
       // A backdrop only when asked for one.
       if (item.background > 0)
-        draw::rect(ui, x - 16 * k, y - 4 * k, size.w + 32 * k, size.h + 8 * k, (size.h + 8 * k) / 2,
-                   with_alpha(c.surface_container_high, back(0, alpha)));
+        pane(ui, x - 16 * k, y - 4 * k, size.w + 32 * k, size.h + 8 * k, (size.h + 8 * k) / 2, 0, alpha);
       draw::text_middle(ui, text, x, y + size.h / 2, text_item_style(item, k, alpha));
     } else if (!view.empty()) {
       draw_plugin_at(ui, view, extra, x, y);
@@ -527,6 +570,7 @@ void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const s
     if (page.placed != nullptr) page.placed->push_back({index, x, y, size.w, size.h});
   }
   background_override() = -1;
+  backdrop_name_override().clear();
 }
 
 // The password sheet in its floating card; `reveal` 0 is below the edge.
@@ -552,8 +596,12 @@ void draw_sheet(vw::Ui& ui, float width, float height, float reveal, bool failed
   constexpr float field_height = 60;
   const float field_width = std::min(440.0F, card.width - 56);
   const float field_x = centre - field_width / 2 + shake;
-  ui.rectangle({.width = field_width, .height = field_height, .radius = field_height / 2, .color = c.surface_container_highest,
-                .border_width = failed ? 2.0F : 0.0F, .border_color = c.error, .place = {.x = field_x, .y = cursor}});
+  // In the lock material a wrong password tints the field instead of
+  // ringing it.
+  if (!material_rect(ui, field_x, cursor, field_width, field_height, field_height / 2,
+                     failed ? with_alpha(c.error, 0.8F) : with_alpha(c.surface_container_highest, 0.7F), 1))
+    ui.rectangle({.width = field_width, .height = field_height, .radius = field_height / 2, .color = c.surface_container_highest,
+                  .border_width = failed ? 2.0F : 0.0F, .border_color = c.error, .place = {.x = field_x, .y = cursor}});
   draw::glyph(ui, "lock", field_x + 30, cursor + field_height / 2, 22, failed ? c.error : c.primary);
   ui.text_field({.id = password_id, .placeholder = "Password", .width = field_width - 124, .height = field_height, .radius = 0,
                  .border_width = 0, .padding = 4, .color = with_alpha(c.surface_container_highest, 0),
@@ -588,9 +636,28 @@ SheetCard draw_sheet_card(vw::Ui& ui, float width, float height, float card_heig
   card.x = (width - card.width) / 2;
   card.centre = width / 2;
   card.y = blend(height + 24, height - card_height - margin, reveal);
-  draw::rect(ui, card.x, card.y, card.width, card.height, radius, c.surface_container);
+  const vw::Color sheet = backdrop_colour(config().lock_backdrop_colour, c.surface_container);
+  if (!material_rect(ui, card.x, card.y, card.width, card.height, radius, with_alpha(sheet, 0.85F), 1))
+    draw::rect(ui, card.x, card.y, card.width, card.height, radius, sheet);
   draw::rect(ui, card.centre - 18, card.y + 12, 36, 4, 2, c.outline_variant);
   return card;
+}
+
+vw::Color backdrop_colour(const std::string& name, vw::Color fallback) {
+  const Colours& c = colours();
+  if (name == "primary") return c.primary_container;
+  if (name == "secondary") return c.secondary_container;
+  if (name == "tertiary") return c.tertiary_container;
+  if (name == "error") return c.error_container;
+  if (name == "neutral") return c.surface;
+  if (name == "black") return vw::rgb(0x000000);
+  if (name == "white") return vw::rgb(0xffffff);
+  if (name.size() == 7 && name[0] == '#') {
+    try {
+      return vw::rgb(static_cast<std::uint32_t>(std::stoul(name.substr(1), nullptr, 16)));
+    } catch (const std::exception&) {}
+  }
+  return fallback;
 }
 
 LockLook lock_look() {

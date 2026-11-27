@@ -29,6 +29,38 @@ void read(const json& object, const char* key, T& target) {
   }
 }
 
+void read_layout(const json& object, const char* key, std::vector<LockItem>& target) {
+  if (!object.is_object() || !object.contains(key) || !object.at(key).is_array()) return;
+  target.clear();
+  for (const json& entry : object.at(key)) {
+    if (!entry.is_object()) continue;
+    LockItem item;
+    read(entry, "id", item.id);
+    read(entry, "x", item.x);
+    read(entry, "y", item.y);
+    read(entry, "anchorX", item.ax);
+    read(entry, "anchorY", item.ay);
+    read(entry, "scale", item.scale);
+    read(entry, "opacity", item.opacity);
+    read(entry, "visible", item.visible);
+    read(entry, "text", item.text);
+    read(entry, "colour", item.colour);
+    if (!item.id.empty()) target.push_back(std::move(item));
+  }
+}
+
+json layout_json(const std::vector<LockItem>& items) {
+  json list = json::array();
+  for (const LockItem& item : items) {
+    json entry{{"id", item.id}, {"x", item.x}, {"y", item.y}, {"anchorX", item.ax}, {"anchorY", item.ay},
+               {"scale", item.scale}, {"opacity", item.opacity}, {"visible", item.visible}};
+    if (!item.text.empty()) entry["text"] = item.text;
+    if (!item.colour.empty()) entry["colour"] = item.colour;
+    list.push_back(std::move(entry));
+  }
+  return list;
+}
+
 json section(const json& object, const char* key) {
   return object.is_object() && object.contains(key) && object.at(key).is_object() ? object.at(key)
                                                                                     : json::object();
@@ -119,6 +151,9 @@ void apply(Config& c, const json& root) {
   read(lock, "showWeather", c.lock_show_weather);
   read(lock, "showNotifications", c.lock_show_notifications);
   read(lock, "showMedia", c.lock_show_media);
+  read(lock, "layoutCustom", c.lock_layout_custom);
+  read(lock, "editorGrid", c.lock_editor_grid);
+  read_layout(lock, "layout", c.lock_layout);
   const json greeter = section(root, "greeter");
   read(greeter, "matchLock", c.greeter_match_lock);
   read(greeter, "clockFormat", c.greeter_clock_format);
@@ -137,6 +172,8 @@ void apply(Config& c, const json& root) {
   read(greeter, "avatarShape", c.greeter_avatar_shape);
   read(greeter, "idleSeconds", c.greeter_idle_seconds);
   read(greeter, "remember", c.greeter_remember);
+  read(greeter, "layoutCustom", c.greeter_layout_custom);
+  read_layout(greeter, "layout", c.greeter_layout);
   read(launcher, "normalWidth", c.launcher_width);
   read(launcher, "tintAppIcons", c.launcher_tint_app_icons);
   read(launcher, "sort", c.launcher_sort);
@@ -346,7 +383,11 @@ json serialize(const Config& c) {
                     {"showPower", c.greeter_show_power}, {"showHint", c.greeter_show_hint},
                     {"hint", c.greeter_hint}, {"wallpaper", c.greeter_wallpaper},
                     {"avatarShape", c.greeter_avatar_shape}, {"idleSeconds", c.greeter_idle_seconds},
-                    {"remember", c.greeter_remember}};
+                    {"remember", c.greeter_remember}, {"layoutCustom", c.greeter_layout_custom},
+                    {"layout", layout_json(c.greeter_layout)}};
+  out["lock"]["layoutCustom"] = c.lock_layout_custom;
+  out["lock"]["editorGrid"] = c.lock_editor_grid;
+  out["lock"]["layout"] = layout_json(c.lock_layout);
   out["bar"]["left"] = c.bar_left;
   out["bar"]["center"] = c.bar_center;
   out["bar"]["right"] = c.bar_right;

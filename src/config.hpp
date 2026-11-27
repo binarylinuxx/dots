@@ -13,6 +13,24 @@ struct AppUsage {
   std::int64_t last = 0;  // Unix seconds
 };
 
+// One thing on the lock or login screen, placed by the layout editor. (x, y)
+// is where its anchor point sits, as fractions of the screen; (ax, ay) is
+// that point within the item (0 left/top, 1 right/bottom), so items near an
+// edge grow away from it.
+struct LockItem {
+  std::string id;  // clock, date, weather, status, hint, notifications, media,
+                   // user, power, text:<n>, plugin:<plugin id>:<view>
+  float x = 0.5F;
+  float y = 0.5F;
+  float ax = 0.5F;
+  float ay = 0.5F;
+  float scale = 1;
+  float opacity = 1;
+  bool visible = true;
+  std::string text;    // text items: strftime codes work
+  std::string colour;  // text items: a colour role
+};
+
 struct Config {
   int launcher_width = 700;
   bool launcher_tint_app_icons = false;
@@ -124,6 +142,13 @@ struct Config {
   bool lock_show_weather = true;
   bool lock_show_notifications = true;
   bool lock_show_media = true;
+  // The layout editor's grid: columns across the screen (square cells), 0 off.
+  int lock_editor_grid = 0;
+  // Placed by the layout editor; until then the classic arrangement.
+  bool lock_layout_custom = false;
+  std::vector<LockItem> lock_layout;
+  bool greeter_layout_custom = false;
+  std::vector<LockItem> greeter_layout;
   // The login screen (blxshell-greeter). With greeter_match_lock it takes the
   // lock screen's clock and look instead of the greeter_* ones.
   bool greeter_match_lock = true;

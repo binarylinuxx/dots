@@ -7,6 +7,9 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <vector>
+
+#include "config.hpp"
 
 #include <vw/vw.hpp>
 
@@ -28,6 +31,30 @@ struct LockLook {
 };
 
 LockLook lock_look();
+/// The login screen's look: its own settings, or the lock screen's.
+LockLook greeter_look();
+/// greeter.wallpaper with ~ expanded against $HOME; empty when unset.
+std::string greeter_wallpaper_path();
+
+/// Where an item of a custom layout landed this frame, for the editor.
+struct PlacedItem {
+  std::size_t index = 0;
+  float x = 0;
+  float y = 0;
+  float width = 0;
+  float height = 0;
+};
+
+/// The classic arrangement as layout items, for the editor to start from.
+std::vector<LockItem> default_lock_layout(bool greeter);
+/// What the editor calls an item: "Clock", "Text: Hello", "Plugin · View".
+std::string lock_item_label(const LockItem& item);
+/// Whether the item belongs on that screen: the login screen has no
+/// session (notifications, media, plugins), the lock screen no power buttons.
+bool lock_item_allowed(const std::string& id, bool greeter);
+/// The layout the lock screen, or the login screen, draws; null for the
+/// classic arrangement.
+const std::vector<LockItem>* lock_layout_for(bool greeter);
 
 struct LockPage {
   float width = 0;
@@ -46,6 +73,18 @@ struct LockPage {
   float sheet_room = 0;
   /// Unset: the lock screen's settings.
   std::optional<LockLook> look;
+  /// A custom layout; null draws the classic arrangement.
+  const std::vector<LockItem>* layout = nullptr;
+  /// In the layout editor: placeholders for what is empty now, nothing
+  /// clickable.
+  bool editing = false;
+  bool greeter = false;
+  /// The "user" item: picture and name.
+  std::string user_name;
+  std::string user_picture;
+  std::string avatar_shape = "cookie9sided";
+  /// Filled with each drawn item's box, when given.
+  std::vector<PlacedItem>* placed = nullptr;
 };
 
 /// Height the lock screen's sheet takes from the bottom edge when raised.

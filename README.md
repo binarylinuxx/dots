@@ -56,6 +56,7 @@ blxshell powermenu [toggle|open|close]
 blxshell sidebar [both|top|bottom|corner]
 blxshell wallpapers
 blxshell lock
+blxshell lockscreen edit [lock|greeter]   # the layout editor
 blxshell reload                 # re-read config and colours
 blxshell media play-pause|pause|next|previous
 blxshell ping                   # exits 0 when a shell is running
@@ -123,6 +124,32 @@ programs.blxshell.greeter = {
 Under a compositor with layer shell, `blxshell-greeter --layer` draws one login per monitor instead of a window. Sessions come from `wayland-sessions` in `$XDG_DATA_DIRS` (on NixOS, the system profile).
 
 To try it without logging out, greetd's `fakegreet` stands in for the daemon (user `user`, password `password`, then `9`): `fakegreet ./build/blxshell-greeter`. Run on its own, it shows the screen as a preview.
+
+### Layout editor
+
+`blxshell lockscreen edit` (or **Edit layout** under Settings → Lock screen, or
+Login screen) opens the lock screen full screen with everything editable:
+
+- **Move** by dragging. Items snap to the centre lines, the margins and each
+  other; hold Shift to drag freely. Arrows nudge by a pixel, Shift+arrows by 10.
+- **Resize** with the corner handle, the scroll wheel, `+`/`-`, or the Size
+  slider. The side panel also sets opacity, centres the item, and moves it
+  in front of or behind the others.
+- **Grid** (`G`): a grid of square cells, 6 to 48 across (`[` and `]`). On it
+  items move, nudge and resize by whole cells, and the cells under the one
+  being dragged light up. Alt+arrows still nudge by a pixel.
+- **Add** (`A`): the clock, date, weather, status icons, hint, notifications,
+  media player, your picture and name, power buttons (login screen), text
+  (strftime codes work, in five colours), and plugins' `Lock…` views.
+  Delete hides an item; text and plugin items go.
+- **Sheet** (`P`) previews the screen with the password sheet up: items
+  shrink into the room above it, and glance-only ones fade.
+- Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S saves, Escape twice throws changes away.
+
+The toolbar switches between the lock screen and the login screen. The login
+screen uses the lock screen's layout until you save one of its own. Layouts are
+saved in `config.json` under `lock.layout` and `greeter.layout`. **Automatic
+layout** in settings goes back to the classic arrangement.
 
 ## GTK and Qt apps
 

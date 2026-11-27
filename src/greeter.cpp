@@ -79,29 +79,6 @@ Greeter& greeter() {
 
 // --- settings ---------------------------------------------------------------
 
-// greeter.wallpaper with ~ expanded against $HOME.
-std::string own_wallpaper() {
-  std::string path = config().greeter_wallpaper;
-  if (const char* home = std::getenv("HOME"); path.starts_with("~/") && home != nullptr) path = home + path.substr(1);
-  return path;
-}
-
-// The login screen's settings, or the lock screen's. Its own wallpaper only
-// when readable here: after an export it already is the theme's wallpaper.
-LockLook greeter_look() {
-  const Config& c = config();
-  LockLook look = c.greeter_match_lock
-                      ? lock_look()
-                      : LockLook{c.greeter_clock_format, c.greeter_date_format, c.greeter_clock_style,
-                                 c.greeter_clock_size, c.greeter_tint, c.greeter_blur_passes, c.greeter_blur_offset,
-                                 c.greeter_show_status, c.greeter_show_weather, {}};
-  const std::string wallpaper = own_wallpaper();
-  std::error_code error;
-  if (!wallpaper.empty() && fs::is_regular_file(wallpaper, error) && access(wallpaper.c_str(), R_OK) == 0)
-    look.wallpaper = wallpaper;
-  return look;
-}
-
 // --- choices --------------------------------------------------------------
 
 const greetd::User* chosen_user() {
@@ -445,6 +422,7 @@ void draw_greeter(vw::Ui& ui, float width, float height) {
   const float reveal = std::clamp(static_cast<float>(vw::animate("greeter.sheet", g.sheet ? 1 : 0, motion::bounce())), 0.0F, 1.0F);
   const float intro = std::clamp(static_cast<float>(vw::animate("greeter.intro", 1, {.duration = 0.9, .initial = 0, .easing = vw::Easing::out_expo})), 0.0F, 1.0F);
 
+  const std::vector<LockItem>* layout = lock_layout_for(true);
   // The lock screen itself: the login screen is the same page, so logging in
   // looks exactly like unlocking.
   draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .intro = intro,
@@ -452,8 +430,12 @@ void draw_greeter(vw::Ui& ui, float width, float height) {
                               : settings.greeter_show_hint ? settings.greeter_hint
                                                            : "",
                       .hint_glyph = "login", .session_widgets = false, .on_click = [] { open_sheet(); },
-                      .sheet_room = card_height + 28, .look = greeter_look()});
-  if (reveal < 0.99F && settings.greeter_show_power) draw_power(ui);
+                      .sheet_room = card_height + 28, .look = greeter_look(), .layout = layout, .greeter = true,
+                      .user_name = chosen_user() != nullptr ? display_name(*chosen_user()) : "",
+                      .user_picture = chosen_user() != nullptr ? avatar_for(*chosen_user()) : "",
+                      .avatar_shape = settings.greeter_avatar_shape});
+  // A custom layout places the power buttons itself.
+  if (reveal < 0.99F && settings.greeter_show_power && layout == nullptr) draw_power(ui);
 
   // A short decaying shake on a wrong password.
   const float since = std::chrono::duration<float>(Clock::now() - g.failed_at).count();
@@ -564,7 +546,7 @@ int export_theme(const fs::path& target, const fs::path& from, const std::string
   std::ifstream input(from / ".local/state/blxshell/wallpaper");
   std::string wallpaper;
   std::getline(input, wallpaper);
-  if (const std::string own = own_wallpaper(); !own.empty() && fs::is_regular_file(own, error)) wallpaper = own;
+  if (const std::string own = greeter_wallpaper_path(); !own.empty() && fs::is_regular_file(own, error)) wallpaper = own;
   if (!wallpaper.empty()) {
     // One copy at a time: drop the last wallpaper, whatever its extension.
     for (const auto& entry : fs::directory_iterator(target / ".local/state/blxshell", error))

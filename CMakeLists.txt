@@ -48,6 +48,7 @@ add_library(blxshell-core STATIC
   src/island.cpp
   src/launcher.cpp
   src/lock.cpp
+  src/lockeditor.cpp
   src/net.cpp
   src/notifications.cpp
   src/notify.cpp

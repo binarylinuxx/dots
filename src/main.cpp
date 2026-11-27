@@ -156,7 +156,8 @@ int main(int argc, char** argv) {
       .surface(blx::reserve_top)
       .surface(blx::reserve_right)
       .surface(blx::reserve_bottom)
-      .surface(blx::lock_surface);
+      .surface(blx::lock_surface)
+      .surface(blx::lock_editor_surface);
   blx::plugins::sync();
   blx::apptheme::apply();
   app.on_event(blx::plugins::event_fd(), counted("plugins", blx::plugins::drain));

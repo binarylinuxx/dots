@@ -1,5 +1,5 @@
 # blxshell completions for fish.
-set -l commands settings launcher powermenu sidebar wallpapers lock reload media ping popout dashboard osd \
+set -l commands settings launcher powermenu sidebar wallpapers lock lockscreen reload media ping popout dashboard osd \
     pack inspect install search update repo remove theme plugin
 set -l pages theme colours shape type apps bar sidebar panels power lock login desktop plugins about
 
@@ -21,6 +21,8 @@ complete -c blxshell -n "__fish_seen_subcommand_from sidebar" -a "both top botto
 complete -c blxshell -n "__fish_seen_subcommand_from media" -a "play-pause pause next previous"
 complete -c blxshell -n "__fish_seen_subcommand_from popout; and test (count (commandline -opc)) -eq 2" -a "wifi bluetooth audio battery"
 complete -c blxshell -n "__fish_seen_subcommand_from popout; and test (count (commandline -opc)) -eq 3" -a "toggle open close"
+complete -c blxshell -n "__fish_seen_subcommand_from lockscreen; and test (count (commandline -opc)) -eq 2" -a "lock edit"
+complete -c blxshell -n "__fish_seen_subcommand_from lockscreen; and test (count (commandline -opc)) -eq 3" -a "lock greeter"
 complete -c blxshell -n "__fish_seen_subcommand_from pack inspect" -F
 complete -c blxshell -n "__fish_seen_subcommand_from inspect" -a "(__blxshell_installed)"
 complete -c blxshell -n "__fish_seen_subcommand_from install" -F -a "(__blxshell_available)"

@@ -99,6 +99,12 @@ Reply run(std::vector<std::string> args) {
     open_wallpapers();
     return ok();
   }
+  if (command == "lockscreen" && arg == "edit") {
+    const std::string_view which = args.size() > 2 ? std::string_view(args[2]) : std::string_view("lock");
+    if (which != "lock" && which != "greeter" && which != "login") return error("lockscreen edit [lock|greeter]");
+    open_lock_editor(which != "lock");
+    return ok();
+  }
   if (command == "lock" || (command == "lockscreen" && (arg.empty() || arg == "lock"))) {
     lock_session();
     return ok();
@@ -185,6 +191,7 @@ const char* usage() {
          "  sidebar [both|top|bottom|corner]  bottom: along x; corner: out of the corner\n"
          "  wallpapers                        open the wallpaper picker\n"
          "  lock                              lock the session\n"
+         "  lockscreen edit [lock|greeter]    edit the lock or login screen's layout\n"
          "  reload                            re-read config and colours\n"
          "  media play-pause|pause|next|previous\n"
          "  ping                              ok when a shell is running\n"

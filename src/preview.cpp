@@ -5,6 +5,7 @@
 //   blxshell-preview lock           the page, as it looks when locked
 //   blxshell-preview lock --sheet   with the password sheet raised
 //   blxshell-preview waves          the wavy slider (drag it) and progress rings
+//   blxshell-preview editor [greeter]  the layout editor, without the shell
 //
 // The greeter previews itself: blxshell-greeter --layer [--sheet].
 #include <vw/vw.hpp>
@@ -20,6 +21,7 @@
 #include "draw.hpp"
 #include "lockpage.hpp"
 #include "net.hpp"
+#include "parts.hpp"
 #include "style.hpp"
 #include "widgets.hpp"
 
@@ -63,6 +65,19 @@ void draw_waves(vw::Ui& ui, float width, float height) {
 
 int main(int argc, char** argv) {
   bool sheet = false;
+  if (argc >= 2 && std::string_view(argv[1]) == "editor") {
+    blx::sync_style();
+    blx::open_lock_editor(argc >= 3 && std::string_view(argv[2]) == "greeter");
+    vw::App app;
+    app.surface([](vw::Ui& ui) {
+      if (!blx::lock_editor_open()) std::exit(EXIT_SUCCESS);
+      blx::lock_editor_surface(ui);
+    });
+    app.on_event(blx::colours_event_fd(), blx::reload_colours)
+        .on_event(blx::net::event_fd(), blx::net::drain_events)
+        .on_event(vw::mpris::event_fd(), vw::mpris::drain_events);
+    return app.run();
+  }
   const bool waves = argc == 2 && std::string_view(argv[1]) == "waves";
   bool known = waves || (argc >= 2 && std::string_view(argv[1]) == "lock");
   for (int index = 2; index < argc && !waves; ++index) {
@@ -70,7 +85,7 @@ int main(int argc, char** argv) {
     else known = false;
   }
   if (!known) {
-    std::cerr << "usage: blxshell-preview lock [--sheet] | waves\n";
+    std::cerr << "usage: blxshell-preview lock [--sheet] | waves | editor [greeter]\n";
     return EXIT_FAILURE;
   }
 

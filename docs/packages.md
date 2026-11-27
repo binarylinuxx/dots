@@ -301,7 +301,19 @@ Views named `Bar…` are bar modules, placed as `"<plugin id>:<view>"` in
 `bar.left`, `bar.center` or `bar.right` (or from **Settings → Plugins**). A
 view named `Settings` is the plugin's page in **Settings → Plugins**. A view
 named `Wallpaper` is drawn full-screen over the wallpaper, under the desktop
-icons and widgets; the first enabled plugin that has one wins.
+icons and widgets; the first enabled plugin that has one wins. Views named
+`Lock…` are lock screen widgets: the user adds them from the layout editor
+(`blxshell lockscreen edit`, **Add**), then moves and resizes them like the
+clock. They size themselves from `state.lock.scale`, and while locked they
+are shown only: clicks on them never reach the plugin. The login screen runs
+no plugins, so they never appear there.
+
+```facet
+view LockQuote(state, actions) {
+    ui.Text(text: actions.get("quote", "Stay curious"), font: state.fonts.display,
+            size: 24 * state.lock.scale, color: state.colours.tertiary)
+}
+```
 
 ```facet
 let [ vw.ui as ui, vw.layout as layout ] in
@@ -335,6 +347,7 @@ Every view gets `(state, actions)`:
 | `state.width` | Settings views only: the width they have |
 | `state.screen` | Wallpaper views only: `width`, `height` |
 | `state.workspace` | Wallpaper views only: `index` (from 0) and `count` |
+| `state.lock` | Lock views only: `scale` (draw at it), `editing` (in the layout editor), `greeter`, `sheet` (0 down to 1 up) |
 | `actions.get(key, fallback)` | a stored value, or the fallback |
 | `actions.set(key, value)` | store a value |
 | `actions.send(value)` | to its process, as `{"type": "action", "data": value}` |

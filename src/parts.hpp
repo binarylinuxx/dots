@@ -45,6 +45,10 @@ void open_wallpapers();
 // The lock screen: drawn over everything, once per output, while locked.
 void lock_session();
 void lock_surface(vw::Ui& ui);
+// The lock and login screen layout editor (lockeditor.cpp).
+void open_lock_editor(bool greeter);
+bool lock_editor_open();
+void lock_editor_surface(vw::Ui& ui);
 
 // Top-centre dashboard, opened by hovering the top frame edge.
 Panel dashboard_panel(const Screen& screen);

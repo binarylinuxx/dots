@@ -15,6 +15,9 @@ export extern "blxshell media" [action: string@"nu-complete blxshell media"]
 def "nu-complete blxshell media" [] { [play-pause pause next previous] }
 export extern "blxshell popout" [name: string@"nu-complete blxshell popouts", action?: string@"nu-complete blxshell actions"]
 def "nu-complete blxshell popouts" [] { [wifi bluetooth audio battery] }
+export extern "blxshell lockscreen" [action?: string@"nu-complete blxshell lockscreen", which?: string@"nu-complete blxshell lockscreen targets"]
+def "nu-complete blxshell lockscreen" [] { [lock edit] }
+def "nu-complete blxshell lockscreen targets" [] { [lock greeter] }
 export extern "blxshell install" [package: string@"nu-complete blxshell available", --force]
 export extern "blxshell inspect" [package: string@"nu-complete blxshell installed"]
 export extern "blxshell update" [...packages: string@"nu-complete blxshell installed"]

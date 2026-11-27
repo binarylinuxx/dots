@@ -1189,7 +1189,17 @@ bool has_view(const std::string& bar_id) {
   return std::ranges::find(names, view) != names.end();
 }
 
-std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id) {
+std::vector<std::string> lock_views() {
+  std::vector<std::string> ids;
+  for (const auto& [id, process] : running())
+    for (const std::string& view : view_names(*process))
+      if (view.starts_with("Lock")) ids.push_back(id + ":" + view);
+  return ids;
+}
+
+std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id) { return draw_view(ui, bar_id, json::object()); }
+
+std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id, const json& extra) {
   const auto [plugin, view] = split(bar_id);
   Process* process = find_running(plugin);
   if (process == nullptr) return std::nullopt;
@@ -1210,7 +1220,7 @@ std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id) {
         }
       }
       try {
-        const facet::Value arguments[] = {state_for(*process), actions_for(plugin)};
+        const facet::Value arguments[] = {state_for(*process, extra), actions_for(plugin)};
         return process->views->view(ui, view, arguments);
       } catch (const std::exception& error) {
         return failed(error);

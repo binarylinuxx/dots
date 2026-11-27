@@ -6,7 +6,7 @@ _blxshell() {
   local -a commands
   commands=(
     'settings:open the settings app' 'launcher:the app launcher' 'powermenu:the power menu'
-    'sidebar:the sidebar' 'wallpapers:the wallpaper picker' 'lock:lock the session'
+    'sidebar:the sidebar' 'wallpapers:the wallpaper picker' 'lock:lock the session' 'lockscreen:lock, or edit the lock screen layout'
     'reload:re-read config and colours' 'media:control the player' 'ping:check the shell runs'
     'popout:a bar popout' 'dashboard:the dashboard' 'osd:the volume slider'
     'pack:make a package' 'inspect:show and check a package' 'install:install a package'
@@ -23,6 +23,8 @@ _blxshell() {
     sidebar:3) compadd both top bottom corner ;;
     media:3) compadd play-pause pause next previous ;;
     popout:3) compadd wifi bluetooth audio battery ;;
+    lockscreen:3) compadd lock edit ;;
+    lockscreen:4) compadd lock greeter ;;
     repo:3) compadd list add remove ;;
     theme:3) compadd list apply reset ;;
     theme:4) [[ ${words[3]} == apply ]] && { compadd -- $(_blxshell_ids theme) --force; _files -g '*.blx' } ;;

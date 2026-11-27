@@ -376,6 +376,13 @@ const std::vector<Page>& pages() {
         toggle("Weather", "", &Config::lock_show_weather),
         toggle("Notification icons", "Icons only, never their text", &Config::lock_show_notifications),
         toggle("Media player", "Play and skip without unlocking", &Config::lock_show_media),
+        header("Layout"),
+        action("Edit layout", "Move and resize everything, add text and plugin widgets", "dashboard_customize",
+               [] { vw::spawn({self_path(), "lockscreen", "edit"}); }),
+        action("Automatic layout", "Forget the edited layout", "restart_alt", [] {
+          config().lock_layout_custom = false;
+          commit(true);
+        }),
         header("Try it"),
         action("Lock now", "Also: blxshell lock", "lock", [] { vw::spawn({self_path(), "lock"}); }),
     }});
@@ -401,6 +408,13 @@ const std::vector<Page>& pages() {
         text("Hint text", "Under the clock before the sheet rises", &Config::greeter_hint),
         slider("Lower the sheet after", &Config::greeter_idle_seconds, 10, 300, 5, " s"),
         toggle("Remember last user and session", "", &Config::greeter_remember),
+        header("Layout"),
+        action("Edit layout", "Move and resize everything, add text", "dashboard_customize",
+               [] { vw::spawn({self_path(), "lockscreen", "edit", "greeter"}); }),
+        action("Automatic layout", "Forget the edited layout (the lock screen's, when the same)", "restart_alt", [] {
+          config().greeter_layout_custom = false;
+          commit(true);
+        }),
         header("Apply"),
         action("Preview", "The login screen in a window, with these settings", "visibility", [] {
           vw::spawn({"sh", "-c", "BLXSHELL_GREETER_DIR=\"$HOME\" exec \"$(dirname \"$1\")/blxshell-greeter\"", "sh", self_path()});

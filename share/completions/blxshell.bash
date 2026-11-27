@@ -4,13 +4,15 @@ _blxshell() {
     local ids
     _blxshell_ids() { blxshell "$1" list 2>/dev/null | awk '{print $1}'; }
     if (( COMP_CWORD == 1 )); then
-        COMPREPLY=($(compgen -W "settings launcher powermenu sidebar wallpapers lock reload media ping popout dashboard osd pack inspect install search update repo remove theme plugin" -- "$cur"))
+        COMPREPLY=($(compgen -W "settings launcher powermenu sidebar wallpapers lock lockscreen reload media ping popout dashboard osd pack inspect install search update repo remove theme plugin" -- "$cur"))
         return
     fi
     case "$first:$COMP_CWORD" in
         settings:2) ids="theme colours shape type apps bar sidebar panels power lock login desktop plugins about" ;;
         launcher:2|powermenu:2|dashboard:2|popout:3) ids="toggle open close" ;;
         sidebar:2) ids="both top bottom corner" ;;
+        lockscreen:2) ids="lock edit" ;;
+        lockscreen:3) ids="lock greeter" ;;
         media:2) ids="play-pause pause next previous" ;;
         popout:2) ids="wifi bluetooth audio battery" ;;
         repo:2) ids="list add remove" ;;

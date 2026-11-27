@@ -20,7 +20,8 @@
 // Views named Bar… are bar modules, "<plugin id>:<view>"; a view named
 // Settings is the plugin's page in the settings app; a view named Wallpaper
 // is drawn full-screen over the wallpaper (the first enabled plugin's wins),
-// under the desktop icons and widgets.
+// under the desktop icons and widgets. Views named Lock… are lock screen
+// widgets the user places with the layout editor (`blxshell lockscreen edit`).
 //
 // Every plugin has one store, a JSON object kept in
 // ~/.local/state/blxshell/plugins/<id>.json: its settings and whatever else it
@@ -114,8 +115,14 @@ bool is_plugin_module(const std::string& bar_id);
 std::vector<std::string> bar_views();
 bool has_view(const std::string& bar_id);
 // Draws a running plugin's view; nullopt when it isn't running or the view
-// failed (the error is logged).
+// failed (the error is logged). `extra` adds fields to its state.
 std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id);
+std::optional<vw::Widget> draw_view(vw::Ui& ui, const std::string& bar_id, const nlohmann::json& extra);
+// Lock screen widgets: views named Lock…, as "<plugin id>:<view>". They get
+// state.lock = {scale, editing, greeter, sheet}: draw at `scale` (the user
+// resizes them in the layout editor). On the lock screen they are shown
+// only, never clicked: a locked session takes no orders from a plugin.
+std::vector<std::string> lock_views();
 
 // The first running plugin's Wallpaper view, full-screen at (0, 0); false
 // when no plugin has one (or it failed).

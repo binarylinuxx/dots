@@ -7,8 +7,13 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <optional>
+
+#include <unistd.h>
+
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 
@@ -18,6 +23,7 @@
 #include "draw.hpp"
 #include "lockpage.hpp"
 #include "notify.hpp"
+#include "plugins.hpp"
 #include "parts.hpp"
 #include "services.hpp"
 #include "shapes.hpp"
@@ -65,19 +71,24 @@ float blend(float from, float to, float t) { return from + (to - from) * t; }
 
 constexpr float pill_height = 44;
 
-draw::TextStyle pill_text() {
-  return {.size = 15, .color = colours().text, .weight = vw::weight::medium, .family = font::utility};
+struct Size {
+  float w = 0;
+  float h = 0;
+};
+
+draw::TextStyle pill_text(float k = 1, float alpha = 1) {
+  return {.size = 15 * k, .color = with_alpha(colours().text, alpha), .weight = vw::weight::medium, .family = font::utility};
 }
 
-// The status icons, top right, in one pill.
-void draw_status(vw::Ui& ui, float right, float fade) {
-  if (fade <= 0.01F) return;
-  const Colours& c = colours();
-  struct Item {
-    std::string glyph;
-    std::string label;
-  };
-  std::vector<Item> items;
+// --- Status icons --------------------------------------------------------------
+
+struct StatusItem {
+  std::string glyph;
+  std::string label;
+};
+
+std::vector<StatusItem> status_items() {
+  std::vector<StatusItem> items;
   const auto network = net::status();
   const bool wired = network.primary == vw::network::Kind::wired;
   items.push_back({wired ? "lan" : network.wifi_enabled ? "wifi" : "wifi_off", ""});
@@ -86,72 +97,139 @@ void draw_status(vw::Ui& ui, float right, float fade) {
     const char* glyph = battery->percentage < 20 ? "battery_alert" : battery->percentage < 60 ? "battery_4_bar" : "battery_full";
     items.push_back({glyph, std::format("{}%", std::lround(battery->percentage))});
   }
-  constexpr float icon = 20;
-  constexpr float gap = 14;
-  constexpr float pill = 40;
-  float width = 32 + gap * static_cast<float>(items.size() - 1);
-  for (const Item& item : items)
-    width += icon + (item.label.empty() ? 0 : 6 + draw::measure(item.label, 14, vw::weight::medium, font::utility));
-  constexpr float y = 22;
-  float x = right - width;
-  draw::rect(ui, x, y, width, pill, pill / 2, with_alpha(c.surface_container_high, 0.72F * fade));
-  x += 16;
-  for (const Item& item : items) {
-    draw::glyph(ui, item.glyph, x + icon / 2, y + pill / 2, icon, with_alpha(c.text, fade));
-    x += icon;
+  return items;
+}
+
+Size status_size(const std::vector<StatusItem>& items, float k) {
+  float width = (32 + 14 * static_cast<float>(items.size() - 1)) * k;
+  for (const StatusItem& item : items)
+    width += 20 * k + (item.label.empty() ? 0 : 6 * k + draw::measure(item.label, 14 * k, vw::weight::medium, font::utility));
+  return {width, 40 * k};
+}
+
+void draw_status_at(vw::Ui& ui, float x, float y, float k, float fade) {
+  if (fade <= 0.01F) return;
+  const Colours& c = colours();
+  const auto items = status_items();
+  const Size size = status_size(items, k);
+  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, 0.72F * fade));
+  x += 16 * k;
+  for (const StatusItem& item : items) {
+    draw::glyph(ui, item.glyph, x + 10 * k, y + size.h / 2, 20 * k, with_alpha(c.text, fade));
+    x += 20 * k;
     if (!item.label.empty()) {
-      x += 6;
-      draw::text_middle(ui, item.label, x, y + pill / 2,
-                        {.size = 14, .color = with_alpha(c.text, fade), .weight = vw::weight::medium, .family = font::utility});
-      x += draw::measure(item.label, 14, vw::weight::medium, font::utility);
+      x += 6 * k;
+      draw::text_middle(ui, item.label, x, y + size.h / 2,
+                        {.size = 14 * k, .color = with_alpha(c.text, fade), .weight = vw::weight::medium, .family = font::utility});
+      x += draw::measure(item.label, 14 * k, vw::weight::medium, font::utility);
     }
-    x += gap;
+    x += 14 * k;
+  }
+}
+
+// The status icons, top right, in one pill.
+void draw_status(vw::Ui& ui, float right, float fade) {
+  draw_status_at(ui, right - status_size(status_items(), 1).w, 22, 1, fade);
+}
+
+// --- Date and weather ------------------------------------------------------------
+
+Size date_size(const std::string& date, const std::optional<weather::Report>& now, float k) {
+  float width = 40 * k + draw::measure(date, 15 * k, vw::weight::medium, font::utility);
+  if (now) width += 44 * k + draw::measure(now->temperature, 15 * k, vw::weight::medium, font::utility);
+  return {width, pill_height * k};
+}
+
+void draw_date_at(vw::Ui& ui, float x, float y, const std::string& date, const std::optional<weather::Report>& now,
+                  float k, float alpha) {
+  const Colours& c = colours();
+  const Size size = date_size(date, now, k);
+  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, 0.78F * alpha));
+  x += 20 * k;
+  draw::text_middle(ui, date, x, y + size.h / 2, pill_text(k, alpha));
+  x += draw::measure(date, 15 * k, vw::weight::medium, font::utility);
+  if (now) {
+    x += 20 * k;
+    draw::glyph(ui, now->glyph, x + 10 * k, y + size.h / 2, 20 * k, with_alpha(c.primary, alpha));
+    x += 24 * k;
+    draw::text_middle(ui, now->temperature, x, y + size.h / 2, pill_text(k, alpha));
   }
 }
 
 // Date and weather in one pill.
 void draw_date_pill(vw::Ui& ui, float centre, float y, const std::string& date, const std::optional<weather::Report>& now) {
+  draw_date_at(ui, centre - date_size(date, now, 1).w / 2, y, date, now, 1, 1);
+}
+
+// Weather on its own: the glyph and the temperature.
+Size weather_size(const weather::Report& now, float k) {
+  return {60 * k + draw::measure(now.temperature, 15 * k, vw::weight::medium, font::utility), pill_height * k};
+}
+
+void draw_weather_at(vw::Ui& ui, float x, float y, const weather::Report& now, float k, float alpha) {
   const Colours& c = colours();
-  float width = 40 + draw::measure(date, 15, vw::weight::medium, font::utility);
-  if (now) width += 20 + 24 + draw::measure(now->temperature, 15, vw::weight::medium, font::utility);
-  float x = centre - width / 2;
-  draw::rect(ui, x, y, width, pill_height, pill_height / 2, with_alpha(c.surface_container_high, 0.78F));
-  x += 20;
-  draw::text_middle(ui, date, x, y + pill_height / 2, pill_text());
-  x += draw::measure(date, 15, vw::weight::medium, font::utility);
-  if (now) {
-    x += 20;
-    draw::glyph(ui, now->glyph, x + 10, y + pill_height / 2, 20, c.primary);
-    x += 24;
-    draw::text_middle(ui, now->temperature, x, y + pill_height / 2, pill_text());
-  }
+  const Size size = weather_size(now, k);
+  draw::rect(ui, x, y, size.w, size.h, size.h / 2, with_alpha(c.surface_container_high, 0.78F * alpha));
+  draw::glyph(ui, now.glyph, x + 30 * k, y + size.h / 2, 22 * k, with_alpha(c.primary, alpha));
+  draw::text_middle(ui, now.temperature, x + 46 * k, y + size.h / 2, pill_text(k, alpha));
+}
+
+// --- Notifications ------------------------------------------------------------------
+
+constexpr std::size_t notifications_shown = 7;
+
+// How many discs: the icons shown, and a "+n" one past them. `sample`
+// stands in for an empty history in the editor.
+std::size_t notification_discs(bool sample) {
+  const std::size_t count = notify::history().size();
+  if (count == 0) return sample ? 3 : 0;
+  return std::min(count, notifications_shown) + (count > notifications_shown ? 1 : 0);
+}
+
+Size notifications_size(float k, bool sample) {
+  const auto count = static_cast<float>(notification_discs(sample));
+  if (count == 0) return {};
+  return {(count * 40 + (count - 1) * 8) * k, 40 * k};
 }
 
 // Notifications as icons only: what arrived, never what it says.
-float draw_notifications(vw::Ui& ui, float centre, float y) {
+void draw_notifications_at(vw::Ui& ui, float x, float y, float k, float alpha, bool sample) {
   const Colours& c = colours();
   const auto groups = notify::history();
-  if (groups.empty()) return y;
-  constexpr float disc = 40;
-  constexpr std::size_t shown_most = 7;
-  const std::size_t shown = std::min(groups.size(), shown_most);
-  const bool more = groups.size() > shown;
-  const float count = static_cast<float>(shown) + (more ? 1 : 0);
-  float x = centre - (count * disc + (count - 1) * 8) / 2;
+  const float disc = 40 * k;
+  if (groups.empty()) {
+    if (!sample) return;
+    for (int index = 0; index < 3; ++index) {
+      draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, 0.85F * alpha));
+      draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20 * k, with_alpha(c.primary, alpha));
+      x += disc + 8 * k;
+    }
+    return;
+  }
+  const std::size_t shown = std::min(groups.size(), notifications_shown);
   for (std::size_t index = 0; index < shown; ++index) {
-    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, 0.85F));
-    if (!draw::icon(ui, groups[index].entries.front().icon, "", x + 9, y + 9, 22))
-      draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20, c.primary);
-    x += disc + 8;
+    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.surface_container_high, 0.85F * alpha));
+    if (!draw::icon(ui, groups[index].entries.front().icon, "", x + 9 * k, y + 9 * k, 22 * k))
+      draw::glyph(ui, "notifications", x + disc / 2, y + disc / 2, 20 * k, with_alpha(c.primary, alpha));
+    x += disc + 8 * k;
   }
-  if (more) {
-    draw::rect(ui, x, y, disc, disc, disc / 2, c.primary);
+  if (groups.size() > shown) {
+    draw::rect(ui, x, y, disc, disc, disc / 2, with_alpha(c.primary, alpha));
     draw::text_centered(ui, std::format("+{}", groups.size() - shown), x + disc / 2, y + disc / 2,
-                        {.size = 13, .color = c.primary_text, .weight = vw::weight::bold, .family = font::utility});
+                        {.size = 13 * k, .color = with_alpha(c.primary_text, alpha), .weight = vw::weight::bold, .family = font::utility});
   }
-  return y + disc;
 }
 
+float draw_notifications(vw::Ui& ui, float centre, float y) {
+  const Size size = notifications_size(1, false);
+  if (size.w <= 0) return y;
+  draw_notifications_at(ui, centre - size.w / 2, y, 1, 1, false);
+  return y + size.h;
+}
+
+// --- Media ----------------------------------------------------------------------------
+
+constexpr float media_width = 480;
 constexpr float media_height = 104;
 
 bool has_media() {
@@ -160,46 +238,275 @@ bool has_media() {
 }
 
 // Now playing: art, title and artist, skip, and a play button that morphs.
-void draw_media(vw::Ui& ui, float centre, float y) {
+// `sample` draws an empty card when nothing plays (the editor).
+void draw_media_at(vw::Ui& ui, float x, float y, float k, float alpha, bool sample) {
   const auto player = vw::mpris::active();
-  if (!player || player->title.empty()) return;
+  const bool live = player && !player->title.empty();
+  if (!live && !sample) return;
   const Colours& c = colours();
-  constexpr float width = 480;
-  constexpr float height = media_height;
-  constexpr float padding = 14;
-  const float x = centre - width / 2;
-  const bool playing = player->playback_status == "Playing";
-  draw::rect(ui, x, y, width, height, 36, with_alpha(c.surface_container_high, 0.9F));
-  constexpr float art_size = height - padding * 2;
+  const float width = media_width * k;
+  const float height = media_height * k;
+  const float padding = 14 * k;
+  draw::rect(ui, x, y, width, height, 36 * k, with_alpha(c.surface_container_high, 0.9F * alpha));
+  const float art_size = height - padding * 2;
   // The placeholder only without art: under it, its soft corners would show
   // through the art's anti-aliased ones as a light rim.
-  if (!draw::art(ui, art::path(player->art_url), x + padding, y + padding, art_size, 24)) {
-    draw::rect(ui, x + padding, y + padding, art_size, art_size, 24, c.primary_container);
-    draw::glyph(ui, "music_note", x + padding + art_size / 2, y + height / 2, 32, c.primary);
+  if (!live || !draw::art(ui, art::path(player->art_url), x + padding, y + padding, art_size, 24 * k)) {
+    draw::rect(ui, x + padding, y + padding, art_size, art_size, 24 * k, with_alpha(c.primary_container, alpha));
+    draw::glyph(ui, "music_note", x + padding + art_size / 2, y + height / 2, 32 * k, with_alpha(c.primary, alpha));
   }
-  constexpr float play_size = 56;
-  const float play_x = x + width - padding - 4 - play_size;
+  const bool playing = live && player->playback_status == "Playing";
+  const float play_size = 56 * k;
+  const float play_x = x + width - padding - 4 * k - play_size;
   const float play_y = y + (height - play_size) / 2;
-  constexpr float skip = 40;
-  const float skip_x = play_x - 10 - skip;
+  const float skip = 40 * k;
+  const float skip_x = play_x - 10 * k - skip;
   const float skip_y = y + (height - skip) / 2;
-  const float text_x = x + padding + art_size + 16;
-  const float text_width = skip_x - 12 - text_x;
-  draw::text(ui, player->title, text_x, y + 30,
-             {.size = 16, .color = c.text, .weight = vw::weight::semibold, .family = font::display, .max_width = text_width});
-  draw::text(ui, player->artist.empty() ? player->name : player->artist, text_x, y + 56,
-             {.size = 13, .color = c.text_muted, .family = font::display, .max_width = text_width});
-  draw::glyph(ui, "skip_next", skip_x + skip / 2, y + height / 2, 22, player->can_go_next ? c.text : c.outline_variant);
-  if (player->can_go_next)
+  const float text_x = x + padding + art_size + 16 * k;
+  const float text_width = skip_x - 12 * k - text_x;
+  draw::text(ui, live ? player->title : "Nothing playing", text_x, y + 30 * k,
+             {.size = 16 * k, .color = with_alpha(c.text, alpha), .weight = vw::weight::semibold, .family = font::display,
+              .max_width = text_width});
+  draw::text(ui, !live ? "Media player" : player->artist.empty() ? player->name : player->artist, text_x, y + 56 * k,
+             {.size = 13 * k, .color = with_alpha(c.text_muted, alpha), .family = font::display, .max_width = text_width});
+  const bool can_skip = live && player->can_go_next;
+  draw::glyph(ui, "skip_next", skip_x + skip / 2, y + height / 2, 22 * k, with_alpha(can_skip ? c.text : c.outline_variant, alpha));
+  if (can_skip && !sample)
     draw::state_layer(ui, skip_x, skip_y, skip, skip, skip / 2, c.text,
                       {.on_click = [](const vw::ClickEvent&) { vw::mpris::next(); }});
   // Playing: a squircle; paused: a circle, as Android's media controls do.
-  const float radius = std::max(0.0F, static_cast<float>(vw::animate("lock.play", playing ? 18 : play_size / 2,
-                                                                     {.duration = 0.35, .easing = vw::Easing::out_back})));
-  draw::rect(ui, play_x, play_y, play_size, play_size, radius, c.primary);
-  draw::glyph(ui, playing ? "pause" : "play_arrow", play_x + play_size / 2, play_y + play_size / 2, 28, c.primary_text);
-  draw::state_layer(ui, play_x, play_y, play_size, play_size, radius, c.primary_text,
-                    {.on_click = [](const vw::ClickEvent&) { vw::mpris::play_pause(); }});
+  const float radius = std::max(0.0F, static_cast<float>(vw::animate("lock.play", playing ? 18 : 28,
+                                                                     {.duration = 0.35, .easing = vw::Easing::out_back}))) * k;
+  draw::rect(ui, play_x, play_y, play_size, play_size, radius, with_alpha(c.primary, alpha));
+  draw::glyph(ui, playing ? "pause" : "play_arrow", play_x + play_size / 2, play_y + play_size / 2, 28 * k,
+              with_alpha(c.primary_text, alpha));
+  if (live && !sample)
+    draw::state_layer(ui, play_x, play_y, play_size, play_size, radius, c.primary_text,
+                      {.on_click = [](const vw::ClickEvent&) { vw::mpris::play_pause(); }});
+}
+
+void draw_media(vw::Ui& ui, float centre, float y) { draw_media_at(ui, centre - media_width / 2, y, 1, 1, false); }
+
+// --- The clock, the hint, and the rest of the layout's items ---------------------
+
+struct ClockText {
+  std::string time;
+  std::size_t colon = std::string::npos;
+  bool stacked = false;
+  float size = 0;
+  float line = 0;
+};
+
+ClockText clock_text(const LockLook& look, float k) {
+  ClockText clock;
+  clock.time = system::format_time(look.clock_format);
+  clock.colon = clock.time.find(':');
+  clock.stacked = look.clock_style == "stacked" && clock.colon != std::string::npos;
+  clock.size = static_cast<float>(std::clamp(look.clock_size, 48, 260)) * (clock.stacked ? 1.6F : 1.0F) * k;
+  clock.line = clock.size * 0.86F;
+  return clock;
+}
+
+Size clock_size(const ClockText& clock) {
+  const auto width = [&](const std::string& text) { return draw::measure(text, clock.size, vw::weight::black, font::display); };
+  if (clock.stacked)
+    return {std::max(width(clock.time.substr(0, clock.colon)), width(clock.time.substr(clock.colon + 1))), clock.line * 2};
+  return {width(clock.time), clock.line};
+}
+
+void draw_clock_at(vw::Ui& ui, const ClockText& clock, float centre, float y, float alpha) {
+  const Colours& c = colours();
+  const draw::TextStyle top{.size = clock.size, .color = with_alpha(c.primary, alpha), .weight = vw::weight::black,
+                            .family = font::display};
+  if (clock.stacked) {
+    draw::TextStyle bottom = top;
+    bottom.color = with_alpha(mix(c.primary, c.tertiary, 0.7F), alpha);
+    draw::text_centered(ui, clock.time.substr(0, clock.colon), centre, y + clock.line / 2, top);
+    draw::text_centered(ui, clock.time.substr(clock.colon + 1), centre, y + clock.line * 1.5F, bottom);
+  } else {
+    draw::text_centered(ui, clock.time, centre, y + clock.line / 2, top);
+  }
+}
+
+Size hint_size(const std::string& hint, float k) {
+  return {std::max(52 * k, draw::measure(hint, 14 * k, vw::weight::medium, font::utility)), 52 * k + 34 * k};
+}
+
+// The way in: a cookie with a glyph, and the words under it.
+void draw_hint_at(vw::Ui& ui, float centre, float y, const std::string& glyph, const std::string& hint, float k, float alpha) {
+  const Colours& c = colours();
+  const float disc = 52 * k;
+  shapes::draw(ui, "lock.hint", "cookie9sided", centre - disc / 2, y, disc, with_alpha(c.primary_container, 0.95F * alpha));
+  draw::glyph(ui, glyph, centre, y + disc / 2, 24 * k, with_alpha(c.primary, alpha));
+  draw::text_centered(ui, hint, centre, y + disc + 24 * k,
+                      {.size = 14 * k, .color = with_alpha(c.text_muted, alpha), .weight = vw::weight::medium, .family = font::utility});
+}
+
+vw::Color role_colour(const std::string& role) {
+  const Colours& c = colours();
+  if (role == "primary") return c.primary;
+  if (role == "secondary") return c.secondary;
+  if (role == "tertiary") return c.tertiary;
+  if (role == "muted") return c.text_muted;
+  return c.text;
+}
+
+draw::TextStyle text_item_style(const LockItem& item, float k, float alpha) {
+  return {.size = 28 * k, .color = with_alpha(role_colour(item.colour), alpha), .weight = vw::weight::semibold,
+          .family = font::display};
+}
+
+// Power off and restart, for the login screen.
+struct PowerChip {
+  const char* glyph;
+  const char* label;
+  const char* command;
+};
+constexpr PowerChip power_chips[] = {{"power_settings_new", "Power off", "poweroff"}, {"restart_alt", "Restart", "reboot"}};
+
+float power_chip_width(const PowerChip& chip, float k) {
+  return draw::measure(chip.label, 15 * k, vw::weight::medium, font::utility) + 58 * k;
+}
+
+Size power_size(float k) {
+  return {power_chip_width(power_chips[0], k) + 8 * k + power_chip_width(power_chips[1], k), 40 * k};
+}
+
+void draw_power_at(vw::Ui& ui, float x, float y, float k, float alpha, bool live) {
+  const Colours& c = colours();
+  const float height = 40 * k;
+  for (const PowerChip& chip : power_chips) {
+    const float width = power_chip_width(chip, k);
+    draw::rect(ui, x, y, width, height, height / 2, with_alpha(c.surface_container_high, 0.9F * alpha));
+    draw::glyph(ui, chip.glyph, x + 26 * k, y + height / 2, 20 * k, with_alpha(c.primary, alpha));
+    draw::text_middle(ui, chip.label, x + 42 * k, y + height / 2, pill_text(k, alpha));
+    if (live)
+      draw::state_layer(ui, x, y, width, height, height / 2, c.text,
+                        {.on_click = [command = chip.command](const vw::ClickEvent&) { vw::spawn({"systemctl", command}); }});
+    x += width + 8 * k;
+  }
+}
+
+std::string plugin_of(const std::string& id) { return id.starts_with("plugin:") ? id.substr(7) : std::string(); }
+
+nlohmann::json plugin_state(float k, const LockPage& page) {
+  return {{"lock", {{"scale", k}, {"editing", page.editing}, {"greeter", page.greeter}, {"sheet", page.reveal}}}};
+}
+
+Size plugin_size(const std::string& view, const nlohmann::json& extra) {
+  vw::Scene scene;
+  vw::Ui scratch(scene);
+  const auto measured = plugins::draw_view(scratch, view, extra);
+  if (!measured) return {};
+  return {measured->width, measured->height};
+}
+
+void draw_plugin_at(vw::Ui& ui, const std::string& view, const nlohmann::json& extra, float x, float y) {
+  const vw::Widget first = ui.hit_area({.width = 1, .height = 1});
+  const auto drawn = plugins::draw_view(ui, view, extra);
+  const vw::Widget last = ui.hit_area({.width = 1, .height = 1});
+  if (!drawn) return;
+  ui.row({vw::Widget{first.begin, last.end, drawn->width, drawn->height}}, {.place = {.x = x, .y = y}});
+}
+
+// A custom layout: every visible item where the user put it. With the
+// sheet up they shrink into the room above it, and what only matters at a
+// glance (status, hint, media, notifications, power) fades away.
+void draw_layout(vw::Ui& ui, const LockPage& page, const LockLook& look, const std::string& date,
+                 const std::optional<weather::Report>& weather) {
+  const Colours& c = colours();
+  const float width = page.width;
+  const float height = page.height;
+  const float reveal = page.reveal;
+  const float room = page.sheet_room > 0 ? page.sheet_room : lock_sheet_height;
+  const std::vector<LockItem>& items = *page.layout;
+  for (std::size_t index = 0; index < items.size(); ++index) {
+    const LockItem& item = items[index];
+    if (!item.visible || !lock_item_allowed(item.id, page.greeter)) continue;
+    const std::string& id = item.id;
+    const bool session = id == "notifications" || id == "media";
+    if (session && !page.session_widgets && !page.editing) continue;
+    const bool glance = session || id == "status" || id == "hint" || id == "power";
+    if ((session && reveal >= 0.2F) || (id == "hint" && reveal >= 0.6F) || (id == "power" && reveal > 0.99F)) continue;
+    float alpha = std::clamp(item.opacity, 0.05F, 1.0F) * (glance ? 1 - reveal : 1.0F);
+    const float k = std::clamp(item.scale, 0.2F, 5.0F) * blend(1, glance ? 1.0F : id == "clock" ? 0.55F : 0.75F, reveal);
+
+    // What it is, and how big at this scale.
+    std::optional<ClockText> clock;
+    std::string text;
+    nlohmann::json extra;
+    const std::string view = plugin_of(id);
+    Size size;
+    bool placeholder = false;
+    if (id == "clock") size = clock_size(*(clock = clock_text(look, k)));
+    else if (id == "date") size = date_size(date, weather, k);
+    else if (id == "weather") size = weather ? weather_size(*weather, k) : Size{};
+    else if (id == "status") size = status_size(status_items(), k);
+    else if (id == "hint") size = page.hint.empty() ? Size{} : hint_size(page.hint, k);
+    else if (id == "notifications") size = notifications_size(k, page.editing);
+    else if (id == "media") size = (has_media() || page.editing) ? Size{media_width * k, media_height * k} : Size{};
+    else if (id == "user") size = {std::max(96 * k, draw::measure(page.user_name, 22 * k, vw::weight::semibold, font::display)), 140 * k};
+    else if (id == "power") size = power_size(k);
+    else if (id.starts_with("text:")) {
+      text = system::format_time(item.text.empty() ? std::string(" ") : item.text);
+      const auto style = text_item_style(item, k, alpha);
+      size = {draw::measure(text, style.size, style.weight, style.family), style.size * 1.3F};
+    } else if (!view.empty()) {
+      extra = plugin_state(k, page);
+      size = plugin_size(view, extra);
+    }
+    if (size.w < 1 || size.h < 1) {
+      if (!page.editing) continue;
+      placeholder = true;
+      size = {200 * k, 56 * k};
+    }
+
+    // The anchor point moves into the room above the sheet as it rises.
+    const float anchor_x = item.x * width;
+    const float anchor_y = blend(item.y * height, item.y * (height - room), reveal) - (1 - page.intro) * 96;
+    const float x = std::clamp(anchor_x - item.ax * size.w, 0.0F, std::max(0.0F, width - size.w));
+    const float y = std::clamp(anchor_y - item.ay * size.h, 0.0F, std::max(0.0F, height - size.h));
+
+    if (placeholder) {
+      draw::rect(ui, x, y, size.w, size.h, 18 * k, with_alpha(c.surface_container_high, 0.7F));
+      const char* what = id == "weather" ? "Weather (none yet)" : id == "hint" ? "Hint (no text)" :
+                         !view.empty() ? "Plugin not running" : "Nothing to show";
+      draw::glyph(ui, view.empty() ? "visibility" : "extension", x + 28 * k, y + size.h / 2, 20 * k, c.text_muted);
+      draw::text_middle(ui, what, x + 48 * k, y + size.h / 2,
+                        {.size = 13 * k, .color = c.text_muted, .weight = vw::weight::medium, .family = font::utility});
+    } else if (clock) {
+      draw_clock_at(ui, *clock, x + size.w / 2, y, alpha);
+    } else if (id == "date") {
+      draw_date_at(ui, x, y, date, weather, k, alpha);
+    } else if (id == "weather") {
+      draw_weather_at(ui, x, y, *weather, k, alpha);
+    } else if (id == "status") {
+      draw_status_at(ui, x, y, k, alpha);
+    } else if (id == "hint") {
+      draw_hint_at(ui, x + size.w / 2, y, page.hint_glyph, page.hint, k, alpha);
+    } else if (id == "notifications") {
+      draw_notifications_at(ui, x, y, k, alpha, page.editing);
+    } else if (id == "media") {
+      draw_media_at(ui, x, y, k, alpha, page.editing);
+    } else if (id == "user") {
+      draw_avatar(ui, std::format("lock.user.{}", index), page.user_picture, x + size.w / 2, y, 96 * k, page.avatar_shape);
+      draw::text_centered(ui, page.user_name, x + size.w / 2, y + 96 * k + 26 * k,
+                          {.size = 22 * k, .color = with_alpha(c.text, alpha), .weight = vw::weight::semibold, .family = font::display});
+    } else if (id == "power") {
+      draw_power_at(ui, x, y, k, alpha, !page.editing);
+    } else if (!text.empty()) {
+      draw::text_middle(ui, text, x, y + size.h / 2, text_item_style(item, k, alpha));
+    } else if (!view.empty()) {
+      draw_plugin_at(ui, view, extra, x, y);
+      // Shown, never clicked: a click on it raises the sheet like the page.
+      if (!page.editing)
+        ui.rectangle({.width = size.w, .height = size.h, .color = with_alpha(c.surface, 0),
+                      .place = {.x = x, .y = y}, .input = {.on_click = [click = page.on_click](const vw::ClickEvent&) {
+                        if (click) click();
+                      }}});
+    }
+    if (page.placed != nullptr) page.placed->push_back({index, x, y, size.w, size.h});
+  }
 }
 
 // The password sheet in its floating card; `reveal` 0 is below the edge.
@@ -272,6 +579,78 @@ LockLook lock_look() {
           c.lock_blur_passes, c.lock_blur_offset, c.lock_show_status, c.lock_show_weather, {}};
 }
 
+std::string greeter_wallpaper_path() {
+  std::string path = config().greeter_wallpaper;
+  if (const char* home = std::getenv("HOME"); path.starts_with("~/") && home != nullptr) path = home + path.substr(1);
+  return path;
+}
+
+// Its own wallpaper only when readable here: after an export it already is
+// the theme's wallpaper.
+LockLook greeter_look() {
+  const Config& c = config();
+  LockLook look = c.greeter_match_lock
+                      ? lock_look()
+                      : LockLook{c.greeter_clock_format, c.greeter_date_format, c.greeter_clock_style,
+                                 c.greeter_clock_size, c.greeter_tint, c.greeter_blur_passes, c.greeter_blur_offset,
+                                 c.greeter_show_status, c.greeter_show_weather, {}};
+  const std::string wallpaper = greeter_wallpaper_path();
+  std::error_code error;
+  if (!wallpaper.empty() && std::filesystem::is_regular_file(wallpaper, error) && access(wallpaper.c_str(), R_OK) == 0)
+    look.wallpaper = wallpaper;
+  return look;
+}
+
+std::vector<LockItem> default_lock_layout(bool greeter) {
+  // Where the classic arrangement puts things on a 1080p screen.
+  std::vector<LockItem> items{
+      {.id = "clock", .x = 0.5F, .y = 0.207F, .ax = 0.5F, .ay = 0},
+      {.id = "date", .x = 0.5F, .y = 0.566F, .ax = 0.5F, .ay = 0},
+      {.id = "status", .x = 0.9875F, .y = 0.02F, .ax = 1, .ay = 0},
+      {.id = "hint", .x = 0.5F, .y = 0.878F, .ax = 0.5F, .ay = 0},
+      {.id = "weather", .x = 0.5F, .y = 0.64F, .ax = 0.5F, .ay = 0, .visible = false},
+      {.id = "user", .x = 0.5F, .y = 0.08F, .ax = 0.5F, .ay = 0, .visible = false},
+  };
+  if (greeter) {
+    items.push_back({.id = "power", .x = 0.0125F, .y = 0.0185F, .ax = 0, .ay = 0, .visible = config().greeter_show_power});
+  } else {
+    items.push_back({.id = "notifications", .x = 0.5F, .y = 0.628F, .ax = 0.5F, .ay = 0, .visible = config().lock_show_notifications});
+    items.push_back({.id = "media", .x = 0.5F, .y = 0.69F, .ax = 0.5F, .ay = 0, .visible = config().lock_show_media});
+  }
+  return items;
+}
+
+std::string lock_item_label(const LockItem& item) {
+  const std::string& id = item.id;
+  if (id == "clock") return "Clock";
+  if (id == "date") return "Date";
+  if (id == "weather") return "Weather";
+  if (id == "status") return "Status icons";
+  if (id == "hint") return "Hint";
+  if (id == "notifications") return "Notifications";
+  if (id == "media") return "Media player";
+  if (id == "user") return "Picture and name";
+  if (id == "power") return "Power buttons";
+  if (id.starts_with("text:")) return item.text.empty() ? "Text" : "Text: " + item.text;
+  if (const std::string view = plugin_of(id); !view.empty()) {
+    const auto colon = view.rfind(':');
+    return colon == std::string::npos ? view : view.substr(0, colon) + " · " + view.substr(colon + 1);
+  }
+  return id;
+}
+
+bool lock_item_allowed(const std::string& id, bool greeter) {
+  if (greeter) return id != "notifications" && id != "media" && !id.starts_with("plugin:");
+  return id != "power";
+}
+
+const std::vector<LockItem>* lock_layout_for(bool greeter) {
+  const Config& c = config();
+  if (!greeter) return c.lock_layout_custom ? &c.lock_layout : nullptr;
+  if (c.greeter_layout_custom) return &c.greeter_layout;
+  return c.greeter_match_lock && c.lock_layout_custom ? &c.lock_layout : nullptr;
+}
+
 void draw_avatar(vw::Ui& ui, const std::string& id, const std::string& picture, float centre_x, float y, float size,
                  const std::string& shape) {
   const Colours& c = colours();
@@ -304,12 +683,19 @@ void draw_lock_page(vw::Ui& ui, const LockPage& page) {
     group.draw(ui, width, height);
   }
 
+  const std::string date = system::format_time(look.date_format);
+  const auto weather = look.show_weather ? weather::current() : std::nullopt;
+  if (page.layout != nullptr) {
+    draw_layout(ui, page, look, date, weather);
+    if (intro < 0.999F)
+      ui.rectangle({.width = width, .height = height, .color = with_alpha(c.surface, 1 - intro), .place = {.x = 0, .y = 0}});
+    return;
+  }
+
   const float centre = width / 2;
   if (look.show_status) draw_status(ui, width - 24, 1 - reveal);
 
   // What sits under the clock decides where the whole block goes.
-  const std::string date = system::format_time(look.date_format);
-  const auto weather = look.show_weather ? weather::current() : std::nullopt;
   const bool widgets = page.session_widgets && reveal < 0.2F;
   const bool notifications = widgets && settings.lock_show_notifications && !notify::history().empty();
   const bool media = widgets && settings.lock_show_media && has_media();
@@ -364,8 +750,10 @@ void draw_lock_page(vw::Ui& ui, const LockPage& page) {
 
 void draw_lock_preview(vw::Ui& ui, float width, float height, bool sheet) {
   const float reveal = sheet ? 1.0F : 0.0F;
+  const char* user = std::getenv("USER");
   draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .hint = "Press any key to unlock", .hint_glyph = "lock",
-                      .session_widgets = true});
+                      .session_widgets = true, .layout = lock_layout_for(false), .user_name = user != nullptr ? user : "",
+                      .user_picture = system::avatar()});
   draw_sheet(ui, width, height, reveal, false, 0, false);
 }
 
@@ -433,7 +821,9 @@ void lock_surface(vw::Ui& ui) {
                                        0.0F, 1.0F);
   draw_lock_page(ui, {.width = width, .height = height, .reveal = reveal, .intro = intro,
                       .hint = "Press any key to unlock", .hint_glyph = "lock", .session_widgets = true,
-                      .on_click = [] { open_sheet(); }});
+                      .on_click = [] { open_sheet(); }, .layout = lock_layout_for(false),
+                      .user_name = std::getenv("USER") != nullptr ? std::getenv("USER") : "",
+                      .user_picture = system::avatar()});
 
   // A short decaying shake on a wrong password.
   const float since = std::chrono::duration<float>(Clock::now() - state.failed_at).count();
